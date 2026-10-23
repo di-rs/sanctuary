@@ -123,6 +123,17 @@ def main() -> None:
         assert colored_text(output, 1) == b"44"
         assert colored_text(output, (0, 128, 0)).endswith(b"// real comment")
 
+        source = (
+            b'let a = "/*";\n'
+            b'let b = r#"quote " /*\n'
+            b'/* still raw"#; let n = 42;\n'
+            b"/* actual block */ let m = 43;\n"
+        )
+        (directory / "original").write_bytes(source)
+        output = session(binary, directory, [b":w block_comments.rs\r", b"\x11"])
+        assert colored_text(output, 1) == b"4243"
+        assert colored_text(output, (0, 128, 0)) == b"/* actual block */"
+
 
 if __name__ == "__main__":
     main()
