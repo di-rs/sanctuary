@@ -9,13 +9,9 @@ from interaction import check
 def main() -> None:
     binary = str(Path(sys.argv[1]).resolve())
     source = "xe\u0301x 👩‍💻".encode()
-    for query, expected in [("\u0301", "xXe\u0301x 👩‍💻"), ("💻", "xe\u0301x X👩‍💻")]:
-        check(
-            binary,
-            source,
-            [f"/{query}\r".encode(), b"iX", b"\x1b", b"\x13\x11"],
-            expected.encode(),
-        )
+    for query in ["\u0301", "💻"]:
+        output = check(binary, source, [f"/{query}\r".encode(), b"\x11"], source)
+        assert b"0 matches" in output
 
     output = check(binary, b"abc", [b"/query\x7f", b"\x1b", b"i/?", b"\x1b", b"\x13\x11"], b"/?abc")
     assert b"/quer" in output
@@ -52,6 +48,22 @@ def main() -> None:
         b"hit--hit",
         [b"/hit", b"\x1b[B\x1b[A", b"\r", b"iX", b"\x1b", b"\x13\x11"],
         b"Xhit--hit",
+    )
+
+    check(
+        binary, "e\u0301 e".encode(), [b"/e\r", b"iX", b"\x1b", b"\x13\x11"], "e\u0301 Xe".encode()
+    )
+    check(
+        binary,
+        "👩‍💻 👩".encode(),
+        ["/👩\r".encode(), b"iX", b"\x1b", b"\x13\x11"],
+        "👩‍💻 X👩".encode(),
+    )
+    check(
+        binary,
+        "🇧🇦🇦🇦".encode(),
+        ["/🇦🇦\r".encode(), b"iX", b"\x1b", b"\x13\x11"],
+        "🇧🇦X🇦🇦".encode(),
     )
 
 
