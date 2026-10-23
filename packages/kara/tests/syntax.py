@@ -83,6 +83,30 @@ def main() -> None:
         assert colored_text(output, 4) == b"macro_rulesrawsafe"
         assert (directory / "keywords.rs").read_bytes() == source
 
+        source = "'a-', 'a\u0301'".encode()
+        (directory / "original").write_bytes(source)
+        output = session(binary, directory, [b":w characters.rs\r", b"\x11"])
+        assert colored_text(output, (255, 191, 0)) == "'a-''a\u0301'".encode()
+        assert (directory / "characters.rs").read_bytes() == source
+
+        source = (
+            rb"accept!('a-'b');"
+            b"\n"
+            rb"accept!('a-' ');"
+            b"\n"
+            rb"accept!('a-'\n');"
+            b"\n"
+            rb"accept!('a-'\x41');"
+            b"\n"
+            rb"accept!('a-'\u{1F642}');"
+            b"\n"
+        )
+        (directory / "original").write_bytes(source)
+        output = session(binary, directory, [b":w lifetimes.rs\r", b"\x11"])
+        assert colored_text(output, (255, 191, 0)) == rb"'b'' ''\n''\x41''\u{1F642}'"
+        assert colored_text(output, (0, 128, 128)) == b"'a" * 5
+        assert (directory / "lifetimes.rs").read_bytes() == source
+
 
 if __name__ == "__main__":
     main()
