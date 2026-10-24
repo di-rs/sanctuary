@@ -4,79 +4,29 @@ use pretty_assertions::assert_eq;
 use std::{fs, os::unix::fs::PermissionsExt};
 use tempfile::NamedTempFile;
 
-struct Test {
-    input: &'static str,
-    out: &'static str,
-    out_count: &'static str,
-}
-
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-const EMPTY: Test = Test {
-    input: "tests/inputs/empty.txt",
-    out: "empty.txt.out",
-    out_count: "empty.txt.c.out",
-};
+const EMPTY: &str = "empty";
 
-const ONE: Test = Test {
-    input: "tests/inputs/one.txt",
-    out: "one.txt.out",
-    out_count: "one.txt.c.out",
-};
+const ONE: &str = "one";
 
-const TWO: Test = Test {
-    input: "tests/inputs/two.txt",
-    out: "two.txt.out",
-    out_count: "two.txt.c.out",
-};
+const TWO: &str = "two";
 
-const THREE: Test = Test {
-    input: "tests/inputs/three.txt",
-    out: "three.txt.out",
-    out_count: "three.txt.c.out",
-};
+const THREE: &str = "three";
 
-const SKIP: Test = Test {
-    input: "tests/inputs/skip.txt",
-    out: "skip.txt.out",
-    out_count: "skip.txt.c.out",
-};
+const SKIP: &str = "skip";
 
-const T1: Test = Test {
-    input: "tests/inputs/t1.txt",
-    out: "t1.txt.out",
-    out_count: "t1.txt.c.out",
-};
+const T1: &str = "t1";
 
-const T2: Test = Test {
-    input: "tests/inputs/t2.txt",
-    out: "t2.txt.out",
-    out_count: "t2.txt.c.out",
-};
+const T2: &str = "t2";
 
-const T3: Test = Test {
-    input: "tests/inputs/t3.txt",
-    out: "t3.txt.out",
-    out_count: "t3.txt.c.out",
-};
+const T3: &str = "t3";
 
-const T4: Test = Test {
-    input: "tests/inputs/t4.txt",
-    out: "t4.txt.out",
-    out_count: "t4.txt.c.out",
-};
+const T4: &str = "t4";
 
-const T5: Test = Test {
-    input: "tests/inputs/t5.txt",
-    out: "t5.txt.out",
-    out_count: "t5.txt.c.out",
-};
+const T5: &str = "t5";
 
-const T6: Test = Test {
-    input: "tests/inputs/t6.txt",
-    out: "t6.txt.out",
-    out_count: "t6.txt.c.out",
-};
+const T6: &str = "t6";
 
 #[test]
 fn usage() {
@@ -108,100 +58,39 @@ fn dies_bad_file() -> Result<()> {
     Ok(())
 }
 
-fn run(test: &Test) -> Result<()> {
-    let expected = cli_testing::fixtures!().read_expected(test.out)?;
-    cargo_bin_cmd!()
-        .arg(test.input)
-        .assert()
-        .code(0)
-        .stdout(expected)
-        .stderr("");
+fn run_outfile_case(name: &str) -> Result<()> {
+    let context = cli_testing::context!();
+    let suite = context.suite()?;
+    let case = suite.case(name)?;
+    let path = case
+        .expect
+        .stdout_file
+        .as_deref()
+        .ok_or("missing output fixture")?;
+    let expected = suite.read(path)?;
+    let workspace = context.workspace()?;
+    let output = workspace.child("output");
+    let mut cx = context.case(name)?;
+    if case.stdin.is_some() {
+        cx.args(["-"])?;
+    }
+    cx.args([output.path()])?;
+    cx.map_expected_stdout(|_| Vec::new())?;
+    cx.check()?;
+    assert_eq!(fs::read(output.path())?, expected);
     Ok(())
 }
 
-fn run_count(test: &Test) -> Result<()> {
-    let expected = cli_testing::fixtures!().read_expected(test.out_count)?;
-    cargo_bin_cmd!()
-        .args([test.input, "-c"])
-        .assert()
-        .code(0)
-        .stdout(expected)
-        .stderr("");
-    Ok(())
+fn run_outfile(name: &str) -> Result<()> {
+    run_outfile_case(name)
 }
 
-fn run_stdin(test: &Test) -> Result<()> {
-    let fixtures = cli_testing::fixtures!();
-    let input = fs::read(test.input)?;
-    let expected = fixtures.read_expected(test.out)?;
-    cargo_bin_cmd!()
-        .write_stdin(input)
-        .assert()
-        .code(0)
-        .stdout(expected)
-        .stderr("");
-    Ok(())
+fn run_outfile_count(name: &str) -> Result<()> {
+    run_outfile_case(&format!("{name}_count"))
 }
 
-fn run_stdin_count(test: &Test) -> Result<()> {
-    let fixtures = cli_testing::fixtures!();
-    let input = fs::read(test.input)?;
-    let expected = fixtures.read_expected(test.out_count)?;
-    cargo_bin_cmd!()
-        .arg("--count")
-        .write_stdin(input)
-        .assert()
-        .code(0)
-        .stdout(expected)
-        .stderr("");
-    Ok(())
-}
-
-fn run_outfile(test: &Test) -> Result<()> {
-    let expected = cli_testing::fixtures!().read_expected(test.out)?;
-    let outfile = NamedTempFile::new()?;
-    cargo_bin_cmd!()
-        .arg(test.input)
-        .arg(outfile.path())
-        .assert()
-        .success()
-        .stdout("")
-        .stderr("");
-    assert_eq!(fs::read(outfile.path())?, expected);
-    Ok(())
-}
-
-fn run_outfile_count(test: &Test) -> Result<()> {
-    let expected = cli_testing::fixtures!().read_expected(test.out_count)?;
-    let outfile = NamedTempFile::new()?;
-    cargo_bin_cmd!()
-        .arg(test.input)
-        .arg(outfile.path())
-        .arg("--count")
-        .assert()
-        .success()
-        .stdout("")
-        .stderr("");
-    assert_eq!(fs::read(outfile.path())?, expected);
-    Ok(())
-}
-
-fn run_outfile_stdin_count(test: &Test) -> Result<()> {
-    let fixtures = cli_testing::fixtures!();
-    let input = fs::read(test.input)?;
-    let expected = fixtures.read_expected(test.out_count)?;
-    let outfile = NamedTempFile::new()?;
-    cargo_bin_cmd!()
-        .arg("-")
-        .arg(outfile.path())
-        .arg("--count")
-        .write_stdin(input)
-        .assert()
-        .success()
-        .stdout("")
-        .stderr("");
-    assert_eq!(fs::read(outfile.path())?, expected);
-    Ok(())
+fn run_outfile_stdin_count(name: &str) -> Result<()> {
+    run_outfile_case(&format!("{name}_stdin_count"))
 }
 
 #[test]
@@ -264,388 +153,168 @@ fn output_file_is_truncated_for_shorter_result() -> Result<()> {
 }
 
 #[test]
-fn empty() -> Result<()> {
-    run(&EMPTY)
-}
-
-#[test]
-fn empty_count() -> Result<()> {
-    run_count(&EMPTY)
-}
-
-#[test]
-fn empty_stdin() -> Result<()> {
-    run_stdin(&EMPTY)
-}
-
-#[test]
-fn empty_stdin_count() -> Result<()> {
-    run_stdin_count(&EMPTY)
-}
-
-#[test]
 fn empty_outfile() -> Result<()> {
-    run_outfile(&EMPTY)
+    run_outfile(EMPTY)
 }
 
 #[test]
 fn empty_outfile_count() -> Result<()> {
-    run_outfile_count(&EMPTY)
+    run_outfile_count(EMPTY)
 }
 
 #[test]
 fn empty_stdin_outfile_count() -> Result<()> {
-    run_outfile_stdin_count(&EMPTY)
-}
-
-#[test]
-fn one() -> Result<()> {
-    run(&ONE)
-}
-
-#[test]
-fn one_count() -> Result<()> {
-    run_count(&ONE)
-}
-
-#[test]
-fn one_stdin() -> Result<()> {
-    run_stdin(&ONE)
-}
-
-#[test]
-fn one_stdin_count() -> Result<()> {
-    run_stdin_count(&ONE)
+    run_outfile_stdin_count(EMPTY)
 }
 
 #[test]
 fn one_outfile() -> Result<()> {
-    run_outfile(&ONE)
+    run_outfile(ONE)
 }
 
 #[test]
 fn one_outfile_count() -> Result<()> {
-    run_outfile_count(&ONE)
+    run_outfile_count(ONE)
 }
 
 #[test]
 fn one_stdin_outfile_count() -> Result<()> {
-    run_outfile_stdin_count(&ONE)
-}
-
-#[test]
-fn two() -> Result<()> {
-    run(&TWO)
-}
-
-#[test]
-fn two_count() -> Result<()> {
-    run_count(&TWO)
-}
-
-#[test]
-fn two_stdin() -> Result<()> {
-    run_stdin(&TWO)
-}
-
-#[test]
-fn two_stdin_count() -> Result<()> {
-    run_stdin_count(&TWO)
+    run_outfile_stdin_count(ONE)
 }
 
 #[test]
 fn two_outfile() -> Result<()> {
-    run_outfile(&TWO)
+    run_outfile(TWO)
 }
 
 #[test]
 fn two_outfile_count() -> Result<()> {
-    run_outfile_count(&TWO)
+    run_outfile_count(TWO)
 }
 
 #[test]
 fn two_stdin_outfile_count() -> Result<()> {
-    run_outfile_stdin_count(&TWO)
-}
-
-#[test]
-fn three() -> Result<()> {
-    run(&THREE)
-}
-
-#[test]
-fn three_count() -> Result<()> {
-    run_count(&THREE)
-}
-
-#[test]
-fn three_stdin() -> Result<()> {
-    run_stdin(&THREE)
-}
-
-#[test]
-fn three_stdin_count() -> Result<()> {
-    run_stdin_count(&THREE)
+    run_outfile_stdin_count(TWO)
 }
 
 #[test]
 fn three_outfile() -> Result<()> {
-    run_outfile(&THREE)
+    run_outfile(THREE)
 }
 
 #[test]
 fn three_outfile_count() -> Result<()> {
-    run_outfile_count(&THREE)
+    run_outfile_count(THREE)
 }
 
 #[test]
 fn three_stdin_outfile_count() -> Result<()> {
-    run_outfile_stdin_count(&THREE)
-}
-
-#[test]
-fn skip() -> Result<()> {
-    run(&SKIP)
-}
-
-#[test]
-fn skip_count() -> Result<()> {
-    run_count(&SKIP)
-}
-
-#[test]
-fn skip_stdin() -> Result<()> {
-    run_stdin(&SKIP)
-}
-
-#[test]
-fn skip_stdin_count() -> Result<()> {
-    run_stdin_count(&SKIP)
+    run_outfile_stdin_count(THREE)
 }
 
 #[test]
 fn skip_outfile() -> Result<()> {
-    run_outfile(&SKIP)
+    run_outfile(SKIP)
 }
 
 #[test]
 fn skip_outfile_count() -> Result<()> {
-    run_outfile_count(&SKIP)
+    run_outfile_count(SKIP)
 }
 
 #[test]
 fn skip_stdin_outfile_count() -> Result<()> {
-    run_outfile_stdin_count(&SKIP)
-}
-
-#[test]
-fn t1() -> Result<()> {
-    run(&T1)
-}
-
-#[test]
-fn t1_count() -> Result<()> {
-    run_count(&T1)
-}
-
-#[test]
-fn t1_stdin() -> Result<()> {
-    run_stdin(&T1)
-}
-
-#[test]
-fn t1_stdin_count() -> Result<()> {
-    run_stdin_count(&T1)
+    run_outfile_stdin_count(SKIP)
 }
 
 #[test]
 fn t1_outfile() -> Result<()> {
-    run_outfile(&T1)
+    run_outfile(T1)
 }
 
 #[test]
 fn t1_outfile_count() -> Result<()> {
-    run_outfile_count(&T1)
+    run_outfile_count(T1)
 }
 
 #[test]
 fn t1_stdin_outfile_count() -> Result<()> {
-    run_outfile_stdin_count(&T1)
-}
-
-#[test]
-fn t2() -> Result<()> {
-    run(&T2)
-}
-
-#[test]
-fn t2_count() -> Result<()> {
-    run_count(&T2)
-}
-
-#[test]
-fn t2_stdin() -> Result<()> {
-    run_stdin(&T2)
-}
-
-#[test]
-fn t2_stdin_count() -> Result<()> {
-    run_stdin_count(&T2)
+    run_outfile_stdin_count(T1)
 }
 
 #[test]
 fn t2_outfile() -> Result<()> {
-    run_outfile(&T2)
+    run_outfile(T2)
 }
 
 #[test]
 fn t2_outfile_count() -> Result<()> {
-    run_outfile_count(&T2)
+    run_outfile_count(T2)
 }
 
 #[test]
 fn t2_stdin_outfile_count() -> Result<()> {
-    run_outfile_stdin_count(&T2)
-}
-
-#[test]
-fn t3() -> Result<()> {
-    run(&T3)
-}
-
-#[test]
-fn t3_count() -> Result<()> {
-    run_count(&T3)
-}
-
-#[test]
-fn t3_stdin() -> Result<()> {
-    run_stdin(&T3)
-}
-
-#[test]
-fn t3_stdin_count() -> Result<()> {
-    run_stdin_count(&T3)
+    run_outfile_stdin_count(T2)
 }
 
 #[test]
 fn t3_outfile() -> Result<()> {
-    run_outfile(&T3)
+    run_outfile(T3)
 }
 
 #[test]
 fn t3_outfile_count() -> Result<()> {
-    run_outfile_count(&T3)
+    run_outfile_count(T3)
 }
 
 #[test]
 fn t3_stdin_outfile_count() -> Result<()> {
-    run_outfile_stdin_count(&T3)
-}
-
-#[test]
-fn t4() -> Result<()> {
-    run(&T4)
-}
-
-#[test]
-fn t4_count() -> Result<()> {
-    run_count(&T4)
-}
-
-#[test]
-fn t4_stdin() -> Result<()> {
-    run_stdin(&T4)
-}
-
-#[test]
-fn t4_stdin_count() -> Result<()> {
-    run_stdin_count(&T4)
+    run_outfile_stdin_count(T3)
 }
 
 #[test]
 fn t4_outfile() -> Result<()> {
-    run_outfile(&T4)
+    run_outfile(T4)
 }
 
 #[test]
 fn t4_outfile_count() -> Result<()> {
-    run_outfile_count(&T4)
+    run_outfile_count(T4)
 }
 
 #[test]
 fn t4_stdin_outfile_count() -> Result<()> {
-    run_outfile_stdin_count(&T4)
-}
-
-#[test]
-fn t5() -> Result<()> {
-    run(&T5)
-}
-
-#[test]
-fn t5_count() -> Result<()> {
-    run_count(&T5)
-}
-
-#[test]
-fn t5_stdin() -> Result<()> {
-    run_stdin(&T5)
-}
-
-#[test]
-fn t5_stdin_count() -> Result<()> {
-    run_stdin_count(&T5)
+    run_outfile_stdin_count(T4)
 }
 
 #[test]
 fn t5_outfile() -> Result<()> {
-    run_outfile(&T5)
+    run_outfile(T5)
 }
 
 #[test]
 fn t5_outfile_count() -> Result<()> {
-    run_outfile_count(&T5)
+    run_outfile_count(T5)
 }
 
 #[test]
 fn t5_stdin_outfile_count() -> Result<()> {
-    run_outfile_stdin_count(&T5)
-}
-
-#[test]
-fn t6() -> Result<()> {
-    run(&T6)
-}
-
-#[test]
-fn t6_count() -> Result<()> {
-    run_count(&T6)
-}
-
-#[test]
-fn t6_stdin() -> Result<()> {
-    run_stdin(&T6)
-}
-
-#[test]
-fn t6_stdin_count() -> Result<()> {
-    run_stdin_count(&T6)
+    run_outfile_stdin_count(T5)
 }
 
 #[test]
 fn t6_outfile() -> Result<()> {
-    run_outfile(&T6)
+    run_outfile(T6)
 }
 
 #[test]
 fn t6_outfile_count() -> Result<()> {
-    run_outfile_count(&T6)
+    run_outfile_count(T6)
 }
 
 #[test]
 fn t6_stdin_outfile_count() -> Result<()> {
-    run_outfile_stdin_count(&T6)
+    run_outfile_stdin_count(T6)
 }
 
 #[test]
