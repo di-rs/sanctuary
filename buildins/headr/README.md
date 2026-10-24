@@ -28,6 +28,8 @@ expected bytes with replacement to match `headr`'s intentional UTF-8 behavior.
 
 ## CLI test recipes
 
+Native tests use `#[cli_test]` to receive shared helpers as `cx: &TestContext`.
+
 Stable invocations and every retained expectation are connected in
 [the catalog](tests/cases.toml). Boundary, error, and process scenarios remain in Rust.
 The catalog replaces the Nushell generator; references use explicit macOS system

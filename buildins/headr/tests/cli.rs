@@ -1,5 +1,6 @@
 use assert_fs::{NamedTempFile, fixture::FileTouch};
-use cli_testing::cargo_bin_cmd;
+use cli_testing::{TestContext, cli_test};
+
 use predicates::prelude::*;
 use std::{fs, os::unix::fs::PermissionsExt};
 
@@ -7,10 +8,10 @@ const EMPTY: &str = "./tests/inputs/empty.txt";
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-#[test]
-fn usage() {
+#[cli_test]
+fn usage(cx: &TestContext) {
     for flag in &["-h", "--help"] {
-        cargo_bin_cmd!()
+        cx.command()
             .arg(flag)
             .assert()
             .success()
@@ -26,12 +27,12 @@ fn gen_bad_file() -> Result<NamedTempFile> {
     Ok(file)
 }
 
-#[test]
-fn skip_bad_file() -> Result<()> {
+#[cli_test]
+fn skip_bad_file(cx: &TestContext) -> Result<()> {
     let bad = gen_bad_file()?;
     let bad = bad.path().display().to_string();
     let expected = format!("{bad}: .* [(]os error 13[)]");
-    cargo_bin_cmd!()
+    cx.command()
         .args([EMPTY, &bad])
         .assert()
         .code(1)
@@ -39,49 +40,49 @@ fn skip_bad_file() -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn dies_bad_bytes() {
+#[cli_test]
+fn dies_bad_bytes(cx: &TestContext) {
     let bad = "ddsdsasad";
     let expected = format!(
         "invalid value '{bad}' for \
         '--bytes <BYTES>': invalid digit found in string"
     );
-    cargo_bin_cmd!()
+    cx.command()
         .args(["-c", bad, EMPTY])
         .assert()
         .failure()
         .stderr(predicate::str::contains(expected));
 }
 
-#[test]
-fn dies_bad_lines() {
+#[cli_test]
+fn dies_bad_lines(cx: &TestContext) {
     let bad = "ddsdsasad";
     let expected = format!(
         "invalid value '{bad}' for \
         '--lines <LINES>': invalid digit found in string"
     );
-    cargo_bin_cmd!()
+    cx.command()
         .args(["-n", bad, EMPTY])
         .assert()
         .failure()
         .stderr(predicate::str::contains(expected));
 }
 
-#[test]
-fn dies_bytes_and_lines() {
+#[cli_test]
+fn dies_bytes_and_lines(cx: &TestContext) {
     let expected = "the argument '--lines <LINES>' cannot be \
                used with '--bytes <BYTES>'";
-    cargo_bin_cmd!()
+    cx.command()
         .args(["-n", "1", "-c", "2"])
         .assert()
         .failure()
         .stderr(predicate::str::contains(expected));
 }
 
-#[test]
-fn rejects_zero_counts_and_unknown_flag() {
+#[cli_test]
+fn rejects_zero_counts_and_unknown_flag(cx: &TestContext) {
     for args in [["-n", "0"], ["-c", "0"], ["--unknown", "1"]] {
-        cargo_bin_cmd!()
+        cx.command()
             .args(args)
             .assert()
             .failure()
@@ -90,10 +91,10 @@ fn rejects_zero_counts_and_unknown_flag() {
     }
 }
 
-#[test]
-fn explicit_stdin_preserves_line_endings_and_unterminated_line() {
+#[cli_test]
+fn explicit_stdin_preserves_line_endings_and_unterminated_line(cx: &TestContext) {
     for (count, expected) in [("1", "é\r\n"), ("2", "é\r\n世界"), ("9", "é\r\n世界")] {
-        cargo_bin_cmd!()
+        cx.command()
             .args(["-n", count, "-"])
             .write_stdin("é\r\n世界")
             .assert()
@@ -103,10 +104,10 @@ fn explicit_stdin_preserves_line_endings_and_unterminated_line() {
     }
 }
 
-#[test]
-fn stdin_byte_limit_handles_utf8_boundaries() {
+#[cli_test]
+fn stdin_byte_limit_handles_utf8_boundaries(cx: &TestContext) {
     for (count, expected) in [("1", "�"), ("2", "é"), ("3", "é�"), ("99", "é界")] {
-        cargo_bin_cmd!()
+        cx.command()
             .args(["-c", count])
             .write_stdin("é界")
             .assert()
@@ -116,10 +117,10 @@ fn stdin_byte_limit_handles_utf8_boundaries() {
     }
 }
 
-#[test]
-fn empty_stdin_in_line_and_byte_modes() {
+#[cli_test]
+fn empty_stdin_in_line_and_byte_modes(cx: &TestContext) {
     for mode in ["-n", "-c"] {
-        cargo_bin_cmd!()
+        cx.command()
             .args([mode, "1"])
             .write_stdin("")
             .assert()
@@ -131,9 +132,9 @@ fn empty_stdin_in_line_and_byte_modes() {
 
 // --------------------------------------------------
 
-#[test]
-fn missing_operand_returns_failure() {
-    cli_testing::cargo_bin_cmd!()
+#[cli_test]
+fn missing_operand_returns_failure(cx: &TestContext) {
+    cx.command()
         .args(["/sanctuary-audit-missing/path"])
         .assert()
         .code(1)
