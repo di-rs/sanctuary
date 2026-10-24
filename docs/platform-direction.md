@@ -7,9 +7,9 @@ model.
 
 ## Platform responsibilities
 
-Boxie is the platform runtime. It owns sandbox execution and isolation. The shell
-will be a builtin in this repository, with the repository's other builtins baked
-into its environment. The shell is work in progress and does not exist yet.
+Boxie is the platform runtime. It owns sandbox execution and isolation. Shish
+is a shell application in this repository. It embeds Brush for local shell
+execution.
 
 Separate applications and services will manage consumer accounts, consumer API
 tokens, and environment setup. Their names, interfaces, and deployment boundaries
@@ -31,28 +31,53 @@ its own preview and browser-session metadata.
 
 The [current architecture](architecture.md) describes these implemented boundaries.
 The target platform does not change today's operating requirements or imply that
-the future shell and management services are available.
+the planned management services are available.
 
-## Open design question: shell durability
+## Compatibility and product priorities
 
-The shell needs a Temporal-backed execution design, but the division of work
-between shell and runtime remains open. Two approaches deserve evaluation:
+The platform's goal is isolated shell workloads with explicit, tested recovery
+guarantees. Four contracts contribute to that goal:
 
-| Approach | Benefit | Design work it requires |
-| --- | --- | --- |
-| Shell-owned workflows and activities | Shell operations can express their own durable execution semantics. | Define replay-safe operations, side-effect handling, credentials, and how shell workers recover. |
-| Runtime-mediated durable execution | Boxie can keep workflow connectivity and credentials outside the shell environment. | Define how the shell expresses resumable work and how runtime recovery preserves shell semantics. |
+| Contract | Responsibility |
+| --- | --- |
+| Shell compatibility | Predictable arguments, quoting, expansion, pipelines, redirection, and exit statuses |
+| Sandbox isolation | Enforced filesystem, network, process, resource, and ownership boundaries |
+| Execution durability | Defined outcomes after disconnects, crashes, cancellation, and retries |
+| Interactive experience | Prompts, completion, history, and job controls |
 
-Temporal service placement is a separate choice. A shared service outside
-sandboxes centralizes operations but needs an explicit trust and isolation model.
-A service inside each sandbox would couple its storage and recovery to the sandbox
-and add per-environment operating cost. Neither placement is selected here.
+POSIX is a compatibility reference for the shell. Full conformance is not a
+prerequisite for platform delivery. Prioritize correct common shell operations and
+clear recovery semantics. Interactive features and compatibility edge cases are
+not all platform release gates.
 
-Before choosing, define what survives failure: command progress, filesystem state,
-shell variables, external side effects, and terminal connections are different
-contracts. Also decide how cancellation, retries, environment versions, and consumer
-ownership interact. Existing lifecycle recovery is not evidence for any stronger
-shell guarantee.
+Shish embeds Brush and tracks the behavior verified through shish itself. Parser and runtime integration stay inside the shish package
+until another component needs a shared API. Selecting a library or enabling its
+POSIX mode does not establish conformance.
 
-These questions guide future design work; this decision does not prescribe a
-runtime migration schedule or new public API.
+Shish's [compatibility reference](../packages/shish/docs/compatibility.md) records
+the detailed compatibility inventory.
+Record verified, partial, missing, and unverified behavior against the tested
+library version, shell mode, and platform. For a gap, retain the applicable
+standard section, a reproducer, expected and observed results, its cause and user
+impact, any workaround, and test links. Track Bash extensions
+separately. Upstream-reported limitations require reproduction before they become
+confirmed shish defects.
+
+Shell compatibility alone makes no operating-system-wide or complete utility-conformance
+claim.
+
+## Shell recovery limits
+
+Shish runs locally; Boxie's approved sandbox profiles run Bash. Boxie's Temporal
+workers coordinate sandbox lifecycle operations, not durable shell commands.
+Restarting the supervisor ends terminal processes. Reconnecting to a surviving
+process does not restore a lost process or its shell state.
+
+Shell history and syntax trees do not provide execution checkpoints. A command
+can change files or external systems before its result is lost; rerunning it can
+repeat those effects. See Boxie's [execution and recovery contract](../packages/boxie/docs/execution.md)
+for its current guarantees.
+
+The [shish durability plan](../packages/shish/docs/durability.md) covers the
+unimplemented Boxie integration and explicit durable jobs, including persistence,
+retry policy, cancellation, and staged acceptance criteria.
