@@ -36,4 +36,17 @@ Existing multi-file fixtures use BSD `tail` header and empty-file behavior.
 Keep byte-mode output as raw bytes and review the selected reference's behavior
 before replacing those expectations.
 
+## CLI test recipes
+
+Stable invocations and every retained expectation are connected in
+[the catalog](tests/cases.toml). Boundary, error, and process scenarios remain in Rust.
+The catalog replaces the Nushell generator; references use explicit macOS system
+executables. Expected bytes are unchanged.
+
+Run `cargo nextest run -p tailr --profile ci` from the repository root.
+Inspect recipes with `cli-testing --suite buildins/tailr/tests/cases.toml explain NAME`.
+Use the [fixture workflow](../../tools/cli-testing/README.md) to record independent
+references and review changes before applying them. Ordinary tests only read
+committed expectations.
+
 [All commands](../../README.md)
