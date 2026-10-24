@@ -1,18 +1,18 @@
-use cli_testing::cargo_bin_cmd;
+use cli_testing::{TestContext, cli_test};
 use predicates::prelude::*;
 
-#[test]
-fn dies_no_args() {
-    let mut cmd = cargo_bin_cmd!();
+#[cli_test]
+fn dies_no_args(cx: &TestContext) {
+    let mut cmd = cx.command();
     cmd.assert()
         .failure()
         .stdout("")
         .stderr(predicate::str::contains("Usage"));
 }
 
-#[test]
-fn runs() {
-    let mut cmd = cargo_bin_cmd!();
+#[cli_test]
+fn runs(cx: &TestContext) {
+    let mut cmd = cx.command();
     cmd.arg("Hello")
         .assert()
         .success()
@@ -20,10 +20,10 @@ fn runs() {
         .stderr("");
 }
 
-#[test]
-fn usage() {
+#[cli_test]
+fn usage(cx: &TestContext) {
     for flag in ["-h", "--help"] {
-        cargo_bin_cmd!()
+        cx.command()
             .arg(flag)
             .assert()
             .success()
@@ -32,9 +32,9 @@ fn usage() {
     }
 }
 
-#[test]
-fn rejects_unknown_flag() {
-    cargo_bin_cmd!()
+#[cli_test]
+fn rejects_unknown_flag(cx: &TestContext) {
+    cx.command()
         .arg("--unknown")
         .assert()
         .failure()
@@ -42,14 +42,14 @@ fn rejects_unknown_flag() {
         .stderr(predicate::str::contains("--unknown"));
 }
 
-#[test]
-fn empty_arguments_keep_separators() {
+#[cli_test]
+fn empty_arguments_keep_separators(cx: &TestContext) {
     for (args, expected) in [
         (vec![""], "\n"),
         (vec!["-n", ""], ""),
         (vec!["", "é", ""], " é \n"),
     ] {
-        cargo_bin_cmd!()
+        cx.command()
             .args(args)
             .assert()
             .success()
@@ -58,9 +58,9 @@ fn empty_arguments_keep_separators() {
     }
 }
 
-#[test]
-fn end_of_options_preserves_flag_like_text() {
-    cargo_bin_cmd!()
+#[cli_test]
+fn end_of_options_preserves_flag_like_text(cx: &TestContext) {
+    cx.command()
         .args(["--", "-n", "--help"])
         .assert()
         .success()
@@ -68,9 +68,9 @@ fn end_of_options_preserves_flag_like_text() {
         .stderr("");
 }
 
-#[test]
-fn unicode_and_backslashes_are_literal() {
-    cargo_bin_cmd!()
+#[cli_test]
+fn unicode_and_backslashes_are_literal(cx: &TestContext) {
+    cx.command()
         .args(["-n", "世界", r"\n\t"])
         .assert()
         .success()
