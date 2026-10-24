@@ -1,15 +1,15 @@
-use cli_testing::cargo_bin_cmd;
+use cli_testing::{Workspace, context};
 use predicates::prelude::*;
 use pretty_assertions::assert_eq;
 use std::{borrow::Cow, fs};
-use tempfile::TempDir;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 #[test]
 fn usage() {
     for flag in &["-h", "--help"] {
-        cargo_bin_cmd!()
+        context!()
+            .command()
             .arg(flag)
             .assert()
             .success()
@@ -19,7 +19,8 @@ fn usage() {
 
 #[test]
 fn dies_bad_name() {
-    cargo_bin_cmd!()
+    context!()
+        .command()
         .args(["--name", "*.csv"])
         .assert()
         .failure()
@@ -29,7 +30,8 @@ fn dies_bad_name() {
 #[test]
 fn dies_bad_type() {
     let expected = "error: invalid value 'x' for '--type [<TYPE>...]'";
-    cargo_bin_cmd!()
+    context!()
+        .command()
         .args(["--type", "x"])
         .assert()
         .failure()
@@ -55,7 +57,12 @@ fn run(args: &[&str], expected_file: &str) -> Result<()> {
     expected.sort_unstable();
 
     // Directory traversal order is unspecified, so compare the explicit line multiset.
-    let cmd = cargo_bin_cmd!().args(args).assert().success().stderr("");
+    let cmd = context!()
+        .command()
+        .args(args)
+        .assert()
+        .success()
+        .stderr("");
     let out = cmd.get_output();
     let stdout = String::from_utf8(out.stdout.clone())?;
     let mut lines: Vec<&str> = stdout.split('\n').filter(|s| !s.is_empty()).collect();
@@ -210,12 +217,12 @@ fn path_g() -> Result<()> {
 fn unreadable_dir() -> Result<()> {
     use std::os::unix::fs::PermissionsExt;
 
-    let dir = TempDir::new()?;
+    let dir = context!().workspace()?;
     let unreadable = dir.path().join("cant-touch-this");
     fs::create_dir(&unreadable)?;
     fs::set_permissions(&unreadable, fs::Permissions::from_mode(0o000))?;
 
-    let cmd = cargo_bin_cmd!().arg(dir.path()).assert();
+    let cmd = context!().command().arg(dir.path()).assert();
     fs::set_permissions(&unreadable, fs::Permissions::from_mode(0o700))?;
     let cmd = cmd.code(1);
 
@@ -229,8 +236,8 @@ fn unreadable_dir() -> Result<()> {
     Ok(())
 }
 
-fn filter_tree() -> Result<TempDir> {
-    let dir = TempDir::new()?;
+fn filter_tree() -> Result<Workspace> {
+    let dir = context!().workspace()?;
     fs::create_dir(dir.path().join("reports.txt"))?;
     fs::write(dir.path().join("reports.txt/inside.csv"), "")?;
     fs::write(dir.path().join("alpha.txt"), "")?;
@@ -239,13 +246,8 @@ fn filter_tree() -> Result<TempDir> {
     Ok(dir)
 }
 
-fn run_tree(dir: &TempDir, args: &[&str], expected: &[&str]) -> Result<()> {
-    let cmd = cargo_bin_cmd!()
-        .current_dir(dir.path())
-        .args(args)
-        .assert()
-        .code(0)
-        .stderr("");
+fn run_tree(dir: &Workspace, args: &[&str], expected: &[&str]) -> Result<()> {
+    let cmd = dir.command().args(args).assert().code(0).stderr("");
     let stdout = String::from_utf8(cmd.get_output().stdout.clone())?;
     let mut lines: Vec<_> = stdout.lines().collect();
     lines.sort_unstable();
@@ -260,7 +262,7 @@ fn run_tree(dir: &TempDir, args: &[&str], expected: &[&str]) -> Result<()> {
 
 #[test]
 fn default_path_in_empty_directory() -> Result<()> {
-    run_tree(&TempDir::new()?, &[], &["."])
+    run_tree(&context!().workspace()?, &[], &["."])
 }
 
 #[test]
@@ -322,7 +324,8 @@ fn multiple_roots_apply_the_same_filter() -> Result<()> {
 
 #[test]
 fn invalid_regex_among_valid_names_is_rejected() {
-    cargo_bin_cmd!()
+    context!()
+        .command()
         .args(["-n", "valid", "-n", "["])
         .assert()
         .failure()
@@ -345,7 +348,8 @@ fn symlink_filter_does_not_follow_directory_targets() -> Result<()> {
 
 #[test]
 fn missing_operand_returns_failure() {
-    cli_testing::cargo_bin_cmd!()
+    cli_testing::context!()
+        .command()
         .args(["/sanctuary-audit-missing/path"])
         .assert()
         .code(1)

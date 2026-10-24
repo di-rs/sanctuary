@@ -28,4 +28,16 @@ Directory traversal order is unspecified. The CLI tests compare sorted line
 multisets, preserving duplicate paths, rather than requiring the reference
 filesystem's traversal order. Keep this exception local to traversal assertions.
 
+## CLI test structure
+
+Traversal-order comparisons, Windows path fixtures, and permission/symlink
+scenarios remain native Rust tests. They now use shared command defaults and
+workspaces. The existing Nushell generator remains for the independently derived
+platform fixtures: their unordered-line contract is deliberately not represented
+as a byte-exact TOML case.
+
+Run `cargo nextest run -p findr --profile ci`. The
+[shared Rust testing helpers](../../tools/cli-testing/docs/testing.md) provide
+command defaults and isolated workspaces without hiding filesystem assertions.
+
 [All commands](../../README.md)
