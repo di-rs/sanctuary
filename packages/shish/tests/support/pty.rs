@@ -102,7 +102,7 @@ impl Pty {
             _master: pair.master,
             writer: requests,
             receiver,
-            terminal: vt100::Parser::new(30, 120, 1000),
+            terminal: vt100::Parser::new(30.try_into()?, 120.try_into()?, 1000),
             output: Vec::new(),
             known_children: HashMap::new(),
         })
