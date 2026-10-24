@@ -1,4 +1,4 @@
-use cli_testing::cargo_bin_cmd;
+use cli_testing::{TestContext, cli_test};
 use predicates::prelude::*;
 
 const EMPTY: &str = "tests/inputs/empty.txt";
@@ -7,10 +7,10 @@ const BLANK: &str = "tests/inputs/blank.txt";
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-#[test]
-fn usage() {
+#[cli_test]
+fn usage(cx: &TestContext) {
     for flag in &["-h", "--help"] {
-        cargo_bin_cmd!()
+        cx.command()
             .arg(flag)
             .assert()
             .success()
@@ -23,19 +23,19 @@ fn gen_bad_file() -> String {
     "tests/file/doesnt/exist".to_owned()
 }
 
-#[test]
-fn dies_no_args() {
-    cargo_bin_cmd!()
+#[cli_test]
+fn dies_no_args(cx: &TestContext) {
+    cx.command()
         .assert()
         .failure()
         .stderr(predicate::str::contains("Usage"));
 }
 
-#[test]
-fn dies_bad_file1() -> Result<()> {
+#[cli_test]
+fn dies_bad_file1(cx: &TestContext) -> Result<()> {
     let bad = gen_bad_file();
     let expected = format!("{bad}: .* [(]os error 2[)]");
-    cargo_bin_cmd!()
+    cx.command()
         .args([&bad, FILE1])
         .assert()
         .failure()
@@ -43,11 +43,11 @@ fn dies_bad_file1() -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn dies_bad_file2() -> Result<()> {
+#[cli_test]
+fn dies_bad_file2(cx: &TestContext) -> Result<()> {
     let bad = gen_bad_file();
     let expected = format!("{bad}: .* [(]os error 2[)]");
-    cargo_bin_cmd!()
+    cx.command()
         .args([FILE1, &bad])
         .assert()
         .failure()
@@ -55,19 +55,19 @@ fn dies_bad_file2() -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn dies_both_stdin() {
+#[cli_test]
+fn dies_both_stdin(cx: &TestContext) {
     let expected = "Error: both input files cannot be STDIN (`-`)";
-    cargo_bin_cmd!()
+    cx.command()
         .args(["-", "-"])
         .assert()
         .failure()
         .stderr(predicate::str::contains(expected));
 }
 
-#[test]
-fn rejects_unknown_flag() {
-    cargo_bin_cmd!()
+#[cli_test]
+fn rejects_unknown_flag(cx: &TestContext) {
+    cx.command()
         .args(["--unknown", EMPTY, EMPTY])
         .assert()
         .failure()
@@ -75,13 +75,13 @@ fn rejects_unknown_flag() {
         .stderr(predicate::str::contains("--unknown"));
 }
 
-#[test]
-fn stdin_on_either_side_emits_visible_columns() {
+#[cli_test]
+fn stdin_on_either_side_emits_visible_columns(cx: &TestContext) {
     for (args, expected) in [
         (["-", FILE1], "\t\ta\n\tb\nbb\n\tc\n\td\nz\n"),
         ([FILE1, "-"], "\t\ta\nb\n\tbb\nc\nd\n\tz\n"),
     ] {
-        cargo_bin_cmd!()
+        cx.command()
             .args(args)
             .write_stdin("a\nbb\nz")
             .assert()
@@ -91,10 +91,10 @@ fn stdin_on_either_side_emits_visible_columns() {
     }
 }
 
-#[test]
-fn custom_delimiter_handles_blank_common_line() {
+#[cli_test]
+fn custom_delimiter_handles_blank_common_line(cx: &TestContext) {
     for (delimiter, expected) in [("::", "::::\nα\n"), ("", "\nα\n")] {
-        cargo_bin_cmd!()
+        cx.command()
             .args(["-d", delimiter, "-", BLANK])
             .write_stdin("\nα")
             .assert()
@@ -104,9 +104,9 @@ fn custom_delimiter_handles_blank_common_line() {
     }
 }
 
-#[test]
-fn insensitive_stdin_matches_common_column() {
-    cargo_bin_cmd!()
+#[cli_test]
+fn insensitive_stdin_matches_common_column(cx: &TestContext) {
+    cx.command()
         .args(["-i", "-12", "-", FILE1])
         .write_stdin("A\nC")
         .assert()
@@ -117,12 +117,12 @@ fn insensitive_stdin_matches_common_column() {
 
 // insensitive
 
-#[test]
-fn malformed_input_is_not_eof() -> Result<()> {
+#[cli_test]
+fn malformed_input_is_not_eof(cx: &TestContext) -> Result<()> {
     let dir = assert_fs::TempDir::new()?;
     let empty = dir.path().join("empty");
     std::fs::write(&empty, b"")?;
-    cli_testing::cargo_bin_cmd!()
+    cx.command()
         .arg("-")
         .arg(empty)
         .write_stdin(b"a\n\xff\nz\n")
