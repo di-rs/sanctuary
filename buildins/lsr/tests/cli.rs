@@ -34,7 +34,7 @@ fn fixture_tree(cx: &TestContext) -> Result<Workspace> {
 #[cli_test]
 fn usage(cx: &TestContext) {
     for flag in &["-h", "--help"] {
-        cx.command()
+        cx.cmd()
             .arg(flag)
             .assert()
             .success()
@@ -50,7 +50,7 @@ fn gen_bad_file() -> String {
 fn bad_file(cx: &TestContext) {
     let bad = gen_bad_file();
     let expected = format!("{bad}: No such file or directory (os error 2)");
-    cx.command()
+    cx.cmd()
         .arg(&bad)
         .assert()
         .code(1)
@@ -59,7 +59,7 @@ fn bad_file(cx: &TestContext) {
 
 #[cli_test]
 fn no_args(cx: &TestContext) {
-    cx.command()
+    cx.cmd()
         .assert()
         .success()
         .stdout(predicate::str::contains("Cargo.toml"));
@@ -68,7 +68,7 @@ fn no_args(cx: &TestContext) {
 fn run_long(cx: &TestContext, filename: &str, permissions: &str, size: &str) -> Result<()> {
     let dir = fixture_tree(cx)?;
     let cmd = dir
-        .command()
+        .cmd()
         .args(["--long", filename])
         .assert()
         .success()
@@ -102,7 +102,7 @@ fn hidden_long(cx: &TestContext) -> Result<()> {
 }
 
 fn dir_short(cx: &TestContext, args: &[&str], expected: &[&str]) -> Result<()> {
-    let cmd = cx.command().args(args).assert().success();
+    let cmd = cx.cmd().args(args).assert().success();
     let stdout = String::from_utf8(cmd.get_output().stdout.clone())?;
     let lines: Vec<&str> = stdout.split('\n').filter(|s| !s.is_empty()).collect();
     assert_eq!(lines.len(), expected.len());
@@ -157,7 +157,7 @@ fn dir2_all(cx: &TestContext) -> Result<()> {
 
 fn dir_long(cx: &TestContext, args: &[&str], expected: &[(&str, &str, &str)]) -> Result<()> {
     let dir = fixture_tree(cx)?;
-    let cmd = dir.command().args(args).assert().success().stderr("");
+    let cmd = dir.cmd().args(args).assert().success().stderr("");
     let stdout = String::from_utf8(cmd.get_output().stdout.clone())?;
     let lines: Vec<&str> = stdout.split('\n').filter(|s| !s.is_empty()).collect();
     assert_eq!(lines.len(), expected.len());
@@ -235,7 +235,7 @@ fn dir2_long_all(cx: &TestContext) -> Result<()> {
 }
 
 fn check_listing(dir: &Workspace, args: &[&str], expected: &[&str]) -> Result<()> {
-    let cmd = dir.command().args(args).assert().success().stderr("");
+    let cmd = dir.cmd().args(args).assert().success().stderr("");
     let stdout = String::from_utf8(cmd.get_output().stdout.clone())?;
     let mut lines: Vec<_> = stdout.lines().collect();
     lines.sort_unstable();
@@ -295,7 +295,7 @@ fn filename_with_spaces_is_preserved(cx: &TestContext) -> Result<()> {
     file.write_str("hello")?;
     fs::set_permissions(file.path(), fs::Permissions::from_mode(0o640))?;
     check_listing(&dir, &["two words.txt"], &["two words.txt"])?;
-    cx.command()
+    cx.cmd()
         .current_dir(dir.path())
         .args(["-l", "two words.txt"])
         .assert()
@@ -310,7 +310,7 @@ fn filename_with_spaces_is_preserved(cx: &TestContext) -> Result<()> {
 fn missing_path_does_not_hide_valid_files(cx: &TestContext) -> Result<()> {
     let dir = cx.workspace()?;
     dir.child("present").touch()?;
-    cx.command()
+    cx.cmd()
         .current_dir(dir.path())
         .args(["missing", "present"])
         .assert()
@@ -326,7 +326,7 @@ fn missing_path_does_not_hide_valid_files(cx: &TestContext) -> Result<()> {
 #[cli_test]
 fn handled_file_error_is_persisted_with_failure_completion(cx: &TestContext) -> Result<()> {
     let logs = cx.workspace()?;
-    cx.command()
+    cx.cmd()
         .env("SANCTUARY_LOG_DIR", logs.path())
         .env("SANCTUARY_LOG_LEVEL", "info")
         .env("SANCTUARY_LOG_STDERR", "off")
@@ -355,7 +355,7 @@ fn handled_file_error_is_persisted_with_failure_completion(cx: &TestContext) -> 
 #[cli_test]
 fn invalid_argument_is_persisted_with_clap_status(cx: &TestContext) -> Result<()> {
     let logs = cx.workspace()?;
-    cx.command()
+    cx.cmd()
         .env("SANCTUARY_LOG_DIR", logs.path())
         .env("SANCTUARY_LOG_LEVEL", "info")
         .env("SANCTUARY_LOG_STDERR", "off")
@@ -402,7 +402,7 @@ fn read_log_records(logs: &Workspace) -> Result<Vec<serde_json::Value>> {
 
 #[cli_test]
 fn missing_operand_returns_failure(cx: &TestContext) {
-    cx.command()
+    cx.cmd()
         .args(["/sanctuary-audit-missing/path"])
         .assert()
         .code(1)
