@@ -6,7 +6,7 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 #[cli_test]
 fn dies_year_0(cx: &TestContext) {
-    cx.command()
+    cx.cmd()
         .arg("0")
         .assert()
         .failure()
@@ -17,7 +17,7 @@ fn dies_year_0(cx: &TestContext) {
 
 #[cli_test]
 fn dies_year_10000(cx: &TestContext) {
-    cx.command()
+    cx.cmd()
         .arg("10000")
         .assert()
         .failure()
@@ -29,7 +29,7 @@ fn dies_year_10000(cx: &TestContext) {
 
 #[cli_test]
 fn dies_invalid_year(cx: &TestContext) {
-    cx.command()
+    cx.cmd()
         .arg("foo")
         .assert()
         .failure()
@@ -41,7 +41,7 @@ fn dies_invalid_year(cx: &TestContext) {
 
 #[cli_test]
 fn dies_month_0(cx: &TestContext) {
-    cx.command()
+    cx.cmd()
         .args(["-m", "0"])
         .assert()
         .failure()
@@ -52,7 +52,7 @@ fn dies_month_0(cx: &TestContext) {
 
 #[cli_test]
 fn dies_month_13(cx: &TestContext) {
-    cx.command()
+    cx.cmd()
         .args(["-m", "13"])
         .assert()
         .failure()
@@ -63,7 +63,7 @@ fn dies_month_13(cx: &TestContext) {
 
 #[cli_test]
 fn dies_invalid_month(cx: &TestContext) {
-    cx.command()
+    cx.cmd()
         .args(["-m", "foo"])
         .assert()
         .failure()
@@ -75,7 +75,7 @@ fn dies_invalid_month(cx: &TestContext) {
 #[cli_test]
 fn dies_y_and_month(cx: &TestContext) {
     let expected = "the argument '-m <MONTH>' cannot be used with '--year'";
-    cx.command()
+    cx.cmd()
         .args(["-m", "1", "-y"])
         .assert()
         .failure()
@@ -85,7 +85,7 @@ fn dies_y_and_month(cx: &TestContext) {
 #[cli_test]
 fn dies_y_and_year(cx: &TestContext) {
     let expected = "the argument '--year' cannot be used with '[YEAR]'";
-    cx.command()
+    cx.cmd()
         .args(["-y", "2000"])
         .assert()
         .failure()
@@ -110,7 +110,7 @@ fn month_num(cx: &TestContext) {
     ];
 
     for (num, month) in expected {
-        cx.command()
+        cx.cmd()
             .args(["-m", num])
             .assert()
             .success()
@@ -135,7 +135,7 @@ fn partial_month(cx: &TestContext) {
     ];
 
     for (arg, month) in expected {
-        cx.command()
+        cx.cmd()
             .args(["-m", arg])
             .assert()
             .success()
@@ -145,7 +145,7 @@ fn partial_month(cx: &TestContext) {
 
 #[cli_test]
 fn default_one_month(cx: &TestContext) -> Result<()> {
-    let cmd = cx.command().assert().success();
+    let cmd = cx.cmd().assert().success();
     let out = cmd.get_output();
     let stdout = String::from_utf8(out.stdout.clone())?;
     let lines: Vec<_> = stdout.split('\n').collect();
@@ -156,7 +156,7 @@ fn default_one_month(cx: &TestContext) -> Result<()> {
 
 #[cli_test]
 fn year(cx: &TestContext) -> Result<()> {
-    let cmd = cx.command().arg("-y").assert().success();
+    let cmd = cx.cmd().arg("-y").assert().success();
     let stdout = String::from_utf8(cmd.get_output().stdout.clone())?;
     let lines = stdout.split('\n');
     assert_eq!(lines.count(), 37);
@@ -166,7 +166,7 @@ fn year(cx: &TestContext) -> Result<()> {
 #[cli_test]
 fn usage(cx: &TestContext) {
     for flag in ["-h", "--help"] {
-        cx.command()
+        cx.cmd()
             .arg(flag)
             .assert()
             .success()
@@ -177,7 +177,7 @@ fn usage(cx: &TestContext) {
 #[cli_test]
 fn dies_ambiguous_or_empty_month(cx: &TestContext) {
     for month in ["", "m", "j", "a"] {
-        cx.command()
+        cx.cmd()
             .args(["2020", "-m", month])
             .assert()
             .failure()
@@ -189,7 +189,7 @@ fn dies_ambiguous_or_empty_month(cx: &TestContext) {
 #[cli_test]
 fn dies_long_year_and_month_in_either_order(cx: &TestContext) {
     for args in [["--year", "-m", "December"], ["-m", "December", "--year"]] {
-        cx.command()
+        cx.cmd()
             .args(args)
             .assert()
             .failure()
@@ -201,7 +201,7 @@ fn dies_long_year_and_month_in_either_order(cx: &TestContext) {
 #[cli_test]
 fn dies_long_year_and_explicit_year_in_either_order(cx: &TestContext) {
     for args in [["--year", "2000"], ["2000", "--year"]] {
-        cx.command()
+        cx.cmd()
             .args(args)
             .assert()
             .failure()
@@ -212,7 +212,7 @@ fn dies_long_year_and_explicit_year_in_either_order(cx: &TestContext) {
 
 #[cli_test]
 fn redirected_calendar_has_no_ansi(cx: &TestContext) {
-    cx.command()
+    cx.cmd()
         .assert()
         .code(0)
         .stderr("")
