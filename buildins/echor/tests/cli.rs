@@ -3,7 +3,7 @@ use predicates::prelude::*;
 
 #[cli_test]
 fn dies_no_args(cx: &TestContext) {
-    let mut cmd = cx.command();
+    let mut cmd = cx.cmd();
     cmd.assert()
         .failure()
         .stdout("")
@@ -12,7 +12,7 @@ fn dies_no_args(cx: &TestContext) {
 
 #[cli_test]
 fn runs(cx: &TestContext) {
-    let mut cmd = cx.command();
+    let mut cmd = cx.cmd();
     cmd.arg("Hello")
         .assert()
         .success()
@@ -23,7 +23,7 @@ fn runs(cx: &TestContext) {
 #[cli_test]
 fn usage(cx: &TestContext) {
     for flag in ["-h", "--help"] {
-        cx.command()
+        cx.cmd()
             .arg(flag)
             .assert()
             .success()
@@ -34,7 +34,7 @@ fn usage(cx: &TestContext) {
 
 #[cli_test]
 fn rejects_unknown_flag(cx: &TestContext) {
-    cx.command()
+    cx.cmd()
         .arg("--unknown")
         .assert()
         .failure()
@@ -49,7 +49,7 @@ fn empty_arguments_keep_separators(cx: &TestContext) {
         (vec!["-n", ""], ""),
         (vec!["", "é", ""], " é \n"),
     ] {
-        cx.command()
+        cx.cmd()
             .args(args)
             .assert()
             .success()
@@ -60,7 +60,7 @@ fn empty_arguments_keep_separators(cx: &TestContext) {
 
 #[cli_test]
 fn end_of_options_preserves_flag_like_text(cx: &TestContext) {
-    cx.command()
+    cx.cmd()
         .args(["--", "-n", "--help"])
         .assert()
         .success()
@@ -70,7 +70,7 @@ fn end_of_options_preserves_flag_like_text(cx: &TestContext) {
 
 #[cli_test]
 fn unicode_and_backslashes_are_literal(cx: &TestContext) {
-    cx.command()
+    cx.cmd()
         .args(["-n", "世界", r"\n\t"])
         .assert()
         .success()
