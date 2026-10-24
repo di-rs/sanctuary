@@ -11,7 +11,7 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 #[cli_test]
 fn usage(cx: &TestContext) {
     for flag in &["-h", "--help"] {
-        cx.command()
+        cx.cmd()
             .arg(flag)
             .assert()
             .success()
@@ -31,7 +31,7 @@ fn gen_bad_file() -> Result<NamedTempFile> {
 fn skip_bad_file(cx: &TestContext) -> Result<()> {
     let bad = gen_bad_file()?;
     let expected = format!("{}: .* [(]os error 13[)]", bad.display());
-    cx.command()
+    cx.cmd()
         .arg(bad.path())
         .assert()
         .code(1)
@@ -41,7 +41,7 @@ fn skip_bad_file(cx: &TestContext) -> Result<()> {
 
 #[cli_test]
 fn dies_chars_and_bytes(cx: &TestContext) {
-    cx.command()
+    cx.cmd()
         .args(["-m", "-c"])
         .assert()
         .failure()
@@ -52,7 +52,7 @@ fn dies_chars_and_bytes(cx: &TestContext) {
 
 #[cli_test]
 fn rejects_unknown_flag(cx: &TestContext) {
-    cx.command()
+    cx.cmd()
         .arg("--unknown")
         .assert()
         .failure()
@@ -62,7 +62,7 @@ fn rejects_unknown_flag(cx: &TestContext) {
 
 #[cli_test]
 fn empty_stdin_has_zero_default_counts(cx: &TestContext) {
-    cx.command()
+    cx.cmd()
         .write_stdin("")
         .assert()
         .success()
@@ -78,7 +78,7 @@ fn unicode_whitespace_separates_words_and_bytes_differ_from_chars(cx: &TestConte
         ("-w", "       3\n"),
         ("-lwm", "       1       3       6\n"),
     ] {
-        cx.command()
+        cx.cmd()
             .args([flag, "-"])
             .write_stdin("é\u{2003}猫\tβ\n")
             .assert()
@@ -90,7 +90,7 @@ fn unicode_whitespace_separates_words_and_bytes_differ_from_chars(cx: &TestConte
 
 #[cli_test]
 fn unterminated_stdin_counts_final_record(cx: &TestContext) {
-    cx.command()
+    cx.cmd()
         .write_stdin("é x")
         .assert()
         .success()
@@ -100,7 +100,7 @@ fn unterminated_stdin_counts_final_record(cx: &TestContext) {
 
 #[cli_test]
 fn mixed_stdin_and_file_totals_use_selected_counts(cx: &TestContext) {
-    cx.command()
+    cx.cmd()
         .args(["-wm", "-", EMPTY])
         .write_stdin("é x")
         .assert()
@@ -113,7 +113,7 @@ fn mixed_stdin_and_file_totals_use_selected_counts(cx: &TestContext) {
 
 #[cli_test]
 fn missing_operand_returns_failure(cx: &TestContext) {
-    cx.command()
+    cx.cmd()
         .args(["/sanctuary-audit-missing/path"])
         .assert()
         .code(1)
