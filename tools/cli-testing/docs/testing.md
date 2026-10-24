@@ -3,7 +3,8 @@
 `cli-testing` connects a CLI invocation, its inputs, expected bytes, and independent
 reference recipe in one named test case. Use TOML for straightforward cases,
 `#[test_case]` for a case with Rust customization, and ordinary Rust tests for
-multiple commands, signals, or custom pipes. The pilot packages are
+multiple commands, signals, or custom pipes. These conventions apply to every CLI
+in the repository. Representative catalogs are
 [catr](../../../buildins/catr/tests/cases.toml),
 [cutr](../../../buildins/cutr/tests/cases.toml), and
 [grepr](../../../buildins/grepr/tests/cases.toml).
@@ -205,6 +206,40 @@ The existing `context!()`, `cargo_bin_cmd!()`, `fixtures!()`, `Fixtures`, and
 `command(binary, package_dir)` APIs remain available. Read expected fixtures before
 starting a manually orchestrated process.
 
+## Shared help and error checks
+
+Keep named native tests for common interface checks:
+
+```rust,ignore
+use cli_testing::{TestContext, cli_test};
+
+#[cli_test]
+fn usage(cx: &TestContext) {
+    cx.assert_help();
+}
+
+#[cli_test]
+fn rejects_unknown_flag(cx: &TestContext) {
+    cx.assert_error(["--unknown"], 2, "--unknown");
+}
+```
+
+`assert_help()` runs both `-h` and `--help`, requiring status 0, empty stderr,
+and stdout containing `Usage`. Use it for CLIs that support help; commands such
+as `true` and `false` keep their silent-status contracts.
+
+`assert_error(args, exit, diagnostic)` requires an exact status in 1–255, empty
+stdout, and stderr containing the nonempty diagnostic. Arguments accept strings
+or OS strings. Choose the status from the command's contract: parser errors
+commonly use 2, while runtime validation can use a different code. Use deterministic
+invalid values and a diagnostic that identifies the failure being tested.
+
+These are interface smoke checks, not exact output fixtures. Keep exact-byte
+invocations in TOML and use explicit Rust assertions for custom stdin, partial
+output, variable filesystem diagnostics, logging, timestamps, and multiple commands.
+For a catalog case that mutates files, use `#[test_case]` and `cx.workspace()`;
+assert filesystem effects in the body and let the wrapper verify status and streams.
+
 ## Schema 1 reference
 
 Unknown fields, duplicate or invalid names, missing files, absolute fixture paths,
@@ -252,7 +287,11 @@ files but are not host sandboxes. Catalogs and their reference commands are trus
 repository code. The legacy `Fixtures` API checks relative names but permits
 symlinks; catalog fixture paths are stricter.
 
-Use [cli-testing CLI](../README.md) to list, explain, validate,
+From the repository root, run `cargo nextest run -p PACKAGE --profile ci`.
+Inspect a builtin recipe with
+`cli-testing --suite buildins/PACKAGE/tests/cases.toml explain NAME`.
+
+Use the [fixture workflow](../README.md) to list, explain, validate,
 compare, and stage independent reference output. `apply` explicitly promotes a
 reviewed recording after checking its inputs, catalog, executable identity, and
 artifacts for staleness or conflicts. See the

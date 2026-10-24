@@ -1,5 +1,4 @@
 use cli_testing::{TestContext, Workspace, cli_test};
-use predicates::prelude::*;
 use pretty_assertions::assert_eq;
 use std::{borrow::Cow, fs};
 
@@ -7,32 +6,18 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 #[cli_test]
 fn usage(cx: &TestContext) {
-    for flag in &["-h", "--help"] {
-        cx.cmd()
-            .arg(flag)
-            .assert()
-            .success()
-            .stdout(predicate::str::contains("Usage"));
-    }
+    cx.assert_help();
 }
 
 #[cli_test]
 fn dies_bad_name(cx: &TestContext) {
-    cx.cmd()
-        .args(["--name", "*.csv"])
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains("error: invalid value '*.csv'"));
+    cx.assert_error(["--name", "*.csv"], 2, "error: invalid value '*.csv'");
 }
 
 #[cli_test]
 fn dies_bad_type(cx: &TestContext) {
     let expected = "error: invalid value 'x' for '--type [<TYPE>...]'";
-    cx.cmd()
-        .args(["--type", "x"])
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains(expected));
+    cx.assert_error(["--type", "x"], 2, expected);
 }
 
 #[cfg(windows)]
@@ -337,12 +322,7 @@ fn multiple_roots_apply_the_same_filter(cx: &TestContext) -> Result<()> {
 
 #[cli_test]
 fn invalid_regex_among_valid_names_is_rejected(cx: &TestContext) {
-    cx.cmd()
-        .args(["-n", "valid", "-n", "["])
-        .assert()
-        .failure()
-        .stdout("")
-        .stderr(predicate::str::contains("invalid value '['"));
+    cx.assert_error(["-n", "valid", "-n", "["], 2, "invalid value '['");
 }
 
 #[cli_test]

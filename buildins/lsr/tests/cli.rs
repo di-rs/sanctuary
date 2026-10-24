@@ -33,13 +33,7 @@ fn fixture_tree(cx: &TestContext) -> Result<Workspace> {
 
 #[cli_test]
 fn usage(cx: &TestContext) {
-    for flag in &["-h", "--help"] {
-        cx.cmd()
-            .arg(flag)
-            .assert()
-            .success()
-            .stdout(predicate::str::contains("Usage"));
-    }
+    cx.assert_help();
 }
 
 fn gen_bad_file() -> String {

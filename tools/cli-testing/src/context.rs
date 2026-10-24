@@ -37,6 +37,47 @@ impl TestContext {
         crate::command(&self.binary, &self.package_dir)
     }
 
+    /// Check both help flags for successful usage output and empty stderr.
+    ///
+    /// # Panics
+    /// Panics with command diagnostics if either invocation violates the contract.
+    pub fn assert_help(&self) {
+        for flag in ["-h", "--help"] {
+            self.cmd()
+                .arg(flag)
+                .assert()
+                .code(0)
+                .stderr("")
+                .stdout(predicates::str::contains("Usage"));
+        }
+    }
+
+    /// Check an error's exact status, empty stdout, and diagnostic substring.
+    ///
+    /// # Panics
+    /// Panics if the expected status is outside 1..=255, the diagnostic is empty,
+    /// or the command violates the contract. Command failures include captured output.
+    pub fn assert_error<I, S>(&self, args: I, exit: i32, diagnostic: &str)
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<OsStr>,
+    {
+        assert!(
+            (1..=255).contains(&exit),
+            "expected error status must be in 1..=255"
+        );
+        assert!(
+            !diagnostic.is_empty(),
+            "expected diagnostic must not be empty"
+        );
+        self.cmd()
+            .args(args)
+            .assert()
+            .code(exit)
+            .stdout("")
+            .stderr(predicates::str::contains(diagnostic));
+    }
+
     #[must_use]
     pub fn std_command(&self) -> Command {
         crate::std_command(&self.binary, &self.package_dir)

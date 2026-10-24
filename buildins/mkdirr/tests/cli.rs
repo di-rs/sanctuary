@@ -6,14 +6,7 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 #[cli_test]
 fn usage(cx: &TestContext) {
-    for flag in ["-h", "--help"] {
-        cx.cmd()
-            .arg(flag)
-            .assert()
-            .success()
-            .stdout(predicate::str::contains("Usage"))
-            .stderr("");
-    }
+    cx.assert_help();
 }
 
 #[test_case("creates_single_directory")]
@@ -113,14 +106,12 @@ fn rejects_file_as_parent(cx: &TestContext) -> Result<()> {
 }
 
 #[cli_test]
-fn requires_directory_operand(cx: &TestContext) -> Result<()> {
-    let dir = cx.workspace()?;
-    dir.cmd()
-        .assert()
-        .failure()
-        .stdout("")
-        .stderr(predicate::str::is_empty().not());
-    Ok(())
+fn requires_directory_operand(cx: &TestContext) {
+    cx.assert_error(
+        std::iter::empty::<&str>(),
+        2,
+        "required arguments were not provided",
+    );
 }
 
 #[cli_test]

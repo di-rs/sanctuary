@@ -10,14 +10,7 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 #[cli_test]
 fn usage(cx: &TestContext) {
-    for flag in &["-h", "--help"] {
-        cx.cmd()
-            .arg(flag)
-            .assert()
-            .success()
-            .stderr("")
-            .stdout(predicate::str::contains("Usage"));
-    }
+    cx.assert_help();
 }
 
 fn gen_bad_file() -> Result<NamedTempFile> {
@@ -41,23 +34,16 @@ fn skip_bad_file(cx: &TestContext) -> Result<()> {
 
 #[cli_test]
 fn dies_chars_and_bytes(cx: &TestContext) {
-    cx.cmd()
-        .args(["-m", "-c"])
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains(
-            "the argument '--chars' cannot be used with '--bytes'",
-        ));
+    cx.assert_error(
+        ["-m", "-c"],
+        2,
+        "the argument '--chars' cannot be used with '--bytes'",
+    );
 }
 
 #[cli_test]
 fn rejects_unknown_flag(cx: &TestContext) {
-    cx.cmd()
-        .arg("--unknown")
-        .assert()
-        .failure()
-        .stdout("")
-        .stderr(predicate::str::contains("--unknown"));
+    cx.assert_error(["--unknown"], 2, "--unknown");
 }
 
 #[cli_test]

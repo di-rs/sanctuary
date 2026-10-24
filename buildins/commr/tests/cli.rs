@@ -9,14 +9,7 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 #[cli_test]
 fn usage(cx: &TestContext) {
-    for flag in &["-h", "--help"] {
-        cx.cmd()
-            .arg(flag)
-            .assert()
-            .success()
-            .stderr("")
-            .stdout(predicate::str::contains("Usage"));
-    }
+    cx.assert_help();
 }
 
 fn gen_bad_file() -> String {
@@ -25,10 +18,7 @@ fn gen_bad_file() -> String {
 
 #[cli_test]
 fn dies_no_args(cx: &TestContext) {
-    cx.cmd()
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains("Usage"));
+    cx.assert_error(std::iter::empty::<&str>(), 2, "Usage");
 }
 
 #[cli_test]
@@ -58,21 +48,12 @@ fn dies_bad_file2(cx: &TestContext) -> Result<()> {
 #[cli_test]
 fn dies_both_stdin(cx: &TestContext) {
     let expected = "Error: both input files cannot be STDIN (`-`)";
-    cx.cmd()
-        .args(["-", "-"])
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains(expected));
+    cx.assert_error(["-", "-"], 65, expected);
 }
 
 #[cli_test]
 fn rejects_unknown_flag(cx: &TestContext) {
-    cx.cmd()
-        .args(["--unknown", EMPTY, EMPTY])
-        .assert()
-        .failure()
-        .stdout("")
-        .stderr(predicate::str::contains("--unknown"));
+    cx.assert_error(["--unknown", EMPTY, EMPTY], 2, "--unknown");
 }
 
 #[cli_test]

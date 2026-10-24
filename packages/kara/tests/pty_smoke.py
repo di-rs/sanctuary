@@ -4,7 +4,6 @@ import errno
 import fcntl
 import os
 import pty
-import pwd
 import select
 import signal
 import socket
@@ -168,11 +167,17 @@ def main() -> None:
         if sys.platform == "darwin":
             denied = directory / "denied"
             denied.write_bytes(b"KEEP\n")
-            user = pwd.getpwuid(os.getuid()).pw_name
-            subprocess.run(
-                ["chmod", "+a", f"user:{user} deny write,append", str(denied)], check=True
-            )
+            # Avoid directory-service resolution of a named user's ACL identity.
+            # The well-known everyone principal must deny the editor's write open.
+            subprocess.run(["chmod", "+a", "everyone deny write,append", str(denied)], check=True)
             try:
+                try:
+                    descriptor = os.open(denied, os.O_WRONLY)
+                except PermissionError:
+                    pass
+                else:
+                    os.close(descriptor)
+                    raise AssertionError("write-deny ACL fixture still permits writing")
                 captured = session(binary, directory, [b":w denied\r", b"iD\x1b", b"\x13", b"\x11"])
                 assert denied.read_bytes() == b"KEEP\n", "save bypassed the write ACL"
                 assert original.read_bytes() == b"Doriginal\n", (

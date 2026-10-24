@@ -23,14 +23,7 @@ fn assert_modified(path: &Path, seconds: u64) -> Result<()> {
 
 #[cli_test]
 fn usage(cx: &TestContext) {
-    for flag in ["-h", "--help"] {
-        cx.cmd()
-            .arg(flag)
-            .assert()
-            .success()
-            .stdout(predicate::str::contains("Usage"))
-            .stderr("");
-    }
+    cx.assert_help();
 }
 
 #[test_case("creates_single_file")]
@@ -154,14 +147,12 @@ fn reports_creation_path_errors(cx: &TestContext) -> Result<()> {
 }
 
 #[cli_test]
-fn requires_file_operand(cx: &TestContext) -> Result<()> {
-    let dir = cx.workspace()?;
-    dir.cmd()
-        .assert()
-        .failure()
-        .stdout("")
-        .stderr(predicate::str::is_empty().not());
-    Ok(())
+fn requires_file_operand(cx: &TestContext) {
+    cx.assert_error(
+        std::iter::empty::<&str>(),
+        2,
+        "required arguments were not provided",
+    );
 }
 
 #[cfg(unix)]

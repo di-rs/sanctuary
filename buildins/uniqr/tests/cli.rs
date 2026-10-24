@@ -30,14 +30,7 @@ const T6: &str = "t6";
 
 #[cli_test]
 fn usage(cx: &TestContext) {
-    for flag in &["-h", "--help"] {
-        cx.cmd()
-            .arg(flag)
-            .assert()
-            .success()
-            .stderr("")
-            .stdout(predicate::str::contains("Usage"));
-    }
+    cx.assert_help();
 }
 
 fn gen_bad_file() -> Result<NamedTempFile> {
@@ -94,12 +87,7 @@ fn run_outfile_stdin_count(cx: &TestContext, name: &str) -> Result<()> {
 
 #[cli_test]
 fn rejects_unknown_flag(cx: &TestContext) {
-    cx.cmd()
-        .arg("--unknown")
-        .assert()
-        .failure()
-        .stdout("")
-        .stderr(predicate::str::contains("--unknown"));
+    cx.assert_error(["--unknown"], 2, "--unknown");
 }
 
 #[cli_test]

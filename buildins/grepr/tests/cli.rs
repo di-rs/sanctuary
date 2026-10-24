@@ -12,13 +12,7 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 #[cli_test]
 fn usage(cx: &TestContext) {
-    for flag in &["-h", "--help"] {
-        cx.cmd()
-            .arg(flag)
-            .assert()
-            .success()
-            .stdout(predicate::str::contains("Usage"));
-    }
+    cx.assert_help();
 }
 
 fn gen_bad_file() -> String {
@@ -27,19 +21,12 @@ fn gen_bad_file() -> String {
 
 #[cli_test]
 fn dies_no_args(cx: &TestContext) {
-    cx.cmd()
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains("Usage"));
+    cx.assert_error(std::iter::empty::<&str>(), 2, "Usage");
 }
 
 #[cli_test]
 fn dies_bad_pattern(cx: &TestContext) {
-    cx.cmd()
-        .args(["*foo", FOX])
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains("invalid pattern passed `*foo`"));
+    cx.assert_error(["*foo", FOX], 65, "invalid pattern passed `*foo`");
 }
 
 #[cli_test]
@@ -142,7 +129,7 @@ fn stdin_invalid_regex_produces_no_output(cx: &TestContext) {
         .arg("[")
         .write_stdin("alpha\n")
         .assert()
-        .failure()
+        .code(65)
         .stdout("")
         .stderr(predicate::str::contains("invalid pattern passed `[`"));
 }

@@ -9,14 +9,7 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 #[cli_test]
 fn usage(cx: &TestContext) {
-    for flag in &["-h", "--help"] {
-        cx.cmd()
-            .arg(flag)
-            .assert()
-            .success()
-            .stderr("")
-            .stdout(predicate::str::contains("Usage"));
-    }
+    cx.assert_help();
 }
 
 fn gen_bad_file() -> String {
@@ -25,32 +18,21 @@ fn gen_bad_file() -> String {
 
 #[cli_test]
 fn dies_no_args(cx: &TestContext) {
-    cx.cmd()
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains("Usage"));
+    cx.assert_error(std::iter::empty::<&str>(), 2, "Usage");
 }
 
 #[cli_test]
 fn dies_bad_bytes(cx: &TestContext) {
     let bad = gen_bad_file();
     let expected = "invalid digit found in string";
-    cx.cmd()
-        .args(["-c", &bad, EMPTY])
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains(expected));
+    cx.assert_error(["-c", &bad, EMPTY], 2, expected);
 }
 
 #[cli_test]
 fn dies_bad_lines(cx: &TestContext) {
     let bad = gen_bad_file();
     let expected = "invalid digit found in string";
-    cx.cmd()
-        .args(["-n", &bad, EMPTY])
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains(expected));
+    cx.assert_error(["-n", &bad, EMPTY], 2, expected);
 }
 
 #[cli_test]
@@ -58,11 +40,7 @@ fn dies_bytes_and_lines(cx: &TestContext) {
     let msg = "the argument '--lines <LINES>' cannot be used \
                with '--bytes <BYTES>'";
 
-    cx.cmd()
-        .args(["-n", "1", "-c", "2"])
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains(msg));
+    cx.assert_error(["-n", "1", "-c", "2"], 2, msg);
 }
 
 #[cli_test]
@@ -79,12 +57,7 @@ fn skips_bad_file(cx: &TestContext) -> Result<()> {
 
 #[cli_test]
 fn rejects_unknown_flag(cx: &TestContext) {
-    cx.cmd()
-        .args(["--unknown", EMPTY])
-        .assert()
-        .failure()
-        .stdout("")
-        .stderr(predicate::str::contains("--unknown"));
+    cx.assert_error(["--unknown", EMPTY], 2, "--unknown");
 }
 
 #[cli_test]
