@@ -6,7 +6,7 @@ use std::path::Path;
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 fn command(cx: &TestContext, cwd: &Path) -> Command {
-    let mut cmd = cx.command();
+    let mut cmd = cx.cmd();
     cmd.current_dir(cwd).env_remove("PWD");
     cmd
 }
@@ -21,7 +21,7 @@ fn assert_path(cmd: &mut Command, expected: &Path) {
 #[cli_test]
 fn usage(cx: &TestContext) {
     for flag in ["-h", "--help"] {
-        cx.command()
+        cx.cmd()
             .arg(flag)
             .assert()
             .success()
