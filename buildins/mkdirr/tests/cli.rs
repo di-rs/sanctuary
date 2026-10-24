@@ -1,19 +1,13 @@
-use assert_fs::{TempDir, prelude::*};
-use cli_testing::{Command, cargo_bin_cmd};
+use assert_fs::prelude::*;
+use cli_testing::{Context, TestContext, cli_test, test_case};
 use predicates::prelude::*;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-fn command(dir: &TempDir) -> Command {
-    let mut cmd = cargo_bin_cmd!();
-    cmd.current_dir(dir.path());
-    cmd
-}
-
-#[test]
-fn usage() {
+#[cli_test]
+fn usage(cx: &TestContext) {
     for flag in ["-h", "--help"] {
-        cargo_bin_cmd!()
+        cx.cmd()
             .arg(flag)
             .assert()
             .success()
@@ -22,23 +16,20 @@ fn usage() {
     }
 }
 
-#[test]
-fn creates_single_directory() -> Result<()> {
-    let dir = TempDir::new()?;
-    command(&dir)
-        .arg("new")
-        .assert()
-        .success()
-        .stdout("")
-        .stderr("");
-    dir.child("new").assert(predicate::path::is_dir());
+#[test_case("creates_single_directory")]
+fn creates_single_directory(cx: &mut Context) -> cli_testing::Result<()> {
+    cx.workspace()?;
+    cx.run()?;
+    cx.workspace()?
+        .child("new")
+        .assert(predicate::path::is_dir());
     Ok(())
 }
 
-#[test]
-fn creates_multiple_directories() -> Result<()> {
-    let dir = TempDir::new()?;
-    command(&dir)
+#[cli_test]
+fn creates_multiple_directories(cx: &TestContext) -> Result<()> {
+    let dir = cx.workspace()?;
+    dir.cmd()
         .args(["one", "two", "three"])
         .assert()
         .success()
@@ -50,11 +41,11 @@ fn creates_multiple_directories() -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn creates_nested_directories_by_default() -> Result<()> {
+#[cli_test]
+fn creates_nested_directories_by_default(cx: &TestContext) -> Result<()> {
     // mkdirr currently defaults parent creation to true, unlike standard mkdir.
-    let dir = TempDir::new()?;
-    command(&dir)
+    let dir = cx.workspace()?;
+    dir.cmd()
         .arg("one/two/three")
         .assert()
         .success()
@@ -64,10 +55,10 @@ fn creates_nested_directories_by_default() -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn creates_nested_directories_with_p() -> Result<()> {
-    let dir = TempDir::new()?;
-    command(&dir)
+#[cli_test]
+fn creates_nested_directories_with_p(cx: &TestContext) -> Result<()> {
+    let dir = cx.workspace()?;
+    dir.cmd()
         .args(["-p", "one/two/three"])
         .assert()
         .success()
@@ -77,13 +68,13 @@ fn creates_nested_directories_with_p() -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn p_accepts_existing_directory() -> Result<()> {
+#[cli_test]
+fn p_accepts_existing_directory(cx: &TestContext) -> Result<()> {
     // Regression: parent creation should tolerate a directory already present.
-    let dir = TempDir::new()?;
+    let dir = cx.workspace()?;
     dir.child("existing").create_dir_all()?;
     dir.child("existing/contents").write_str("keep me")?;
-    command(&dir)
+    dir.cmd()
         .args(["-p", "existing"])
         .assert()
         .success()
@@ -93,11 +84,11 @@ fn p_accepts_existing_directory() -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn rejects_existing_file() -> Result<()> {
-    let dir = TempDir::new()?;
+#[cli_test]
+fn rejects_existing_file(cx: &TestContext) -> Result<()> {
+    let dir = cx.workspace()?;
     dir.child("existing").write_str("keep me")?;
-    command(&dir)
+    dir.cmd()
         .arg("existing")
         .assert()
         .failure()
@@ -107,11 +98,11 @@ fn rejects_existing_file() -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn rejects_file_as_parent() -> Result<()> {
-    let dir = TempDir::new()?;
+#[cli_test]
+fn rejects_file_as_parent(cx: &TestContext) -> Result<()> {
+    let dir = cx.workspace()?;
     dir.child("file").write_str("keep me")?;
-    command(&dir)
+    dir.cmd()
         .arg("file/child")
         .assert()
         .failure()
@@ -121,10 +112,10 @@ fn rejects_file_as_parent() -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn requires_directory_operand() -> Result<()> {
-    let dir = TempDir::new()?;
-    command(&dir)
+#[cli_test]
+fn requires_directory_operand(cx: &TestContext) -> Result<()> {
+    let dir = cx.workspace()?;
+    dir.cmd()
         .assert()
         .failure()
         .stdout("")
@@ -132,12 +123,12 @@ fn requires_directory_operand() -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn rich_error_is_persisted_with_failing_completion() -> Result<()> {
-    let dir = TempDir::new()?;
-    let logs = TempDir::new()?;
+#[cli_test]
+fn rich_error_is_persisted_with_failing_completion(cx: &TestContext) -> Result<()> {
+    let dir = cx.workspace()?;
+    let logs = cx.workspace()?;
     dir.child("parent-file").write_str("keep me")?;
-    command(&dir)
+    dir.cmd()
         .env("SANCTUARY_LOG_DIR", logs.path())
         .env("SANCTUARY_LOG_LEVEL", "info")
         .env("SANCTUARY_LOG_STDERR", "off")
