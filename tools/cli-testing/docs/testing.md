@@ -46,38 +46,75 @@ cargo nextest run -p cutr --profile ci -E 'test(=tsv_b8) | test(=tsv_b1_8)'
 
 ## Write a straightforward case
 
-A catalog lives at `tests/cases.toml`. This complete example uses catr's existing
-input and expected files:
+A catalog lives at `tests/cases.toml`. Declare each input filename once. Cases
+refer to its stable fixture ID; output filenames default to the case name:
 
 ```toml
-schema = 1
+schema = 2
 binary = "catr"
+reference = "cat"
 
-[references.bsd-cat]
+[fixtures]
+fox = "fox.txt"
+
+[references.cat]
 program = "/bin/cat"
 platform = "macos"
 
 [[cases]]
-name = "fox_stdin"
-args = ["-"]
-stdin = { mode = "pipe", files = ["inputs/fox.txt"] }
-origin = { reference = "bsd-cat" }
-expect = { exit = 0, stdout_file = "expected/fox.txt.out", stderr = "" }
+name = "fox"
+args = [{ fixture = "fox" }]
+expect = { exit = 0 }
 ```
 
-Arguments are passed directly, without a shell, in the package directory. Fixture
-fields are relative to `tests/`; command arguments remain relative to the package.
-For file operands, list their dependencies explicitly, for example
-`args = ["tests/inputs/fox.txt"]` with `inputs = ["inputs/fox.txt"]`.
-Include every input dependency of the reference invocation so recording can detect
-staleness. Directories in `inputs` include their descendant files.
+This reads `tests/inputs/fox.txt`, compares stdout with `tests/expected/fox.out`,
+and expects empty stderr. Renaming the input changes only its `[fixtures]`
+declaration and the file itself. Expectations use stable case names, so input
+renames do not require output renames. If the CLI prints filenames, review and
+regenerate the affected expected bytes after an input rename. Renaming a case requires renaming its default
+output or explicitly retaining the old filename with `stdout_file`.
 
-Choose `stdin = { mode = "pipe", text = "hello\n" }` for inline input, or a
-nonempty ordered `files` array for raw concatenation without inserted separators.
-Use `stdin = { mode = "file", path = "inputs/fox.txt" }` for regular-file stdin.
-Omitted stdin is closed. Both stdout and stderr need exactly one inline string
-or fixture path; exit codes are exact numbers, including intentional failures.
-Bytes are compared without trimming, sorting, newline conversion, or decoding.
+The suite's `reference` is inherited by every case without a manual origin or
+explicit reference. Names such as `cat` are local IDs, not platform detection.
+The reference above explicitly selects macOS cat. Different implementations can
+have separate `[references.NAME]` configurations, selected by suite `reference`
+or case `origin.reference`. Changing the label alone never switches binaries.
+No BSD/GNU fallback is performed; platform-specific differences still need declared
+contracts and independent expected bytes.
+
+Arguments are passed directly, without a shell, in the package directory.
+`{ fixture = "fox" }` resolves to `tests/inputs/fox.txt` and automatically registers
+that dependency for recording. This works in both candidate and reference arguments.
+Literal strings are unchanged, including deliberately missing filenames in error tests.
+Use `inputs = ["fixture_id"]` only for dependencies not mentioned in arguments or stdin.
+An alias may name a subdirectory; `all = "."` names the entire inputs directory.
+Directory dependencies include descendant files.
+
+Choose `stdin = { mode = "pipe", text = "hello\n" }` for inline input, or
+`stdin = { mode = "pipe", files = ["fox", "fox"] }` for ordered raw concatenation
+without inserted separators. Use `stdin = { mode = "file", path = "fox" }` for
+regular-file stdin. Both forms refer to declared fixture IDs. Omitted stdin is closed.
+
+Override stdout with inline `stdout = "..."` or `stdout_file = "shared.out"`.
+Override stderr with inline `stderr = "..."` or `stderr_file = "error.err"`.
+File overrides are relative to the expected directory, without an `expected/`
+prefix. Exit codes remain explicit. Bytes are compared without trimming, sorting,
+newline conversion, or decoding. All default and explicit fixture files must exist.
+
+For an exceptional layout, declare directories once, relative to `tests/`:
+
+```toml
+[paths]
+inputs = "source"
+expected = "golden"
+```
+
+Directories must not overlap; paths cannot be absolute, traverse parents, or use
+symlinks. Catalog contexts and their workspace fixture helpers honor these overrides.
+Standalone `context!()` and `fixtures!()` helpers retain the conventional directories.
+Schema 1 remains supported with its original explicit `inputs/` and `expected/`
+paths, required stream expectations, and per-case origins; it does not accept fixture
+aliases or directory overrides.
 
 ## Customize a named case in Rust
 
@@ -165,12 +202,14 @@ under `expected/`.
 
 | Table | Fields |
 | --- | --- |
-| Root | `schema = 1`, `binary`, `cases`; optional `env` string map and `references` map. |
+| Root | `schema = 2`, `binary`, `cases`; optional `reference`, `fixtures`, `paths`, `env`, and `references`. |
+| `fixtures` | Map of stable IDs to names relative to the inputs directory. `"."` names that entire directory. |
+| `paths` | Optional `inputs` and `expected` directory names, defaulting to `inputs` and `expected`, relative to `tests/`. |
 | `references.NAME` | Absolute `program`, exact Rust OS `platform` such as `macos` or `linux`; optional `env` string map and `version_args` argument array for version identity. |
-| Case | `name`, `args`, `origin`, `expect`; optional `execution` (`toml` by default, or `rust`), `inputs`, `stdin`, `env`, `adapt`. |
+| Case | `name`, `args`, `expect`; optional `origin`; optional `execution` (`toml` by default, or `rust`), `inputs`, `stdin`, `env`, `adapt`. |
 | `stdin` | `mode = "pipe"` with either `text` (including empty) or nonempty `files`; or `mode = "file"` with `path`. |
-| `expect` | `exit` in 0–255; one of `stdout` / `stdout_file`, and one of `stderr` / `stderr_file`. Empty streams must still be declared. |
-| `origin` | Exactly one known `reference` or nonempty `manual` explanation. Reference recipes may override `args`, `exit`, `stderr` (inline text), and `env`. Overrides require `reason`, except an exit identical to the candidate's. |
+| `expect` | `exit` in 0–255; one of `stdout` / `stdout_file`, and one of `stderr` / `stderr_file`. Omitted stdout defaults to `<case-name>.out`; omitted stderr defaults to empty. |
+| `origin` | A known `reference` (inherited from the suite if omitted) or nonempty `manual` explanation. Reference recipes may override `args`, `exit`, `stderr` (inline text), and `env`. Overrides require `reason`, except an exit identical to the candidate's. |
 | `adapt` | `expected_stdout = "utf8-lossy"` and nonempty `reason`. Applies only to expected stdout; requires a reference origin. No other named adaptations are supported. |
 
 Reference status and stderr default to the candidate's declared contract.

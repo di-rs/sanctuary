@@ -12,7 +12,11 @@ on PATH. The tool is offline and requires no authentication or user config.
 Use `discover --root DIR` to find catalogs. Its `suite` paths are absolute and work
 from any cwd. Pass one with `--suite PATH` for all case operations. `list` discovers
 case names; `resolve NAME` confirms an exact name and execution owner. Names are
-stable IDs within their suite. `list` and `discover` default to 50 entries; follow
+stable IDs within their suite. Schema 2 declares input filenames once under
+`[fixtures]`; cases use fixture IDs. Inputs default to `inputs/`, stdout to
+`expected/<case-name>.out`, stderr to empty, and the reference to the suite default.
+`[paths]` and explicit stream fields override those conventions. Inspect resolved
+recipes with `explain`; raw `catalog` preserves the authoring TOML. `list` and `discover` default to 50 entries; follow
 `data.next_offset` with `--offset` until null when more entries are needed.
 
 Start with reads:

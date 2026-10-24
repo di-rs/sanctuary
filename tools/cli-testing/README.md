@@ -59,7 +59,8 @@ expected files with no catalog owner, including Rust-owned recipes; it does not
 infer ownership by parsing Rust source.
 
 Use `catalog` as the read-only escape hatch: it exports the complete validated
-catalog as TOML, or its parsed model with `--json`. It does not run commands:
+catalog as TOML, or its resolved model with `--json`. The resolved model includes inherited references, expanded fixture paths, and default
+expectations; use the original TOML for editing. It does not run commands:
 
 ```sh
 cli-testing --json --suite buildins/cutr/tests/cases.toml catalog
@@ -181,7 +182,7 @@ selected suite. Additive fields may appear within schema 1.
 | `catalog` | `{"suite":"/repo/buildins/cutr/tests/cases.toml","catalog":{"schema":1,"binary":"cutr","cases":[]}}` (the catalog contains all recipes and references) |
 | `compare` | `{"suite":"/repo/buildins/cutr/tests/cases.toml","candidate":"/repo/target/debug/cutr","cases":[{"id":"tsv_b8","status":"matched"}]}` |
 | `record` | `{"suite":"/repo/buildins/cutr/tests/cases.toml","directory":"/tmp/cutr-recording","manifest":"/tmp/cutr-recording/recording.json","cases":24}` |
-| `apply` | `{"suite":"/repo/buildins/cutr/tests/cases.toml","directory":"/tmp/cutr-recording","dry_run":true,"changed_files":["expected/movies1.tsv.b8.out"]}` |
+| `apply` | `{"suite":"/repo/buildins/cutr/tests/cases.toml","directory":"/tmp/cutr-recording","dry_run":true,"changed_files":["expected/tsv_b8.out"]}` |
 
 Comparison statuses are `matched`, `manual_matched`, `native_required`, and
 `failed`. On comparison failure, `data.cases` retains per-case statuses alongside

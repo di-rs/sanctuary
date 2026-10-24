@@ -29,25 +29,47 @@ in `tests/inputs/` and raw expectations in `tests/expected/`. Read the
 catalog or using the context API. The representative catalogs are catr, cutr, and
 grepr; existing packages can retain their native tests and generators.
 
-A catalog case names its arguments, input dependencies, stdin transport, origin,
-and exact exit code/stdout/stderr. For example, inside a catr catalog with the
-`bsd-cat` reference declared:
+Use schema 2 for new catalogs. Declare each input filename once in `[fixtures]`;
+`inputs/` is implied. Cases reference stable IDs with `{ fixture = "fox" }` in
+candidate or reference arguments, or `files = ["fox"]` / `path = "fox"` for stdin.
+Dependencies are registered automatically. Use `inputs = ["id"]` only for additional
+dependencies not present in arguments or stdin. Directory aliases include descendant
+files; `all = "."` names the whole inputs directory.
 
 ```toml
+schema = 2
+binary = "catr"
+reference = "cat"
+
+[fixtures]
+fox = "fox.txt"
+
+[references.cat]
+program = "/bin/cat"
+platform = "macos"
+
 [[cases]]
-name = "fox_stdin"
-args = ["-"]
-stdin = { mode = "pipe", files = ["inputs/fox.txt"] }
-origin = { reference = "bsd-cat" }
-expect = { exit = 0, stdout_file = "expected/fox.txt.out", stderr = "" }
+name = "fox"
+args = [{ fixture = "fox" }]
+expect = { exit = 0 }
 ```
 
-Fixture fields are relative to `tests/`; arguments run from the package root.
-Declare file operands in `inputs`, including directory dependencies, so recording
-can hash them. Pipe `files` concatenate in order without separators. Regular-file
-stdin is a separate explicit mode. Every retained expected file needs a catalog
-owner, including Rust-owned recipes; remove unused fixtures only after checking
-native tests and reference generators too.
+This reads `tests/inputs/fox.txt`, compares raw stdout with `tests/expected/fox.out`,
+and expects empty stderr. The suite reference is inherited, so ordinary cases need
+no origin table. Keep explicit reference arguments, status differences, or manual
+expectation explanations where needed. Reference IDs need no BSD/GNU prefix;
+executable and platform configuration still select the actual implementation.
+
+Override a stream with inline text or a filename relative to `expected/`, such as
+`stdout_file = "shared.out"`. Override directories once through `[paths]` when needed.
+Keep expected filenames based on stable case names, independent of input filenames.
+Renaming an input should change its file and one fixture declaration. Schema 1
+retains its original explicit paths and expectation requirements.
+
+Pipe `files` concatenate in order without separators. Regular-file stdin is a
+separate explicit mode. Every retained expected file needs a catalog owner,
+including Rust-owned recipes; remove unused fixtures only after checking native
+tests and reference generators too.
 
 Compare exact bytes without trimming, sorting, newline conversion, or wildcard
 matching. If the contract needs an adaptation, explain it beside the case.

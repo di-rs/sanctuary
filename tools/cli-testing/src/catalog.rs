@@ -1,6 +1,10 @@
 //! The versioned, strict data model shared by tests and reference recording.
 
 use crate::{Error, Result};
+
+mod resolve;
+use resolve::Argument;
+pub use resolve::FixturePaths;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -8,17 +12,22 @@ use std::{
     path::{Component, Path, PathBuf},
 };
 
-/// A package-owned catalog. Paths in fixture fields are relative to `tests/`.
+/// A validated package-owned catalog with resolved paths relative to `tests/`.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-pub struct Suite {
+pub struct Suite<A = String> {
     pub schema: u32,
     pub binary: String,
     #[serde(default)]
     pub env: BTreeMap<String, String>,
     #[serde(default)]
     pub references: BTreeMap<String, Reference>,
-    pub cases: Vec<Case>,
+    pub reference: Option<String>,
+    pub cases: Vec<Case<A>>,
+    #[serde(default)]
+    pub fixtures: BTreeMap<String, PathBuf>,
+    #[serde(default)]
+    pub paths: FixturePaths,
     #[serde(skip)]
     pub(crate) package_dir: PathBuf,
     #[serde(skip)]
@@ -40,18 +49,20 @@ pub struct Reference {
 /// A single named invocation and its observable contract.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-pub struct Case {
+#[serde(bound(deserialize = "A: Deserialize<'de>"))]
+pub struct Case<A = String> {
     pub name: String,
     #[serde(default)]
     pub execution: Execution,
-    pub args: Vec<String>,
+    pub args: Vec<A>,
     /// Extra input files or directories used by file operands, relative to tests/.
     #[serde(default)]
     pub inputs: Vec<PathBuf>,
     pub stdin: Option<Input>,
     #[serde(default)]
     pub env: BTreeMap<String, String>,
-    pub origin: Origin,
+    #[serde(default)]
+    pub origin: Origin<A>,
     pub expect: Expected,
     pub adapt: Option<Adaptation>,
 }
@@ -82,15 +93,29 @@ pub enum Input {
 /// Independent reference recipe or a documented manually derived expectation.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-pub struct Origin {
+pub struct Origin<A = String> {
     pub reference: Option<String>,
     pub manual: Option<String>,
-    pub args: Option<Vec<String>>,
+    pub args: Option<Vec<A>>,
     pub exit: Option<i32>,
     pub stderr: Option<String>,
     #[serde(default)]
     pub env: BTreeMap<String, String>,
     pub reason: Option<String>,
+}
+
+impl<A> Default for Origin<A> {
+    fn default() -> Self {
+        Self {
+            reference: None,
+            manual: None,
+            args: None,
+            exit: None,
+            stderr: None,
+            env: BTreeMap::new(),
+            reason: None,
+        }
+    }
 }
 
 /// Both streams and an exact numeric exit code are required.
@@ -144,8 +169,9 @@ impl Suite {
             ));
         }
         let text = fs::read_to_string(&path)?;
-        let mut suite: Self = toml::from_str(&text)
+        let raw: Suite<Argument> = toml::from_str(&text)
             .map_err(|error| Error::caused_by(format!("cannot parse {}", path.display()), error))?;
+        let mut suite = raw.resolve()?;
         suite.package_dir = tests
             .parent()
             .ok_or_else(|| Error::new("tests has no package parent"))?
@@ -184,12 +210,12 @@ impl Suite {
     /// Resolve a validated fixture path within the package's tests directory.
     ///
     /// # Errors
-    /// Rejects absolute paths, parent components, and paths outside inputs/expected.
+    /// Rejects absolute paths, parent components, and paths outside the fixture directories.
     pub fn fixture_path(&self, path: &Path) -> Result<PathBuf> {
         relative_path(path)?;
-        if !path.starts_with("inputs") && !path.starts_with("expected") {
+        if !path.starts_with(&self.paths.inputs) && !path.starts_with(&self.paths.expected) {
             return Err(Error::new(format!(
-                "fixture must be under inputs/ or expected/: {}",
+                "fixture must be under a configured input or expected directory: {}",
                 path.display()
             )));
         }
@@ -218,7 +244,7 @@ impl Suite {
             .cloned()
             .collect();
         let root = self.package_dir.join("tests");
-        Ok(files_under(&root.join("expected"))?
+        Ok(files_under(&root.join(&self.paths.expected))?
             .into_iter()
             .filter_map(|path| path.strip_prefix(&root).ok().map(Path::to_path_buf))
             .filter(|path| !owned.contains(path))
@@ -226,9 +252,9 @@ impl Suite {
     }
 
     fn validate(&self) -> Result {
-        if self.schema != 1 || !identifier(&self.binary) || self.cases.is_empty() {
+        if !matches!(self.schema, 1 | 2) || !identifier(&self.binary) || self.cases.is_empty() {
             return Err(Error::new(
-                "catalog requires schema = 1, a binary name, and nonempty cases",
+                "catalog requires schema = 1 or 2, a binary name, and nonempty cases",
             ));
         }
         let manifest: toml::Value =
@@ -253,6 +279,16 @@ impl Suite {
                     "reference {name:?} requires an absolute program and platform"
                 )));
             }
+        }
+        if self
+            .reference
+            .as_ref()
+            .is_some_and(|name| !self.references.contains_key(name))
+        {
+            return Err(Error::new("unknown default reference"));
+        }
+        for path in self.fixtures.values() {
+            self.fixture_path(path)?;
         }
         let mut names = BTreeSet::new();
         for case in &self.cases {
@@ -328,7 +364,7 @@ impl Case {
             .iter()
             .chain(self.stdin.iter().flat_map(Input::paths))
         {
-            if !path.starts_with("inputs") || !suite.fixture_path(path)?.exists() {
+            if !path.starts_with(&suite.paths.inputs) || !suite.fixture_path(path)?.exists() {
                 return Err(Error::new(format!(
                     "missing input fixture {}",
                     path.display()
@@ -397,9 +433,9 @@ impl Input {
 fn stream(suite: &Suite, name: &str, text: Option<&str>, path: Option<&Path>) -> Result<Vec<u8>> {
     match (text, path) {
         (Some(text), None) => Ok(text.as_bytes().to_vec()),
-        (None, Some(path)) if path.starts_with("expected") => suite.read(path),
+        (None, Some(path)) if path.starts_with(&suite.paths.expected) => suite.read(path),
         _ => Err(Error::new(format!(
-            "expect requires exactly one of {name} or {name}_file under expected/"
+            "expect requires exactly one of {name} or {name}_file in the expected directory"
         ))),
     }
 }

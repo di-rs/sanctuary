@@ -1,167 +1,138 @@
-schema = 1
+schema = 2
 binary = "catr"
+reference = "cat"
 
-[references.bsd-cat]
+[fixtures]
+empty = "empty.txt"
+fox = "fox.txt"
+multispaces = "spiders-multispaces.txt"
+spiders = "spiders.txt"
+bustle = "the-bustle.txt"
+
+[references.cat]
 program = "/bin/cat"
 platform = "macos"
 
 [[cases]]
 name = "bustle_stdin"
 args = ["-"]
-stdin = { mode = "pipe", files = ["inputs/the-bustle.txt"] }
-origin = { reference = "bsd-cat" }
-expect = { exit = 0, stdout_file = "expected/the-bustle.txt.stdin.out", stderr = "" }
+stdin = { mode = "pipe", files = ["bustle"] }
+expect = { exit = 0 }
 
 [[cases]]
 name = "bustle_stdin_n"
 args = ["-n", "-"]
-stdin = { mode = "pipe", files = ["inputs/the-bustle.txt"] }
-origin = { reference = "bsd-cat" }
-expect = { exit = 0, stdout_file = "expected/the-bustle.txt.n.stdin.out", stderr = "" }
+stdin = { mode = "pipe", files = ["bustle"] }
+expect = { exit = 0 }
 
 [[cases]]
 name = "bustle_stdin_b"
 args = ["-b", "-"]
-stdin = { mode = "pipe", files = ["inputs/the-bustle.txt"] }
-origin = { reference = "bsd-cat" }
-expect = { exit = 0, stdout_file = "expected/the-bustle.txt.b.stdin.out", stderr = "" }
+stdin = { mode = "pipe", files = ["bustle"] }
+expect = { exit = 0 }
 
 [[cases]]
 name = "empty"
-args = ["tests/inputs/empty.txt"]
-inputs = ["inputs/empty.txt"]
-origin = { reference = "bsd-cat" }
-expect = { exit = 0, stdout_file = "expected/empty.txt.out", stderr = "" }
+args = [{ fixture = "empty" }]
+expect = { exit = 0 }
 
 [[cases]]
 name = "empty_n"
-args = ["-n", "tests/inputs/empty.txt"]
-inputs = ["inputs/empty.txt"]
-origin = { reference = "bsd-cat" }
-expect = { exit = 0, stdout_file = "expected/empty.txt.n.out", stderr = "" }
+args = ["-n", { fixture = "empty" }]
+expect = { exit = 0 }
 
 [[cases]]
 name = "empty_b"
-args = ["-b", "tests/inputs/empty.txt"]
-inputs = ["inputs/empty.txt"]
-origin = { reference = "bsd-cat" }
-expect = { exit = 0, stdout_file = "expected/empty.txt.b.out", stderr = "" }
+args = ["-b", { fixture = "empty" }]
+expect = { exit = 0 }
 
 [[cases]]
 name = "fox"
-args = ["tests/inputs/fox.txt"]
-inputs = ["inputs/fox.txt"]
-origin = { reference = "bsd-cat" }
-expect = { exit = 0, stdout_file = "expected/fox.txt.out", stderr = "" }
+args = [{ fixture = "fox" }]
+expect = { exit = 0 }
 
 [[cases]]
 name = "fox_n"
-args = ["-n", "tests/inputs/fox.txt"]
-inputs = ["inputs/fox.txt"]
-origin = { reference = "bsd-cat" }
-expect = { exit = 0, stdout_file = "expected/fox.txt.n.out", stderr = "" }
+args = ["-n", { fixture = "fox" }]
+expect = { exit = 0 }
 
 [[cases]]
 name = "fox_b"
-args = ["-b", "tests/inputs/fox.txt"]
-inputs = ["inputs/fox.txt"]
-origin = { reference = "bsd-cat" }
-expect = { exit = 0, stdout_file = "expected/fox.txt.b.out", stderr = "" }
+args = ["-b", { fixture = "fox" }]
+expect = { exit = 0 }
 
 [[cases]]
 name = "spiders"
-args = ["tests/inputs/spiders.txt"]
-inputs = ["inputs/spiders.txt"]
-origin = { reference = "bsd-cat" }
-expect = { exit = 0, stdout_file = "expected/spiders.txt.out", stderr = "" }
+args = [{ fixture = "spiders" }]
+expect = { exit = 0 }
 
 [[cases]]
 name = "spiders_n"
-args = ["-n", "tests/inputs/spiders.txt"]
-inputs = ["inputs/spiders.txt"]
-origin = { reference = "bsd-cat" }
-expect = { exit = 0, stdout_file = "expected/spiders.txt.n.out", stderr = "" }
+args = ["-n", { fixture = "spiders" }]
+expect = { exit = 0 }
 
 [[cases]]
 name = "spiders_b"
-args = ["-b", "tests/inputs/spiders.txt"]
-inputs = ["inputs/spiders.txt"]
-origin = { reference = "bsd-cat" }
-expect = { exit = 0, stdout_file = "expected/spiders.txt.b.out", stderr = "" }
+args = ["-b", { fixture = "spiders" }]
+expect = { exit = 0 }
 
 [[cases]]
 name = "bustle"
-args = ["tests/inputs/the-bustle.txt"]
-inputs = ["inputs/the-bustle.txt"]
-origin = { reference = "bsd-cat" }
-expect = { exit = 0, stdout_file = "expected/the-bustle.txt.out", stderr = "" }
+args = [{ fixture = "bustle" }]
+expect = { exit = 0 }
 
 [[cases]]
 name = "bustle_n"
-args = ["-n", "tests/inputs/the-bustle.txt"]
-inputs = ["inputs/the-bustle.txt"]
-origin = { reference = "bsd-cat" }
-expect = { exit = 0, stdout_file = "expected/the-bustle.txt.n.out", stderr = "" }
+args = ["-n", { fixture = "bustle" }]
+expect = { exit = 0 }
 
 [[cases]]
 name = "bustle_b"
-args = ["-b", "tests/inputs/the-bustle.txt"]
-inputs = ["inputs/the-bustle.txt"]
-origin = { reference = "bsd-cat" }
-expect = { exit = 0, stdout_file = "expected/the-bustle.txt.b.out", stderr = "" }
+args = ["-b", { fixture = "bustle" }]
+expect = { exit = 0 }
 
 [[cases]]
 name = "all"
-args = ["tests/inputs/fox.txt", "tests/inputs/spiders.txt", "tests/inputs/the-bustle.txt"]
-inputs = ["inputs/fox.txt", "inputs/spiders.txt", "inputs/the-bustle.txt"]
-origin = { reference = "bsd-cat" }
-expect = { exit = 0, stdout_file = "expected/all.out", stderr = "" }
+args = [{ fixture = "fox" }, { fixture = "spiders" }, { fixture = "bustle" }]
+expect = { exit = 0 }
 
 [[cases]]
 name = "all_n"
-args = ["tests/inputs/fox.txt", "tests/inputs/spiders.txt", "tests/inputs/the-bustle.txt", "-n"]
-inputs = ["inputs/fox.txt", "inputs/spiders.txt", "inputs/the-bustle.txt"]
-origin = { reference = "bsd-cat", args = ["-n", "tests/inputs/fox.txt", "tests/inputs/spiders.txt", "tests/inputs/the-bustle.txt"], reason = "Use the BSD reference option spelling and place options before file operands." }
-expect = { exit = 0, stdout_file = "expected/all.n.out", stderr = "" }
+args = [{ fixture = "fox" }, { fixture = "spiders" }, { fixture = "bustle" }, "-n"]
+origin = { args = ["-n", { fixture = "fox" }, { fixture = "spiders" }, { fixture = "bustle" }], reason = "Use the BSD reference option spelling and place options before file operands." }
+expect = { exit = 0 }
 
 [[cases]]
 name = "all_b"
-args = ["tests/inputs/fox.txt", "tests/inputs/spiders.txt", "tests/inputs/the-bustle.txt", "-b"]
-inputs = ["inputs/fox.txt", "inputs/spiders.txt", "inputs/the-bustle.txt"]
-origin = { reference = "bsd-cat", args = ["-b", "tests/inputs/fox.txt", "tests/inputs/spiders.txt", "tests/inputs/the-bustle.txt"], reason = "Use the BSD reference option spelling and place options before file operands." }
-expect = { exit = 0, stdout_file = "expected/all.b.out", stderr = "" }
+args = [{ fixture = "fox" }, { fixture = "spiders" }, { fixture = "bustle" }, "-b"]
+origin = { args = ["-b", { fixture = "fox" }, { fixture = "spiders" }, { fixture = "bustle" }], reason = "Use the BSD reference option spelling and place options before file operands." }
+expect = { exit = 0 }
 
 [[cases]]
 name = "mutipspaces"
-args = ["tests/inputs/spiders-multispaces.txt"]
-inputs = ["inputs/spiders-multispaces.txt"]
-origin = { reference = "bsd-cat" }
-expect = { exit = 0, stdout_file = "expected/spiders-multispaces.txt.out", stderr = "" }
+args = [{ fixture = "multispaces" }]
+expect = { exit = 0 }
 
 [[cases]]
 name = "mutipspaces_s"
-args = ["tests/inputs/spiders-multispaces.txt", "-s"]
-inputs = ["inputs/spiders-multispaces.txt"]
-origin = { reference = "bsd-cat", args = ["-s", "tests/inputs/spiders-multispaces.txt"], reason = "Use the BSD reference option spelling and place options before file operands." }
-expect = { exit = 0, stdout_file = "expected/spiders-multispaces.txt.s.out", stderr = "" }
+args = [{ fixture = "multispaces" }, "-s"]
+origin = { args = ["-s", { fixture = "multispaces" }], reason = "Use the BSD reference option spelling and place options before file operands." }
+expect = { exit = 0 }
 
 [[cases]]
 name = "mutipspaces_s_n"
-args = ["tests/inputs/spiders-multispaces.txt", "-s", "-n"]
-inputs = ["inputs/spiders-multispaces.txt"]
-origin = { reference = "bsd-cat", args = ["-s", "-n", "tests/inputs/spiders-multispaces.txt"], reason = "Use the BSD reference option spelling and place options before file operands." }
-expect = { exit = 0, stdout_file = "expected/spiders-multispaces.txt.s.n.out", stderr = "" }
+args = [{ fixture = "multispaces" }, "-s", "-n"]
+origin = { args = ["-s", "-n", { fixture = "multispaces" }], reason = "Use the BSD reference option spelling and place options before file operands." }
+expect = { exit = 0 }
 
 [[cases]]
 name = "mutipspaces_s_b"
-args = ["tests/inputs/spiders-multispaces.txt", "-s", "-b"]
-inputs = ["inputs/spiders-multispaces.txt"]
-origin = { reference = "bsd-cat", args = ["-s", "-b", "tests/inputs/spiders-multispaces.txt"], reason = "Use the BSD reference option spelling and place options before file operands." }
-expect = { exit = 0, stdout_file = "expected/spiders-multispaces.txt.s.b.out", stderr = "" }
+args = [{ fixture = "multispaces" }, "-s", "-b"]
+origin = { args = ["-s", "-b", { fixture = "multispaces" }], reason = "Use the BSD reference option spelling and place options before file operands." }
+expect = { exit = 0 }
 
 [[cases]]
 name = "bustle_u"
-args = ["tests/inputs/the-bustle.txt", "-u"]
-inputs = ["inputs/the-bustle.txt"]
-origin = { reference = "bsd-cat", args = ["-u", "tests/inputs/the-bustle.txt"], reason = "Use the BSD reference option spelling and place options before file operands." }
-expect = { exit = 0, stdout_file = "expected/the-bustle.txt.out", stderr = "" }
+args = [{ fixture = "bustle" }, "-u"]
+origin = { args = ["-u", { fixture = "bustle" }], reason = "Use the BSD reference option spelling and place options before file operands." }
+expect = { exit = 0, stdout_file = "bustle.out" }

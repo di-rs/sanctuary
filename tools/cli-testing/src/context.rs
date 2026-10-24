@@ -1,6 +1,6 @@
 use crate::{
     Error, Fixtures, Result,
-    catalog::{Case, Execution, Input, Suite, relative_path},
+    catalog::{Case, Execution, FixturePaths, Input, Suite, relative_path},
 };
 use assert_fs::{
     TempDir,
@@ -19,6 +19,7 @@ use std::{
 pub struct TestContext {
     binary: PathBuf,
     package_dir: PathBuf,
+    fixture_paths: FixturePaths,
 }
 
 impl TestContext {
@@ -27,6 +28,7 @@ impl TestContext {
         Self {
             binary: binary.into(),
             package_dir: package_dir.into(),
+            fixture_paths: FixturePaths::default(),
         }
     }
 
@@ -42,7 +44,7 @@ impl TestContext {
 
     #[must_use]
     pub fn fixtures(&self) -> Fixtures {
-        Fixtures::new(self.package_dir.join("tests"))
+        Fixtures::with_paths(self.package_dir.join("tests"), self.fixture_paths.clone())
     }
 
     /// Load the owning package's catalog.
@@ -147,7 +149,8 @@ impl Context {
         self.test.fixtures()
     }
 
-    pub(crate) fn prepare(test: TestContext, suite: &Suite, case: &Case) -> Result<Self> {
+    pub(crate) fn prepare(mut test: TestContext, suite: &Suite, case: &Case) -> Result<Self> {
+        test.fixture_paths = suite.paths.clone();
         let (mut stdout, stderr) = case.expect.bytes(suite)?;
         if let Some(adapt) = &case.adapt {
             stdout = adapt.expected_stdout.apply(&stdout);
