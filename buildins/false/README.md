@@ -9,6 +9,8 @@
 Reference: [GNU false](https://www.gnu.org/software/coreutils/manual/html_node/false-invocation.html).
 ## CLI test recipes
 
+Native tests use `#[cli_test]` to receive shared helpers as `cx: &TestContext`.
+
 The fixed silent-status contract lives in [the catalog](tests/cases.toml),
 with independently specified POSIX expectations. Native Rust tests retain logging assertions.
 
