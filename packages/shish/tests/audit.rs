@@ -220,14 +220,12 @@ fn pty_input_backpressure_is_bounded() -> anyhow::Result<()> {
 #[test]
 fn pty_cursor_reply_backpressure_is_bounded() -> anyhow::Result<()> {
     let home = assert_fs::TempDir::new()?;
-    let mut pty = support::pty::Pty::new(
-        home.path(),
-        &[
-            "-c",
-            "stty raw -echo; while true; do printf '\x1b[6n'; done",
-        ],
-        &[],
-    )?;
+    // A fixed burst fills the input queue with replies on both Linux and macOS.
+    // A shell loop can emit queries too slowly to reach backpressure before the
+    // driver's overall read deadline, especially when process discovery is busy.
+    let queries = "\x1b[6n".repeat(16_384);
+    let command = format!("stty raw -echo; /usr/bin/printf '%s' '{queries}'; sleep 30");
+    let mut pty = support::pty::Pty::new(home.path(), &["-c", &command], &[])?;
     let started = std::time::Instant::now();
     let error = pty.expect("never printed").unwrap_err();
     anyhow::ensure!(
