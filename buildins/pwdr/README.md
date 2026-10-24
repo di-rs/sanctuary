@@ -22,6 +22,8 @@ the last flag supplied. Paths containing non-Unicode bytes are displayed lossily
 
 ## CLI test structure
 
+Native tests use `#[cli_test]` to receive shared helpers as `cx: &TestContext`.
+
 Current-directory, PWD fallback, and symlink scenarios remain native Rust
 tests because their expected paths are generated inside temporary workspaces.
 All scenarios now share deterministic command defaults and isolated workspaces;
