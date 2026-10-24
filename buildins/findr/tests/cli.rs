@@ -1,15 +1,14 @@
-use cli_testing::{Workspace, context};
+use cli_testing::{TestContext, Workspace, cli_test};
 use predicates::prelude::*;
 use pretty_assertions::assert_eq;
 use std::{borrow::Cow, fs};
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-#[test]
-fn usage() {
+#[cli_test]
+fn usage(cx: &TestContext) {
     for flag in &["-h", "--help"] {
-        context!()
-            .command()
+        cx.command()
             .arg(flag)
             .assert()
             .success()
@@ -17,21 +16,19 @@ fn usage() {
     }
 }
 
-#[test]
-fn dies_bad_name() {
-    context!()
-        .command()
+#[cli_test]
+fn dies_bad_name(cx: &TestContext) {
+    cx.command()
         .args(["--name", "*.csv"])
         .assert()
         .failure()
         .stderr(predicate::str::contains("error: invalid value '*.csv'"));
 }
 
-#[test]
-fn dies_bad_type() {
+#[cli_test]
+fn dies_bad_type(cx: &TestContext) {
     let expected = "error: invalid value 'x' for '--type [<TYPE>...]'";
-    context!()
-        .command()
+    cx.command()
         .args(["--type", "x"])
         .assert()
         .failure()
@@ -50,19 +47,14 @@ fn format_file_name(expected_file: &str) -> Cow<'_, str> {
     expected_file.into()
 }
 
-fn run(args: &[&str], expected_file: &str) -> Result<()> {
+fn run(cx: &TestContext, args: &[&str], expected_file: &str) -> Result<()> {
     let file = format_file_name(expected_file);
-    let contents = String::from_utf8(cli_testing::fixtures!().read_expected(file.as_ref())?)?;
+    let contents = String::from_utf8(cx.fixtures().read_expected(file.as_ref())?)?;
     let mut expected: Vec<&str> = contents.split('\n').filter(|s| !s.is_empty()).collect();
     expected.sort_unstable();
 
     // Directory traversal order is unspecified, so compare the explicit line multiset.
-    let cmd = context!()
-        .command()
-        .args(args)
-        .assert()
-        .success()
-        .stderr("");
+    let cmd = cx.command().args(args).assert().success().stderr("");
     let out = cmd.get_output();
     let stdout = String::from_utf8(out.stdout.clone())?;
     let mut lines: Vec<&str> = stdout.split('\n').filter(|s| !s.is_empty()).collect();
@@ -73,156 +65,177 @@ fn run(args: &[&str], expected_file: &str) -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn path1() -> Result<()> {
-    run(&["tests/inputs"], "path1.txt")
+#[cli_test]
+fn path1(cx: &TestContext) -> Result<()> {
+    run(cx, &["tests/inputs"], "path1.txt")
 }
 
-#[test]
-fn path_a() -> Result<()> {
-    run(&["tests/inputs/a"], "path_a.txt")
+#[cli_test]
+fn path_a(cx: &TestContext) -> Result<()> {
+    run(cx, &["tests/inputs/a"], "path_a.txt")
 }
 
-#[test]
-fn path_a_b() -> Result<()> {
-    run(&["tests/inputs/a/b"], "path_a_b.txt")
+#[cli_test]
+fn path_a_b(cx: &TestContext) -> Result<()> {
+    run(cx, &["tests/inputs/a/b"], "path_a_b.txt")
 }
 
-#[test]
-fn path_d() -> Result<()> {
-    run(&["tests/inputs/d"], "path_d.txt")
+#[cli_test]
+fn path_d(cx: &TestContext) -> Result<()> {
+    run(cx, &["tests/inputs/d"], "path_d.txt")
 }
 
-#[test]
-fn path_a_b_d() -> Result<()> {
-    run(&["tests/inputs/a/b", "tests/inputs/d"], "path_a_b_d.txt")
-}
-
-#[test]
-fn type_f() -> Result<()> {
-    run(&["tests/inputs", "-t", "f"], "type_f.txt")
-}
-
-#[test]
-fn type_f_path_a() -> Result<()> {
-    run(&["tests/inputs/a", "-t", "f"], "type_f_path_a.txt")
-}
-
-#[test]
-fn type_f_path_a_b() -> Result<()> {
-    run(&["tests/inputs/a/b", "--type", "f"], "type_f_path_a_b.txt")
-}
-
-#[test]
-fn type_f_path_d() -> Result<()> {
-    run(&["tests/inputs/d", "--type", "f"], "type_f_path_d.txt")
-}
-
-#[test]
-fn type_f_path_a_b_d() -> Result<()> {
+#[cli_test]
+fn path_a_b_d(cx: &TestContext) -> Result<()> {
     run(
+        cx,
+        &["tests/inputs/a/b", "tests/inputs/d"],
+        "path_a_b_d.txt",
+    )
+}
+
+#[cli_test]
+fn type_f(cx: &TestContext) -> Result<()> {
+    run(cx, &["tests/inputs", "-t", "f"], "type_f.txt")
+}
+
+#[cli_test]
+fn type_f_path_a(cx: &TestContext) -> Result<()> {
+    run(cx, &["tests/inputs/a", "-t", "f"], "type_f_path_a.txt")
+}
+
+#[cli_test]
+fn type_f_path_a_b(cx: &TestContext) -> Result<()> {
+    run(
+        cx,
+        &["tests/inputs/a/b", "--type", "f"],
+        "type_f_path_a_b.txt",
+    )
+}
+
+#[cli_test]
+fn type_f_path_d(cx: &TestContext) -> Result<()> {
+    run(cx, &["tests/inputs/d", "--type", "f"], "type_f_path_d.txt")
+}
+
+#[cli_test]
+fn type_f_path_a_b_d(cx: &TestContext) -> Result<()> {
+    run(
+        cx,
         &["tests/inputs/a/b", "tests/inputs/d", "--type", "f"],
         "type_f_path_a_b_d.txt",
     )
 }
 
-#[test]
-fn type_d() -> Result<()> {
-    run(&["tests/inputs", "-t", "d"], "type_d.txt")
+#[cli_test]
+fn type_d(cx: &TestContext) -> Result<()> {
+    run(cx, &["tests/inputs", "-t", "d"], "type_d.txt")
 }
 
-#[test]
-fn type_d_path_a() -> Result<()> {
-    run(&["tests/inputs/a", "-t", "d"], "type_d_path_a.txt")
+#[cli_test]
+fn type_d_path_a(cx: &TestContext) -> Result<()> {
+    run(cx, &["tests/inputs/a", "-t", "d"], "type_d_path_a.txt")
 }
 
-#[test]
-fn type_d_path_a_b() -> Result<()> {
-    run(&["tests/inputs/a/b", "--type", "d"], "type_d_path_a_b.txt")
-}
-
-#[test]
-fn type_d_path_d() -> Result<()> {
-    run(&["tests/inputs/d", "--type", "d"], "type_d_path_d.txt")
-}
-
-#[test]
-fn type_d_path_a_b_d() -> Result<()> {
+#[cli_test]
+fn type_d_path_a_b(cx: &TestContext) -> Result<()> {
     run(
+        cx,
+        &["tests/inputs/a/b", "--type", "d"],
+        "type_d_path_a_b.txt",
+    )
+}
+
+#[cli_test]
+fn type_d_path_d(cx: &TestContext) -> Result<()> {
+    run(cx, &["tests/inputs/d", "--type", "d"], "type_d_path_d.txt")
+}
+
+#[cli_test]
+fn type_d_path_a_b_d(cx: &TestContext) -> Result<()> {
+    run(
+        cx,
         &["tests/inputs/a/b", "tests/inputs/d", "--type", "d"],
         "type_d_path_a_b_d.txt",
     )
 }
 
-#[test]
-fn type_l() -> Result<()> {
-    run(&["tests/inputs", "-t", "l"], "type_l.txt")
+#[cli_test]
+fn type_l(cx: &TestContext) -> Result<()> {
+    run(cx, &["tests/inputs", "-t", "l"], "type_l.txt")
 }
 
-#[test]
-fn type_f_l() -> Result<()> {
-    run(&["tests/inputs", "-t", "l", "f"], "type_f_l.txt")
+#[cli_test]
+fn type_f_l(cx: &TestContext) -> Result<()> {
+    run(cx, &["tests/inputs", "-t", "l", "f"], "type_f_l.txt")
 }
 
-#[test]
-fn name_csv() -> Result<()> {
-    run(&["tests/inputs", "-n", ".*[.]csv"], "name_csv.txt")
+#[cli_test]
+fn name_csv(cx: &TestContext) -> Result<()> {
+    run(cx, &["tests/inputs", "-n", ".*[.]csv"], "name_csv.txt")
 }
 
-#[test]
-fn name_csv_mp3() -> Result<()> {
+#[cli_test]
+fn name_csv_mp3(cx: &TestContext) -> Result<()> {
     run(
+        cx,
         &["tests/inputs", "-n", ".*[.]csv", "-n", ".*[.]mp3"],
         "name_csv_mp3.txt",
     )
 }
 
-#[test]
-fn name_txt_path_a_d() -> Result<()> {
+#[cli_test]
+fn name_txt_path_a_d(cx: &TestContext) -> Result<()> {
     run(
+        cx,
         &["tests/inputs/a", "tests/inputs/d", "--name", ".*.txt"],
         "name_txt_path_a_d.txt",
     )
 }
 
-#[test]
-fn name_a() -> Result<()> {
-    run(&["tests/inputs", "-n", "a"], "name_a.txt")
+#[cli_test]
+fn name_a(cx: &TestContext) -> Result<()> {
+    run(cx, &["tests/inputs", "-n", "a"], "name_a.txt")
 }
 
-#[test]
-fn type_f_name_a() -> Result<()> {
-    run(&["tests/inputs", "-t", "f", "-n", "a"], "type_f_name_a.txt")
-}
-
-#[test]
-fn type_d_name_a() -> Result<()> {
+#[cli_test]
+fn type_f_name_a(cx: &TestContext) -> Result<()> {
     run(
+        cx,
+        &["tests/inputs", "-t", "f", "-n", "a"],
+        "type_f_name_a.txt",
+    )
+}
+
+#[cli_test]
+fn type_d_name_a(cx: &TestContext) -> Result<()> {
+    run(
+        cx,
         &["tests/inputs", "--type", "d", "--name", "a"],
         "type_d_name_a.txt",
     )
 }
 
-#[test]
-fn path_g() -> Result<()> {
-    run(&["tests/inputs/g.csv"], "path_g.txt")
+#[cli_test]
+fn path_g(cx: &TestContext) -> Result<()> {
+    run(cx, &["tests/inputs/g.csv"], "path_g.txt")
 }
 
-#[test]
+#[cli_test]
 #[cfg(not(windows))]
 #[allow(
     clippy::panic_in_result_fn,
     reason = "Assertions fail the test; Result propagates fixture I/O errors."
 )]
-fn unreadable_dir() -> Result<()> {
+fn unreadable_dir(cx: &TestContext) -> Result<()> {
     use std::os::unix::fs::PermissionsExt;
 
-    let dir = context!().workspace()?;
+    let dir = cx.workspace()?;
     let unreadable = dir.path().join("cant-touch-this");
     fs::create_dir(&unreadable)?;
     fs::set_permissions(&unreadable, fs::Permissions::from_mode(0o000))?;
 
-    let cmd = context!().command().arg(dir.path()).assert();
+    let cmd = cx.command().arg(dir.path()).assert();
     fs::set_permissions(&unreadable, fs::Permissions::from_mode(0o700))?;
     let cmd = cmd.code(1);
 
@@ -236,8 +249,8 @@ fn unreadable_dir() -> Result<()> {
     Ok(())
 }
 
-fn filter_tree() -> Result<Workspace> {
-    let dir = context!().workspace()?;
+fn filter_tree(cx: &TestContext) -> Result<Workspace> {
+    let dir = cx.workspace()?;
     fs::create_dir(dir.path().join("reports.txt"))?;
     fs::write(dir.path().join("reports.txt/inside.csv"), "")?;
     fs::write(dir.path().join("alpha.txt"), "")?;
@@ -260,42 +273,42 @@ fn run_tree(dir: &Workspace, args: &[&str], expected: &[&str]) -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn default_path_in_empty_directory() -> Result<()> {
-    run_tree(&context!().workspace()?, &[], &["."])
+#[cli_test]
+fn default_path_in_empty_directory(cx: &TestContext) -> Result<()> {
+    run_tree(&cx.workspace()?, &[], &["."])
 }
 
-#[test]
-fn name_and_type_filters_intersect() -> Result<()> {
+#[cli_test]
+fn name_and_type_filters_intersect(cx: &TestContext) -> Result<()> {
     run_tree(
-        &filter_tree()?,
+        &filter_tree(cx)?,
         &[".", "-t", "f", "-n", "[.]txt$"],
         &["./alpha.txt", "./.hidden.txt"],
     )
 }
 
-#[test]
-fn name_filter_does_not_prune_directories() -> Result<()> {
+#[cli_test]
+fn name_filter_does_not_prune_directories(cx: &TestContext) -> Result<()> {
     run_tree(
-        &filter_tree()?,
+        &filter_tree(cx)?,
         &[".", "-n", "^inside[.]csv$"],
         &["./reports.txt/inside.csv"],
     )
 }
 
-#[test]
-fn name_matches_basename_not_parent_path() -> Result<()> {
+#[cli_test]
+fn name_matches_basename_not_parent_path(cx: &TestContext) -> Result<()> {
     run_tree(
-        &filter_tree()?,
+        &filter_tree(cx)?,
         &["reports.txt", "-t", "f", "-n", "reports"],
         &[],
     )
 }
 
-#[test]
-fn empty_regex_matches_all_entry_names() -> Result<()> {
+#[cli_test]
+fn empty_regex_matches_all_entry_names(cx: &TestContext) -> Result<()> {
     run_tree(
-        &filter_tree()?,
+        &filter_tree(cx)?,
         &[".", "-n", ""],
         &[
             ".",
@@ -308,24 +321,23 @@ fn empty_regex_matches_all_entry_names() -> Result<()> {
     )
 }
 
-#[test]
-fn unmatched_name_produces_no_output() -> Result<()> {
-    run_tree(&filter_tree()?, &[".", "-n", "^absent$"], &[])
+#[cli_test]
+fn unmatched_name_produces_no_output(cx: &TestContext) -> Result<()> {
+    run_tree(&filter_tree(cx)?, &[".", "-n", "^absent$"], &[])
 }
 
-#[test]
-fn multiple_roots_apply_the_same_filter() -> Result<()> {
+#[cli_test]
+fn multiple_roots_apply_the_same_filter(cx: &TestContext) -> Result<()> {
     run_tree(
-        &filter_tree()?,
+        &filter_tree(cx)?,
         &["alpha.txt", "reports.txt", "-t", "f", "-n", "[.]csv$"],
         &["reports.txt/inside.csv"],
     )
 }
 
-#[test]
-fn invalid_regex_among_valid_names_is_rejected() {
-    context!()
-        .command()
+#[cli_test]
+fn invalid_regex_among_valid_names_is_rejected(cx: &TestContext) {
+    cx.command()
         .args(["-n", "valid", "-n", "["])
         .assert()
         .failure()
@@ -333,10 +345,10 @@ fn invalid_regex_among_valid_names_is_rejected() {
         .stderr(predicate::str::contains("invalid value '['"));
 }
 
-#[test]
+#[cli_test]
 #[cfg(unix)]
-fn symlink_filter_does_not_follow_directory_targets() -> Result<()> {
-    let dir = filter_tree()?;
+fn symlink_filter_does_not_follow_directory_targets(cx: &TestContext) -> Result<()> {
+    let dir = filter_tree(cx)?;
     std::os::unix::fs::symlink("reports.txt", dir.path().join("linked"))?;
     run_tree(&dir, &[".", "-t", "l"], &["./linked"])?;
     run_tree(
@@ -346,10 +358,9 @@ fn symlink_filter_does_not_follow_directory_targets() -> Result<()> {
     )
 }
 
-#[test]
-fn missing_operand_returns_failure() {
-    cli_testing::context!()
-        .command()
+#[cli_test]
+fn missing_operand_returns_failure(cx: &TestContext) {
+    cx.command()
         .args(["/sanctuary-audit-missing/path"])
         .assert()
         .code(1)

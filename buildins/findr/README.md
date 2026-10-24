@@ -30,6 +30,8 @@ filesystem's traversal order. Keep this exception local to traversal assertions.
 
 ## CLI test structure
 
+Native tests use `#[cli_test]` to receive shared helpers as `cx: &TestContext`.
+
 Traversal-order comparisons, Windows path fixtures, and permission/symlink
 scenarios remain native Rust tests. They now use shared command defaults and
 workspaces. The existing Nushell generator remains for the independently derived
