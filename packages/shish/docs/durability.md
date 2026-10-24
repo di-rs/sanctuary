@@ -1,15 +1,15 @@
 # Shish, Boxie, and durable execution
 
-Start by running shish as an operator-approved program inside Boxie's existing
-sandbox lifecycle. Keep Temporal connectivity in Boxie. A later durable-job
-facility should accept explicitly submitted work with declared recovery policy;
-ordinary terminal commands do not become durable jobs automatically.
+Shish currently runs locally; Boxie's shipped sandbox uses Bash. This proposal
+would run shish as an operator-approved program inside Boxie's existing sandbox
+lifecycle, keeping Temporal connectivity in Boxie. Durable jobs would require
+explicit submission and a declared recovery policy; ordinary terminal commands
+would not become durable automatically. These plans are not implemented.
 
-This is a design recommendation, not a runtime implementation or a new remote
-execution API. Shish currently runs locally; Boxie's shipped sandbox uses Bash.
-The [platform policy](../../../docs/platform-direction.md#compatibility-and-product-priorities)
-keeps shell compatibility, isolation, recovery, and interactive conveniences
-separate. Full POSIX conformance is not a prerequisite for this integration.
+- [Integration boundary](#existing-boundary-and-first-integration)
+- [Recovery behavior](#what-recovery-means)
+- [Durable-job design](#explicit-durable-jobs)
+- [Implementation stages](#implementation-stages)
 
 ## Existing boundary and first integration
 
@@ -163,11 +163,11 @@ crossing the activity boundary. Output/checkpoint storage needs encryption,
 owner authorization, retention, deletion, and size limits independently of
 Temporal history retention.
 
-## Focused implementation proposals
+## Implementation stages
 
-Each row is a separate future PR, with its own acceptance evidence. D01–D02 enable
-ordinary shish sandboxes; D03 onward require an explicit durable-job product
-contract. None is included in this documentation stage.
+All stages below are unimplemented. D01–D02 cover running shish in Boxie;
+D03 onward require an explicit durable-job product and submission contract.
+Dependencies indicate the order in which the guarantees can be established.
 
 | ID | Scope and dependency | Acceptance evidence |
 | --- | --- | --- |
@@ -182,9 +182,6 @@ contract. None is included in this documentation stage.
 | D09 | One application checkpoint protocol; depends on D05. | Checkpoint integrity/version checks, interrupted publication, and measured restoration of that application only. |
 | D10 | Credential/data-flow and operational release gate; depends on the selected implementation scope. | No sandbox control credentials; sensitive payload/history audit, restore drills, operator runbooks, and retention checks. |
 
-These proposals reuse the current
-[workflow payload boundary](../../boxie/src/boxie/temporal/contracts.py) and pinned
-Python SDK 1.34.0. A Rust Temporal SDK migration is unnecessary for this starting
-design. Research was checked against repository contracts and upstream Temporal
-documentation on 2026-10-22; no recovery experiment or production rollout is
+The design reuses Boxie's [workflow payload boundary](../../boxie/src/boxie/temporal/contracts.py)
+and Python Temporal workers. No recovery experiment or production rollout is
 claimed here.
