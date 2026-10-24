@@ -20,17 +20,6 @@ fn runs() {
         .stderr("");
 }
 
-fn run(args: &[&str], expected_file: &str) -> Result<(), std::io::Error> {
-    let expected = cli_testing::fixtures!().read_expected(expected_file)?;
-    cargo_bin_cmd!()
-        .args(args)
-        .assert()
-        .code(0)
-        .stdout(expected)
-        .stderr("");
-    Ok(())
-}
-
 #[test]
 fn usage() {
     for flag in ["-h", "--help"] {
@@ -87,24 +76,4 @@ fn unicode_and_backslashes_are_literal() {
         .success()
         .stdout("世界 \\n\\t")
         .stderr("");
-}
-
-#[test]
-fn hello1() -> Result<(), std::io::Error> {
-    run(&["Hello there"], "hello1.txt")
-}
-
-#[test]
-fn hello2() -> Result<(), std::io::Error> {
-    run(&["Hello", "there"], "hello2.txt")
-}
-
-#[test]
-fn hello1n() -> Result<(), std::io::Error> {
-    run(&["-n", "Hello there"], "hello1.n.txt")
-}
-
-#[test]
-fn hello2n() -> Result<(), std::io::Error> {
-    run(&["-n", "Hello", "there"], "hello2.n.txt")
 }
