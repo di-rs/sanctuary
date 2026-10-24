@@ -3,6 +3,7 @@ name: ⏱️ CLI benchmark execution
 # Keep this condition aligned with the first job: downstream workflows skip without a runner.
 run-name: >-
   ${{
+    (github.event.action != 'labeled' || github.event.label.name == 'run-ci') &&
     (!github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'run-ci')) &&
     format('⏱️ CLI benchmarks for PR #{0}', github.event.pull_request.number) || '⏭️ CI skipped'
   }}
@@ -20,14 +21,15 @@ permissions:
   contents: read
 
 concurrency:
-  group: cli-bench-${{ github.event.pull_request.number }}
+  group: cli-bench-${{ github.event.pull_request.number }}-${{ github.event.action == 'labeled' && github.event.label.name != 'run-ci' && github.run_id || 'checks' }}
   cancel-in-progress: true
 
 jobs:
   select:
-    name: 🔎 Select CLIs with code changes
+    name: 🔎 Select CLIs with code changes${{ github.event.action == 'labeled' && github.event.label.name != 'run-ci' && ' (label metadata only)' || '' }}
     if: >-
       ${{
+        (github.event.action != 'labeled' || github.event.label.name == 'run-ci') &&
         (!github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'run-ci'))
       }}
     runs-on: ubuntu-24.04
@@ -78,7 +80,7 @@ jobs:
           if-no-files-found: error
 
   suites:
-    name: ⏱️ Run CLI benchmarks (${{ matrix.os }})
+    name: ⏱️ Run CLI benchmarks (${{ matrix.os }})${{ github.event.action == 'labeled' && github.event.label.name != 'run-ci' && ' (label metadata only)' || '' }}
     needs: select
     if: needs.select.outputs.suites != '[]'
     strategy:

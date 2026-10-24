@@ -4,6 +4,8 @@ Sanctuary is a platform for shell sandboxes, with Rust command-line tools, share
 libraries, and Python services. Each CLI is its own Cargo package.
 Python services and repository tools share a uv workspace.
 
+See [Contributing](CONTRIBUTING.md) for PR classification and review guidance.
+
 ## Try a command
 
 From the repository root with the pinned Rust toolchain installed:

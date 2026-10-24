@@ -1,0 +1,25 @@
+name: 🏷️ PR classification
+
+# Metadata-only action: reads trusted base-branch config; never checks out PR code.
+on: # zizmor: ignore[dangerous-triggers]
+  pull_request_target:
+    types: [opened, edited, synchronize, reopened, ready_for_review, labeled, unlabeled]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: pr-classification-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  labels:
+    name: Apply classification labels
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Match template choices and changed paths
+        uses: fuxingloh/multi-labeler@bcd50af464202999e57f556b4aefcf05a34abf85 # v5.0.0
+        with:
+          config-path: .github/labeler.yml

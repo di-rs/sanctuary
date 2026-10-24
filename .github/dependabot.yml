@@ -2,6 +2,7 @@ version: 2
 updates:
   - package-ecosystem: cargo
     directories: [/]
+    labels: ["dependencies", "type:dependencies", "rust"]
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
@@ -17,6 +18,7 @@ updates:
         update-types: [minor, patch]
   - package-ecosystem: github-actions
     directory: /
+    labels: ["dependencies", "type:dependencies", "github_actions"]
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
@@ -25,6 +27,7 @@ updates:
       include: scope
   - package-ecosystem: uv
     directory: /
+    labels: ["dependencies", "type:dependencies"]
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
@@ -40,6 +43,7 @@ updates:
         update-types: [minor, patch]
   - package-ecosystem: npm
     directory: /tools/cli-playground/frontend
+    labels: ["dependencies", "type:dependencies", "javascript"]
     schedule:
       interval: weekly
     open-pull-requests-limit: 5

@@ -3,6 +3,7 @@ name: 🏗️ cli-playground PR binary builds
 # Keep this condition aligned with the first job: downstream workflows skip without a runner.
 run-name: >-
   ${{
+    (github.event.action != 'labeled' || github.event.label.name == 'run-ci') &&
     (!github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'run-ci')) &&
     format('🏗️ cli-playground CLI builds for PR #{0}', github.event.pull_request.number) || '⏭️ CI skipped'
   }}
@@ -16,14 +17,15 @@ permissions:
   contents: read
 
 concurrency:
-  group: cli-playground-build-${{ github.event.pull_request.number }}
+  group: cli-playground-build-${{ github.event.pull_request.number }}-${{ github.event.action == 'labeled' && github.event.label.name != 'run-ci' && github.run_id || 'checks' }}
   cancel-in-progress: true
 
 jobs:
   build:
-    name: 🏗️ Build affected CLI preview binaries
+    name: 🏗️ Build affected CLI preview binaries${{ github.event.action == 'labeled' && github.event.label.name != 'run-ci' && ' (label metadata only)' || '' }}
     if: >-
       ${{
+        (github.event.action != 'labeled' || github.event.label.name == 'run-ci') &&
         (!github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'run-ci'))
       }}
     runs-on: ubuntu-24.04
