@@ -137,8 +137,7 @@
       "color": "7057ff",
       "paths": [
         "tools/cli-check/**",
-        "tools/pr-labels/pr_labels.py",
-        "tools/pr-labels/tests/**",
+        "tools/pr-labels/**",
         "AGENTS.md",
         ".agents/**",
         ".codex/**",

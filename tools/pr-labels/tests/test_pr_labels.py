@@ -377,3 +377,41 @@ def test_reconcile_retries_changed_metadata_before_writing() -> None:
     assert "risk:high" in result["add"]
     assert "risk:low" not in result["add"]
     assert AUTO in result["remove"]
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "pull-request-check",
+        "git-policy",
+        "cli-bench",
+        "cli-playground",
+        "boxie-lifecycle",
+        "codeql",
+    ],
+)
+def test_skipped_metadata_checks_cannot_replace_required_check_contexts(name: str) -> None:
+    workflow = yaml.safe_load((ROOT / f".github/workflows/{name}.yml").read_text())
+    for job in workflow["jobs"].values():
+        assert (
+            "github.event.action == 'labeled' && github.event.label.name != 'run-ci'" in job["name"]
+        )
+        assert "' (label metadata only)' || ''" in job["name"]
+
+
+def test_concurrent_label_removal_is_reconciled() -> None:
+    class ConcurrentGitHub(FakeGitHub):
+        raced = False
+
+        def request(self, method: str, path: str, data: object = None) -> Any:
+            result = super().request(method, path, data)
+            if method == "POST" and path == "issues/42/labels" and not self.raced:
+                self.raced = True
+                self.current["labels"] = [
+                    label for label in self.current["labels"] if label["name"] != MANUAL
+                ]
+            return result
+
+    api = ConcurrentGitHub(pr(labels=[]))
+    reconcile(api, 42, ENTRIES, {}, apply=True)
+    assert MANUAL in {label["name"] for label in api.current["labels"]}

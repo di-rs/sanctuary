@@ -248,6 +248,12 @@ def reconcile(
                         raise
             if result["add"]:
                 api.request("POST", f"issues/{number}/labels", {"labels": result["add"]})
+            # Concurrent events may have changed labels between the snapshot and writes.
+            after = api.request("GET", f"pulls/{number}")
+            managed = {entry["name"] for entry in entries if entry["name"] != "run-ci"}
+            actual = {label["name"] for label in after["labels"]}
+            if signature(after)[:6] != signature(pr)[:6] or actual & managed != desired & managed:
+                continue
         return result
     raise ValueError(f"PR {number}: changed during reconciliation; retry against current metadata")
 

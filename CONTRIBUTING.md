@@ -112,7 +112,8 @@ controls; the bot corrects unauthorized candidacy after receiving the event.
 
 Apply `run-ci` manually to request existing CI on a draft. Template selections
 cannot request it. Other label additions skip expensive CI jobs and use separate
-concurrency groups so they cannot cancel useful runs. Benchmark selection still
+concurrency groups so they cannot cancel useful runs. Their skipped checks have
+distinct names so they cannot replace required check results. Benchmark selection still
 depends on changed Rust source/build files, not labels.
 
 ## Maintain the label system

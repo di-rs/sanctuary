@@ -34,7 +34,7 @@ jobs:
         (github.event.action != 'labeled' || github.event.label.name == 'run-ci') &&
         (!github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'run-ci'))
       }}
-    name: 🛡️ Analyze ${{ matrix.language }} security
+    name: 🛡️ Analyze ${{ matrix.language }} security${{ github.event.action == 'labeled' && github.event.label.name != 'run-ci' && ' (label metadata only)' || '' }}
     strategy:
       fail-fast: false
       matrix:
