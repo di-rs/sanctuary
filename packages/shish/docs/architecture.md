@@ -2,7 +2,7 @@
 
 Shish is the shell application inside Sanctuary. It runs with the caller's
 privileges; sandbox isolation and recovery belong to Boxie.
-[Durability](durability.md) explains the current persistence and recovery limits.
+[Durability](durability.md) explains recovery limits and the proposed Boxie integration.
 
 ## Execution flow
 

@@ -74,7 +74,7 @@ recovery. Boxie currently runs Bash; shish is not included in its approved profi
 
 - [Compatibility](docs/compatibility.md): tested features and evidence.
 - [Known gaps](docs/compatibility-gaps.md): limitations, reproducers, and workarounds.
-- [Durability](docs/durability.md): shell state, persistence, and recovery limits.
+- [Durability](docs/durability.md): recovery limits and unimplemented durable-execution plans.
 - [Testing](docs/testing.md): package checks and terminal test conventions.
 - [Architecture](docs/architecture.md): runtime and adapter responsibilities.
 

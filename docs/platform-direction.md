@@ -77,3 +77,7 @@ Shell history and syntax trees do not provide execution checkpoints. A command
 can change files or external systems before its result is lost; rerunning it can
 repeat those effects. See Boxie's [execution and recovery contract](../packages/boxie/docs/execution.md)
 for its current guarantees.
+
+The [shish durability plan](../packages/shish/docs/durability.md) covers the
+unimplemented Boxie integration and explicit durable jobs, including persistence,
+retry policy, cancellation, and staged acceptance criteria.
