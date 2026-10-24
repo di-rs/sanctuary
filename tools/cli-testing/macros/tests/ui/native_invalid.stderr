@@ -1,0 +1,71 @@
+error: #[cli_test] takes no arguments; use #[test_case("name")] for a catalog case
+ --> tests/ui/native_invalid.rs:3:12
+  |
+3 | #[cli_test("case")]
+  |            ^^^^^^
+
+error: #[cli_test] requires a synchronous, safe, nongeneric Rust function
+ --> tests/ui/native_invalid.rs:7:1
+  |
+7 | async fn asynchronous(cx: &TestContext) {}
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: #[cli_test] requires a synchronous, safe, nongeneric Rust function
+  --> tests/ui/native_invalid.rs:10:1
+   |
+10 | fn generic<T>(cx: &TestContext) {}
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: #[cli_test] requires exactly one parameter: cx: &TestContext
+  --> tests/ui/native_invalid.rs:13:1
+   |
+13 | fn missing() {}
+   | ^^^^^^^^^^^^
+
+error: #[cli_test] requires exactly one parameter: cx: &TestContext
+  --> tests/ui/native_invalid.rs:16:1
+   |
+16 | fn multiple(cx: &TestContext, other: u8) {}
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: context must be borrowed as &TestContext
+  --> tests/ui/native_invalid.rs:19:16
+   |
+19 | fn mutable(cx: &mut TestContext) {}
+   |                ^^^^^^^^^^^^^^^^
+
+error: context must be borrowed as &TestContext
+  --> tests/ui/native_invalid.rs:22:14
+   |
+22 | fn owned(cx: TestContext) {}
+   |              ^^^^^^^^^^^
+
+error: context must be borrowed as &TestContext
+  --> tests/ui/native_invalid.rs:25:14
+   |
+25 | fn wrong(cx: &Context) {}
+   |              ^^^^^^^^
+
+error: context parameter must be an identifier
+  --> tests/ui/native_invalid.rs:28:12
+   |
+28 | fn pattern(_: &TestContext) {}
+   |            ^
+
+error: #[cli_test] supplies #[test] and cannot be combined with #[test] or #[should_panic]
+  --> tests/ui/native_invalid.rs:31:1
+   |
+31 | #[test]
+   | ^^^^^^^
+
+error: #[cli_test] supplies #[test] and cannot be combined with #[test] or #[should_panic]
+  --> tests/ui/native_invalid.rs:35:1
+   |
+35 | #[should_panic]
+   | ^^^^^^^^^^^^^^^
+
+error: #[cli_test] supplies #[test] and cannot be combined with #[test] or #[should_panic]
+  --> tests/ui/native_invalid.rs:39:1
+   |
+39 | #[cfg_attr(all(), test)]
+   | ^^^^^^^^^^^^^^^^^^^^^^^^

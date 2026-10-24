@@ -168,22 +168,32 @@ runtime with the catalog/case context. There is no separate Rust scenario regist
 
 ## Keep involved scenarios in ordinary Rust
 
-`context!()` returns a `TestContext`. Its `command()` provides an ordinary
+`#[cli_test]` injects a `&TestContext` into a native test without requiring a
+catalog entry. Its `command()` provides an ordinary
 `assert_cmd::Command`; `std_command()` provides a standard process command with the
 same cwd and environment defaults. Standard commands leave stream wiring,
 deadlines, signal handling, and child cleanup to the caller.
 
 ```rust,ignore
 use assert_fs::prelude::*;
+use cli_testing::{TestContext, cli_test};
 
-#[test]
-fn creates_a_file() -> Result<(), Box<dyn std::error::Error>> {
-    let workspace = cli_testing::context!().workspace()?;
+#[cli_test]
+fn creates_a_file(cx: &TestContext) -> Result<(), Box<dyn std::error::Error>> {
+    let workspace = cx.workspace()?;
     workspace.command().arg("new").assert().code(0).stdout("").stderr("");
     workspace.child("new").assert("");
     Ok(())
 }
 ```
+
+The attribute generates a zero-argument `#[test]`, preserving the function name,
+return type, `cfg`, and `ignore`. It accepts a synchronous, safe, nongeneric
+function with one named `&TestContext` parameter. Ordinary Rust test return types
+work, including `()` and `Result<(), E>`; errors and panics fail normally. Do not
+combine it with `#[test]` or `#[should_panic]`. The body owns all execution and
+assertions: the wrapper does not load a catalog, launch a command, or run final
+checks. Pass `cx` to helpers that need commands, fixtures, or workspaces.
 
 This example belongs to touchr. A workspace exposes `assert_fs::ChildPath` through
 `child()`, its directory through `path()`, and raw fixture copying through
@@ -191,7 +201,7 @@ This example belongs to touchr. A workspace exposes `assert_fs::ChildPath` throu
 copying does not mutate committed fixtures. `TestContext::case(name)` also exposes
 the prepared case API to manual tests; call `check()` yourself when using it.
 
-The existing `cargo_bin_cmd!()`, `fixtures!()`, `Fixtures`, and
+The existing `context!()`, `cargo_bin_cmd!()`, `fixtures!()`, `Fixtures`, and
 `command(binary, package_dir)` APIs remain available. Read expected fixtures before
 starting a manually orchestrated process.
 

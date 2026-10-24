@@ -3,7 +3,7 @@
 use std::{ffi::OsStr, path::Path, time::Duration};
 
 pub use assert_cmd::Command;
-pub use cli_testing_macros::test_case;
+pub use cli_testing_macros::{cli_test, test_case};
 
 pub mod catalog;
 mod context;

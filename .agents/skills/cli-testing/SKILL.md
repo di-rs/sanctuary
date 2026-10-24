@@ -106,7 +106,11 @@ Use `cx.workspace()` for temporary resources needed after the body returns.
 
 ## Write manual process scenarios
 
-`context!()` provides reusable `TestContext` helpers. `command()` returns
+`#[cli_test]` injects `cx: &TestContext` into native tests without loading a
+catalog or running automatic assertions. Pass `cx` to helpers that need it.
+The wrapper preserves the test name, return type, `cfg`, and `ignore`; errors and
+panics fail normally. Do not combine it with `#[test]` or `#[should_panic]`.
+`context!()` remains available for standalone setup. `command()` returns
 assert_cmd; `std_command()` supplies the same environment/cwd defaults while
 leaving pipe wiring, deadlines, signals, and child cleanup to the test.
 `workspace()` owns an assert_fs temporary directory and supplies `child()`,
@@ -114,10 +118,11 @@ leaving pipe wiring, deadlines, signals, and child cleanup to the test.
 
 ```rust,ignore
 use assert_fs::prelude::*;
+use cli_testing::{TestContext, cli_test};
 
-#[test]
-fn creates_file() -> Result<(), Box<dyn std::error::Error>> {
-    let workspace = cli_testing::context!().workspace()?;
+#[cli_test]
+fn creates_file(cx: &TestContext) -> Result<(), Box<dyn std::error::Error>> {
+    let workspace = cx.workspace()?;
     workspace.command().arg("new").assert().code(0).stdout("").stderr("");
     workspace.child("new").assert("");
     Ok(())
