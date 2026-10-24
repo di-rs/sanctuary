@@ -1,5 +1,5 @@
 use assert_fs::prelude::*;
-use cli_testing::{cargo_bin_cmd, context};
+use cli_testing::{Context, context, test_case};
 use predicates::prelude::*;
 use std::{
     fs,
@@ -24,7 +24,8 @@ fn assert_modified(path: &Path, seconds: u64) -> Result<()> {
 #[test]
 fn usage() {
     for flag in ["-h", "--help"] {
-        cargo_bin_cmd!()
+        context!()
+            .command()
             .arg(flag)
             .assert()
             .success()
@@ -33,18 +34,14 @@ fn usage() {
     }
 }
 
-#[test]
-fn creates_single_file() -> Result<()> {
-    let dir = context!().workspace()?;
-    dir.cmd()
-        .arg("new")
-        .assert()
-        .success()
-        .stdout("")
-        .stderr("");
-    dir.child("new")
-        .assert(predicate::path::is_file())
-        .assert("");
+#[test_case("creates_single_file")]
+fn creates_single_file(cx: &mut Context) -> cli_testing::Result<()> {
+    cx.workspace()?;
+    cx.run()?;
+    cx.workspace()?
+        .child("new")
+        .assert(predicate::path::is_file());
+    cx.workspace()?.child("new").assert("");
     Ok(())
 }
 
