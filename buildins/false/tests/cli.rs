@@ -4,7 +4,7 @@ fn intentional_false_status_is_persisted_without_error(
     cx: &TestContext,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let logs = assert_fs::TempDir::new()?;
-    cx.command()
+    cx.cmd()
         .env("SANCTUARY_LOG_DIR", logs.path())
         .env("SANCTUARY_LOG_LEVEL", "info")
         .env("SANCTUARY_LOG_STDERR", "off")
