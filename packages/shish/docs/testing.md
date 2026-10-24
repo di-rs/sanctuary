@@ -37,10 +37,10 @@ queued beyond the command it has just returned.
 
 ## Known-failing acceptance cases
 
-P01–P04 and P06 in the [compatibility inventory](compatibility.md#confirmed-posix-gaps)
+P01–P04 and P06 in the [known gaps](compatibility-gaps.md#confirmed-posix-gaps)
 and C25/C28/C32/C34/C40/C44/J54/H68 in the interactive gap section are explicit
 ignored tests asserting the required behavior. They are known to
-fail; two more ignored cases cover [multiline input and PATH lookup](compatibility.md#input-and-command-lookup-gaps).
+fail; two more ignored cases cover [multiline input and PATH lookup](compatibility-gaps.md#input-and-command-lookup-gaps).
 Ignored cases are never counted as verified support. To reproduce them:
 
 ```sh

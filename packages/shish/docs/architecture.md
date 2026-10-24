@@ -2,6 +2,7 @@
 
 Shish is the shell application inside Sanctuary. It runs with the caller's
 privileges; sandbox isolation and recovery belong to Boxie.
+[Durability](durability.md) explains the current persistence and recovery limits.
 
 ## Execution flow
 
@@ -33,7 +34,7 @@ process termination.
 ## Dependencies and origin
 
 Dependencies use published releases recorded in the workspace lockfile. Known
-limitations and test evidence live in the
+limitations live in [known gaps](compatibility-gaps.md); test evidence lives in the
 [compatibility reference](compatibility.md). See the [README](../README.md) for
 invocation, startup behavior, and the current compatibility promise.
 

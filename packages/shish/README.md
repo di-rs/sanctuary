@@ -72,7 +72,9 @@ Shish runs with the invoking user's privileges. It supplies neither sandbox
 isolation nor recovery of interrupted processes. Boxie owns isolation and lifecycle
 recovery. Boxie currently runs Bash; shish is not included in its approved profiles.
 
-- [Compatibility](docs/compatibility.md): tested features, known gaps, and workarounds.
+- [Compatibility](docs/compatibility.md): tested features and evidence.
+- [Known gaps](docs/compatibility-gaps.md): limitations, reproducers, and workarounds.
+- [Durability](docs/durability.md): shell state, persistence, and recovery limits.
 - [Testing](docs/testing.md): package checks and terminal test conventions.
 - [Architecture](docs/architecture.md): runtime and adapter responsibilities.
 
