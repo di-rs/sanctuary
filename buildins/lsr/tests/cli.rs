@@ -1,5 +1,5 @@
-use assert_fs::{TempDir, prelude::*};
-use cli_testing::cargo_bin_cmd;
+use assert_fs::prelude::*;
+use cli_testing::{TestContext, Workspace, cli_test};
 use predicates::prelude::*;
 use pretty_assertions::assert_eq;
 use std::{fs, os::unix::fs::PermissionsExt};
@@ -11,8 +11,8 @@ const FOX: &str = "tests/inputs/fox.txt";
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-fn fixture_tree() -> Result<TempDir> {
-    let dir = TempDir::new()?;
+fn fixture_tree(cx: &TestContext) -> Result<Workspace> {
+    let dir = cx.workspace()?;
     let nested = dir.child("tests/inputs/dir");
     nested.create_dir_all()?;
     fs::set_permissions(nested.path(), fs::Permissions::from_mode(0o755))?;
@@ -31,10 +31,10 @@ fn fixture_tree() -> Result<TempDir> {
     Ok(dir)
 }
 
-#[test]
-fn usage() {
+#[cli_test]
+fn usage(cx: &TestContext) {
     for flag in &["-h", "--help"] {
-        cargo_bin_cmd!()
+        cx.cmd()
             .arg(flag)
             .assert()
             .success()
@@ -46,37 +46,29 @@ fn gen_bad_file() -> String {
     "tests/file/doesnt/exist".to_owned()
 }
 
-#[test]
-fn bad_file() {
+#[cli_test]
+fn bad_file(cx: &TestContext) {
     let bad = gen_bad_file();
     let expected = format!("{bad}: No such file or directory (os error 2)");
-    cargo_bin_cmd!()
+    cx.cmd()
         .arg(&bad)
         .assert()
         .code(1)
         .stderr(predicate::str::contains(expected));
 }
 
-#[test]
-fn no_args() {
-    cargo_bin_cmd!()
+#[cli_test]
+fn no_args(cx: &TestContext) {
+    cx.cmd()
         .assert()
         .success()
         .stdout(predicate::str::contains("Cargo.toml"));
 }
 
-fn run_short(arg: &str) {
-    cargo_bin_cmd!()
-        .arg(arg)
-        .assert()
-        .success()
-        .stdout(format!("{arg}\n"));
-}
-
-fn run_long(filename: &str, permissions: &str, size: &str) -> Result<()> {
-    let dir = fixture_tree()?;
-    let cmd = cargo_bin_cmd!()
-        .current_dir(dir.path())
+fn run_long(cx: &TestContext, filename: &str, permissions: &str, size: &str) -> Result<()> {
+    let dir = fixture_tree(cx)?;
+    let cmd = dir
+        .cmd()
         .args(["--long", filename])
         .assert()
         .success()
@@ -89,48 +81,28 @@ fn run_long(filename: &str, permissions: &str, size: &str) -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn empty() {
-    run_short(EMPTY);
+#[cli_test]
+fn empty_long(cx: &TestContext) -> Result<()> {
+    run_long(cx, EMPTY, "-rw-r--r--", "0")
 }
 
-#[test]
-fn empty_long() -> Result<()> {
-    run_long(EMPTY, "-rw-r--r--", "0")
+#[cli_test]
+fn bustle_long(cx: &TestContext) -> Result<()> {
+    run_long(cx, BUSTLE, "-rw-r--r--", "193")
 }
 
-#[test]
-fn bustle() {
-    run_short(BUSTLE);
+#[cli_test]
+fn fox_long(cx: &TestContext) -> Result<()> {
+    run_long(cx, FOX, "-rw-------", "45")
 }
 
-#[test]
-fn bustle_long() -> Result<()> {
-    run_long(BUSTLE, "-rw-r--r--", "193")
+#[cli_test]
+fn hidden_long(cx: &TestContext) -> Result<()> {
+    run_long(cx, HIDDEN, "-rw-r--r--", "0")
 }
 
-#[test]
-fn fox() {
-    run_short(FOX);
-}
-
-#[test]
-fn fox_long() -> Result<()> {
-    run_long(FOX, "-rw-------", "45")
-}
-
-#[test]
-fn hidden() {
-    run_short(HIDDEN);
-}
-
-#[test]
-fn hidden_long() -> Result<()> {
-    run_long(HIDDEN, "-rw-r--r--", "0")
-}
-
-fn dir_short(args: &[&str], expected: &[&str]) -> Result<()> {
-    let cmd = cargo_bin_cmd!().args(args).assert().success();
+fn dir_short(cx: &TestContext, args: &[&str], expected: &[&str]) -> Result<()> {
+    let cmd = cx.cmd().args(args).assert().success();
     let stdout = String::from_utf8(cmd.get_output().stdout.clone())?;
     let lines: Vec<&str> = stdout.split('\n').filter(|s| !s.is_empty()).collect();
     assert_eq!(lines.len(), expected.len());
@@ -140,9 +112,10 @@ fn dir_short(args: &[&str], expected: &[&str]) -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn dir1() -> Result<()> {
+#[cli_test]
+fn dir1(cx: &TestContext) -> Result<()> {
     dir_short(
+        cx,
         &["tests/inputs"],
         &[
             "tests/inputs/empty.txt",
@@ -153,9 +126,10 @@ fn dir1() -> Result<()> {
     )
 }
 
-#[test]
-fn dir1_all() -> Result<()> {
+#[cli_test]
+fn dir1_all(cx: &TestContext) -> Result<()> {
     dir_short(
+        cx,
         &["tests/inputs", "--all"],
         &[
             "tests/inputs/empty.txt",
@@ -167,27 +141,23 @@ fn dir1_all() -> Result<()> {
     )
 }
 
-#[test]
-fn dir2() -> Result<()> {
-    dir_short(&["tests/inputs/dir"], &["tests/inputs/dir/spiders.txt"])
+#[cli_test]
+fn dir2(cx: &TestContext) -> Result<()> {
+    dir_short(cx, &["tests/inputs/dir"], &["tests/inputs/dir/spiders.txt"])
 }
 
-#[test]
-fn dir2_all() -> Result<()> {
+#[cli_test]
+fn dir2_all(cx: &TestContext) -> Result<()> {
     dir_short(
+        cx,
         &["-a", "tests/inputs/dir"],
         &["tests/inputs/dir/spiders.txt", "tests/inputs/dir/.gitkeep"],
     )
 }
 
-fn dir_long(args: &[&str], expected: &[(&str, &str, &str)]) -> Result<()> {
-    let dir = fixture_tree()?;
-    let cmd = cargo_bin_cmd!()
-        .current_dir(dir.path())
-        .args(args)
-        .assert()
-        .success()
-        .stderr("");
+fn dir_long(cx: &TestContext, args: &[&str], expected: &[(&str, &str, &str)]) -> Result<()> {
+    let dir = fixture_tree(cx)?;
+    let cmd = dir.cmd().args(args).assert().success().stderr("");
     let stdout = String::from_utf8(cmd.get_output().stdout.clone())?;
     let lines: Vec<&str> = stdout.split('\n').filter(|s| !s.is_empty()).collect();
     assert_eq!(lines.len(), expected.len());
@@ -214,9 +184,10 @@ fn dir_long(args: &[&str], expected: &[(&str, &str, &str)]) -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn dir1_long() -> Result<()> {
+#[cli_test]
+fn dir1_long(cx: &TestContext) -> Result<()> {
     dir_long(
+        cx,
         &["-l", "tests/inputs"],
         &[
             ("tests/inputs/empty.txt", "-rw-r--r--", "0"),
@@ -227,9 +198,10 @@ fn dir1_long() -> Result<()> {
     )
 }
 
-#[test]
-fn dir1_long_all() -> Result<()> {
+#[cli_test]
+fn dir1_long_all(cx: &TestContext) -> Result<()> {
     dir_long(
+        cx,
         &["-la", "tests/inputs"],
         &[
             ("tests/inputs/empty.txt", "-rw-r--r--", "0"),
@@ -241,17 +213,19 @@ fn dir1_long_all() -> Result<()> {
     )
 }
 
-#[test]
-fn dir2_long() -> Result<()> {
+#[cli_test]
+fn dir2_long(cx: &TestContext) -> Result<()> {
     dir_long(
+        cx,
         &["--long", "tests/inputs/dir"],
         &[("tests/inputs/dir/spiders.txt", "-rw-r--r--", "45")],
     )
 }
 
-#[test]
-fn dir2_long_all() -> Result<()> {
+#[cli_test]
+fn dir2_long_all(cx: &TestContext) -> Result<()> {
     dir_long(
+        cx,
         &["tests/inputs/dir", "--long", "--all"],
         &[
             ("tests/inputs/dir/spiders.txt", "-rw-r--r--", "45"),
@@ -260,13 +234,8 @@ fn dir2_long_all() -> Result<()> {
     )
 }
 
-fn check_listing(dir: &TempDir, args: &[&str], expected: &[&str]) -> Result<()> {
-    let cmd = cargo_bin_cmd!()
-        .current_dir(dir.path())
-        .args(args)
-        .assert()
-        .success()
-        .stderr("");
+fn check_listing(dir: &Workspace, args: &[&str], expected: &[&str]) -> Result<()> {
+    let cmd = dir.cmd().args(args).assert().success().stderr("");
     let stdout = String::from_utf8(cmd.get_output().stdout.clone())?;
     let mut lines: Vec<_> = stdout.lines().collect();
     lines.sort_unstable();
@@ -276,37 +245,37 @@ fn check_listing(dir: &TempDir, args: &[&str], expected: &[&str]) -> Result<()> 
     Ok(())
 }
 
-#[test]
-fn empty_directory() -> Result<()> {
-    check_listing(&TempDir::new()?, &["."], &[])
+#[cli_test]
+fn empty_directory(cx: &TestContext) -> Result<()> {
+    check_listing(&cx.workspace()?, &["."], &[])
 }
 
-#[test]
-fn default_path_hides_dotfiles() -> Result<()> {
-    let dir = TempDir::new()?;
+#[cli_test]
+fn default_path_hides_dotfiles(cx: &TestContext) -> Result<()> {
+    let dir = cx.workspace()?;
     dir.child("visible").touch()?;
     dir.child(".hidden").touch()?;
     check_listing(&dir, &[], &["./visible"])
 }
 
-#[test]
-fn hidden_only_directory_requires_all() -> Result<()> {
-    let dir = TempDir::new()?;
+#[cli_test]
+fn hidden_only_directory_requires_all(cx: &TestContext) -> Result<()> {
+    let dir = cx.workspace()?;
     dir.child(".hidden").touch()?;
     check_listing(&dir, &["."], &[])?;
     check_listing(&dir, &["--all", "."], &["./.hidden"])
 }
 
-#[test]
-fn explicit_hidden_file_does_not_require_all() -> Result<()> {
-    let dir = TempDir::new()?;
+#[cli_test]
+fn explicit_hidden_file_does_not_require_all(cx: &TestContext) -> Result<()> {
+    let dir = cx.workspace()?;
     dir.child(".hidden").touch()?;
     check_listing(&dir, &[".hidden"], &[".hidden"])
 }
 
-#[test]
-fn multiple_files_and_directory_are_not_recursive() -> Result<()> {
-    let dir = TempDir::new()?;
+#[cli_test]
+fn multiple_files_and_directory_are_not_recursive(cx: &TestContext) -> Result<()> {
+    let dir = cx.workspace()?;
     dir.child("folder/nested").create_dir_all()?;
     dir.child("folder/nested/not-listed").touch()?;
     dir.child("folder/child").touch()?;
@@ -319,14 +288,14 @@ fn multiple_files_and_directory_are_not_recursive() -> Result<()> {
     )
 }
 
-#[test]
-fn filename_with_spaces_is_preserved() -> Result<()> {
-    let dir = TempDir::new()?;
+#[cli_test]
+fn filename_with_spaces_is_preserved(cx: &TestContext) -> Result<()> {
+    let dir = cx.workspace()?;
     let file = dir.child("two words.txt");
     file.write_str("hello")?;
     fs::set_permissions(file.path(), fs::Permissions::from_mode(0o640))?;
     check_listing(&dir, &["two words.txt"], &["two words.txt"])?;
-    cargo_bin_cmd!()
+    cx.cmd()
         .current_dir(dir.path())
         .args(["-l", "two words.txt"])
         .assert()
@@ -337,11 +306,11 @@ fn filename_with_spaces_is_preserved() -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn missing_path_does_not_hide_valid_files() -> Result<()> {
-    let dir = TempDir::new()?;
+#[cli_test]
+fn missing_path_does_not_hide_valid_files(cx: &TestContext) -> Result<()> {
+    let dir = cx.workspace()?;
     dir.child("present").touch()?;
-    cargo_bin_cmd!()
+    cx.cmd()
         .current_dir(dir.path())
         .args(["missing", "present"])
         .assert()
@@ -354,10 +323,10 @@ fn missing_path_does_not_hide_valid_files() -> Result<()> {
 }
 
 // These regressions catch missing persistence without changing terminal contracts.
-#[test]
-fn handled_file_error_is_persisted_with_failure_completion() -> Result<()> {
-    let logs = TempDir::new()?;
-    cargo_bin_cmd!()
+#[cli_test]
+fn handled_file_error_is_persisted_with_failure_completion(cx: &TestContext) -> Result<()> {
+    let logs = cx.workspace()?;
+    cx.cmd()
         .env("SANCTUARY_LOG_DIR", logs.path())
         .env("SANCTUARY_LOG_LEVEL", "info")
         .env("SANCTUARY_LOG_STDERR", "off")
@@ -383,10 +352,10 @@ fn handled_file_error_is_persisted_with_failure_completion() -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn invalid_argument_is_persisted_with_clap_status() -> Result<()> {
-    let logs = TempDir::new()?;
-    cargo_bin_cmd!()
+#[cli_test]
+fn invalid_argument_is_persisted_with_clap_status(cx: &TestContext) -> Result<()> {
+    let logs = cx.workspace()?;
+    cx.cmd()
         .env("SANCTUARY_LOG_DIR", logs.path())
         .env("SANCTUARY_LOG_LEVEL", "info")
         .env("SANCTUARY_LOG_STDERR", "off")
@@ -412,7 +381,7 @@ fn invalid_argument_is_persisted_with_clap_status() -> Result<()> {
     Ok(())
 }
 
-fn read_log_records(logs: &TempDir) -> Result<Vec<serde_json::Value>> {
+fn read_log_records(logs: &Workspace) -> Result<Vec<serde_json::Value>> {
     let mut records = Vec::new();
     for entry in fs::read_dir(logs.path())? {
         let path = entry?.path();
@@ -431,9 +400,9 @@ fn read_log_records(logs: &TempDir) -> Result<Vec<serde_json::Value>> {
     Ok(records)
 }
 
-#[test]
-fn missing_operand_returns_failure() {
-    cli_testing::cargo_bin_cmd!()
+#[cli_test]
+fn missing_operand_returns_failure(cx: &TestContext) {
+    cx.cmd()
         .args(["/sanctuary-audit-missing/path"])
         .assert()
         .code(1)
