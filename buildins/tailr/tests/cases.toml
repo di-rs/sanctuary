@@ -1,0 +1,757 @@
+schema = 1
+binary = "tailr"
+reference = "tail"
+
+[fixtures]
+empty = "empty.txt"
+one = "one.txt"
+two = "two.txt"
+three = "three.txt"
+twelve = "twelve.txt"
+
+[references.tail]
+program = "/usr/bin/tail"
+platform = "macos"
+
+[[cases]]
+name = "empty"
+args = [{ fixture = "empty" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "empty_n0"
+args = ["-n", "0", { fixture = "empty" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "empty_n1"
+args = ["-n", "1", { fixture = "empty" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "empty_n_minus_1"
+args = ["-n=-1", { fixture = "empty" }]
+origin = { args = ["-n", "-1", { fixture = "empty" }], reason = "BSD tail accepts the signed count as a separate option argument." }
+expect = { exit = 0, stdout_file = "empty_n1.out" }
+
+[[cases]]
+name = "empty_n3"
+args = ["-n", "3", { fixture = "empty" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "empty_n_minus_3"
+args = ["-n=-3", { fixture = "empty" }]
+origin = { args = ["-n", "-3", { fixture = "empty" }], reason = "BSD tail accepts the signed count as a separate option argument." }
+expect = { exit = 0, stdout_file = "empty_n3.out" }
+
+[[cases]]
+name = "empty_n4"
+args = ["-n", "4", { fixture = "empty" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "empty_n200"
+args = ["-n", "200", { fixture = "empty" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "empty_n_minus_200"
+args = ["-n=-200", { fixture = "empty" }]
+origin = { args = ["-n", "-200", { fixture = "empty" }], reason = "BSD tail accepts the signed count as a separate option argument." }
+expect = { exit = 0, stdout_file = "empty_n200.out" }
+
+[[cases]]
+name = "empty_n_minus_4"
+args = ["-n=-4", { fixture = "empty" }]
+origin = { args = ["-n", "-4", { fixture = "empty" }], reason = "BSD tail accepts the signed count as a separate option argument." }
+expect = { exit = 0, stdout_file = "empty_n4.out" }
+
+[[cases]]
+name = "empty_n_plus_0"
+args = ["-n", "+0", { fixture = "empty" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "empty_n_plus_1"
+args = ["-n", "+1", { fixture = "empty" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "empty_n_plus_2"
+args = ["-n", "+2", { fixture = "empty" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "empty_c3"
+args = ["-c", "3", { fixture = "empty" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "empty_c_minus_3"
+args = ["-c=-3", { fixture = "empty" }]
+origin = { args = ["-c", "-3", { fixture = "empty" }], reason = "BSD tail accepts the signed count as a separate option argument." }
+expect = { exit = 0, stdout_file = "empty_c3.out" }
+
+[[cases]]
+name = "empty_c8"
+args = ["-c", "8", { fixture = "empty" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "empty_c_minus_8"
+args = ["-c=8", { fixture = "empty" }]
+origin = { args = ["-c", "8", { fixture = "empty" }], reason = "BSD tail accepts the signed count as a separate option argument." }
+expect = { exit = 0, stdout_file = "empty_c8.out" }
+
+[[cases]]
+name = "empty_c12"
+args = ["-c", "12", { fixture = "empty" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "empty_c_minus_12"
+args = ["-c=-12", { fixture = "empty" }]
+origin = { args = ["-c", "-12", { fixture = "empty" }], reason = "BSD tail accepts the signed count as a separate option argument." }
+expect = { exit = 0, stdout_file = "empty_c12.out" }
+
+[[cases]]
+name = "empty_c200"
+args = ["-c", "200", { fixture = "empty" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "empty_c_minus_200"
+args = ["-c=-200", { fixture = "empty" }]
+origin = { args = ["-c", "-200", { fixture = "empty" }], reason = "BSD tail accepts the signed count as a separate option argument." }
+expect = { exit = 0, stdout_file = "empty_c200.out" }
+
+[[cases]]
+name = "empty_c_plus_0"
+args = ["-c", "+0", { fixture = "empty" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "empty_c_plus_1"
+args = ["-c", "+1", { fixture = "empty" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "empty_c_plus_2"
+args = ["-c", "+2", { fixture = "empty" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "one"
+args = [{ fixture = "one" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "one_n0"
+args = ["-n", "0", { fixture = "one" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "one_n1"
+args = ["-n", "1", { fixture = "one" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "one_n_minus_1"
+args = ["-n=-1", { fixture = "one" }]
+origin = { args = ["-n", "-1", { fixture = "one" }], reason = "BSD tail accepts the signed count as a separate option argument." }
+expect = { exit = 0, stdout_file = "one_n1.out" }
+
+[[cases]]
+name = "one_n3"
+args = ["-n", "3", { fixture = "one" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "one_n_minus_3"
+args = ["-n=-3", { fixture = "one" }]
+origin = { args = ["-n", "-3", { fixture = "one" }], reason = "BSD tail accepts the signed count as a separate option argument." }
+expect = { exit = 0, stdout_file = "one_n3.out" }
+
+[[cases]]
+name = "one_n4"
+args = ["-n", "4", { fixture = "one" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "one_n_minus_4"
+args = ["-n=-4", { fixture = "one" }]
+origin = { args = ["-n", "-4", { fixture = "one" }], reason = "BSD tail accepts the signed count as a separate option argument." }
+expect = { exit = 0, stdout_file = "one_n4.out" }
+
+[[cases]]
+name = "one_n200"
+args = ["-n", "200", { fixture = "one" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "one_n_minus_200"
+args = ["-n=-200", { fixture = "one" }]
+origin = { args = ["-n", "-200", { fixture = "one" }], reason = "BSD tail accepts the signed count as a separate option argument." }
+expect = { exit = 0, stdout_file = "one_n200.out" }
+
+[[cases]]
+name = "one_n_plus_0"
+args = ["-n", "+0", { fixture = "one" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "one_n_plus_1"
+args = ["-n", "+1", { fixture = "one" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "one_n_plus_2"
+args = ["-n", "+2", { fixture = "one" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "one_c3"
+args = ["-c", "3", { fixture = "one" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "one_c_minus_3"
+args = ["-c=-3", { fixture = "one" }]
+origin = { args = ["-c", "-3", { fixture = "one" }], reason = "BSD tail accepts the signed count as a separate option argument." }
+expect = { exit = 0, stdout_file = "one_c3.out" }
+
+[[cases]]
+name = "one_c8"
+args = ["-c", "8", { fixture = "one" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "one_c_minus_8"
+args = ["-c=8", { fixture = "one" }]
+origin = { args = ["-c", "8", { fixture = "one" }], reason = "BSD tail accepts the signed count as a separate option argument." }
+expect = { exit = 0, stdout_file = "one_c8.out" }
+
+[[cases]]
+name = "one_c12"
+args = ["-c", "12", { fixture = "one" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "one_c_minus_12"
+args = ["-c=-12", { fixture = "one" }]
+origin = { args = ["-c", "-12", { fixture = "one" }], reason = "BSD tail accepts the signed count as a separate option argument." }
+expect = { exit = 0, stdout_file = "one_c12.out" }
+
+[[cases]]
+name = "one_c200"
+args = ["-c", "200", { fixture = "one" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "one_c_minus_200"
+args = ["-c=-200", { fixture = "one" }]
+origin = { args = ["-c", "-200", { fixture = "one" }], reason = "BSD tail accepts the signed count as a separate option argument." }
+expect = { exit = 0, stdout_file = "one_c200.out" }
+
+[[cases]]
+name = "one_c_plus_0"
+args = ["-c", "+0", { fixture = "one" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "one_c_plus_1"
+args = ["-c", "+1", { fixture = "one" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "one_c_plus_2"
+args = ["-c", "+2", { fixture = "one" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "two"
+args = [{ fixture = "two" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "two_n0"
+args = ["-n", "0", { fixture = "two" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "two_n1"
+args = ["-n", "1", { fixture = "two" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "two_n_minus_1"
+args = ["-n=-1", { fixture = "two" }]
+origin = { args = ["-n", "-1", { fixture = "two" }], reason = "BSD tail accepts the signed count as a separate option argument." }
+expect = { exit = 0, stdout_file = "two_n1.out" }
+
+[[cases]]
+name = "two_n3"
+args = ["-n", "3", { fixture = "two" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "two_n_minus_3"
+args = ["-n=-3", { fixture = "two" }]
+origin = { args = ["-n", "-3", { fixture = "two" }], reason = "BSD tail accepts the signed count as a separate option argument." }
+expect = { exit = 0, stdout_file = "two_n3.out" }
+
+[[cases]]
+name = "two_n4"
+args = ["-n", "4", { fixture = "two" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "two_n_minus_4"
+args = ["-n=-4", { fixture = "two" }]
+origin = { args = ["-n", "-4", { fixture = "two" }], reason = "BSD tail accepts the signed count as a separate option argument." }
+expect = { exit = 0, stdout_file = "two_n4.out" }
+
+[[cases]]
+name = "two_n200"
+args = ["-n", "200", { fixture = "two" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "two_n_minus_200"
+args = ["-n=-200", { fixture = "two" }]
+origin = { args = ["-n", "-200", { fixture = "two" }], reason = "BSD tail accepts the signed count as a separate option argument." }
+expect = { exit = 0, stdout_file = "two_n200.out" }
+
+[[cases]]
+name = "two_n_plus_0"
+args = ["-n", "+0", { fixture = "two" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "two_n_plus_1"
+args = ["-n", "+1", { fixture = "two" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "two_n_plus_2"
+args = ["-n", "+2", { fixture = "two" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "two_c3"
+args = ["-c", "3", { fixture = "two" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "two_c_minus_3"
+args = ["-c=-3", { fixture = "two" }]
+origin = { args = ["-c", "-3", { fixture = "two" }], reason = "BSD tail accepts the signed count as a separate option argument." }
+expect = { exit = 0, stdout_file = "two_c3.out" }
+
+[[cases]]
+name = "two_c8"
+args = ["-c", "8", { fixture = "two" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "two_c_minus_8"
+args = ["-c=8", { fixture = "two" }]
+origin = { args = ["-c", "8", { fixture = "two" }], reason = "BSD tail accepts the signed count as a separate option argument." }
+expect = { exit = 0, stdout_file = "two_c8.out" }
+
+[[cases]]
+name = "two_c12"
+args = ["-c", "12", { fixture = "two" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "two_c_minus_12"
+args = ["-c=-12", { fixture = "two" }]
+origin = { args = ["-c", "-12", { fixture = "two" }], reason = "BSD tail accepts the signed count as a separate option argument." }
+expect = { exit = 0, stdout_file = "two_c12.out" }
+
+[[cases]]
+name = "two_c200"
+args = ["-c", "200", { fixture = "two" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "two_c_minus_200"
+args = ["-c=-200", { fixture = "two" }]
+origin = { args = ["-c", "-200", { fixture = "two" }], reason = "BSD tail accepts the signed count as a separate option argument." }
+expect = { exit = 0, stdout_file = "two_c200.out" }
+
+[[cases]]
+name = "two_c_plus_0"
+args = ["-c", "+0", { fixture = "two" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "two_c_plus_1"
+args = ["-c", "+1", { fixture = "two" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "two_c_plus_2"
+args = ["-c", "+2", { fixture = "two" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "three"
+args = [{ fixture = "three" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "three_n0"
+args = ["-n", "0", { fixture = "three" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "three_n1"
+args = ["-n", "1", { fixture = "three" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "three_n_minus_1"
+args = ["-n=-1", { fixture = "three" }]
+origin = { args = ["-n", "-1", { fixture = "three" }], reason = "BSD tail accepts the signed count as a separate option argument." }
+expect = { exit = 0, stdout_file = "three_n1.out" }
+
+[[cases]]
+name = "three_n3"
+args = ["-n", "3", { fixture = "three" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "three_n_minus_3"
+args = ["-n=-3", { fixture = "three" }]
+origin = { args = ["-n", "-3", { fixture = "three" }], reason = "BSD tail accepts the signed count as a separate option argument." }
+expect = { exit = 0, stdout_file = "three_n3.out" }
+
+[[cases]]
+name = "three_n4"
+args = ["-n", "4", { fixture = "three" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "three_n_minus_4"
+args = ["-n=-4", { fixture = "three" }]
+origin = { args = ["-n", "-4", { fixture = "three" }], reason = "BSD tail accepts the signed count as a separate option argument." }
+expect = { exit = 0, stdout_file = "three_n4.out" }
+
+[[cases]]
+name = "three_n200"
+args = ["-n", "200", { fixture = "three" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "three_n_minus_200"
+args = ["-n=-200", { fixture = "three" }]
+origin = { args = ["-n", "-200", { fixture = "three" }], reason = "BSD tail accepts the signed count as a separate option argument." }
+expect = { exit = 0, stdout_file = "three_n200.out" }
+
+[[cases]]
+name = "three_n_plus_0"
+args = ["-n", "+0", { fixture = "three" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "three_n_plus_1"
+args = ["-n", "+1", { fixture = "three" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "three_n_plus_2"
+args = ["-n", "+2", { fixture = "three" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "three_c3"
+args = ["-c", "3", { fixture = "three" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "three_c_minus_3"
+args = ["-c=-3", { fixture = "three" }]
+origin = { args = ["-c", "-3", { fixture = "three" }], reason = "BSD tail accepts the signed count as a separate option argument." }
+expect = { exit = 0, stdout_file = "three_c3.out" }
+
+[[cases]]
+name = "three_c8"
+args = ["-c", "8", { fixture = "three" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "three_c_minus_8"
+args = ["-c=8", { fixture = "three" }]
+origin = { args = ["-c", "8", { fixture = "three" }], reason = "BSD tail accepts the signed count as a separate option argument." }
+expect = { exit = 0, stdout_file = "three_c8.out" }
+
+[[cases]]
+name = "three_c12"
+args = ["-c", "12", { fixture = "three" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "three_c_minus_12"
+args = ["-c=-12", { fixture = "three" }]
+origin = { args = ["-c", "-12", { fixture = "three" }], reason = "BSD tail accepts the signed count as a separate option argument." }
+expect = { exit = 0, stdout_file = "three_c12.out" }
+
+[[cases]]
+name = "three_c200"
+args = ["-c", "200", { fixture = "three" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "three_c_minus_200"
+args = ["-c=-200", { fixture = "three" }]
+origin = { args = ["-c", "-200", { fixture = "three" }], reason = "BSD tail accepts the signed count as a separate option argument." }
+expect = { exit = 0, stdout_file = "three_c200.out" }
+
+[[cases]]
+name = "three_c_plus_0"
+args = ["-c", "+0", { fixture = "three" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "three_c_plus_1"
+args = ["-c", "+1", { fixture = "three" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "three_c_plus_2"
+args = ["-c", "+2", { fixture = "three" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "twelve"
+args = [{ fixture = "twelve" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "twelve_n0"
+args = ["-n", "0", { fixture = "twelve" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "twelve_n1"
+args = ["-n", "1", { fixture = "twelve" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "twelve_n_minus_1"
+args = ["-n=-1", { fixture = "twelve" }]
+origin = { args = ["-n", "-1", { fixture = "twelve" }], reason = "BSD tail accepts the signed count as a separate option argument." }
+expect = { exit = 0, stdout_file = "twelve_n1.out" }
+
+[[cases]]
+name = "twelve_n3"
+args = ["-n", "3", { fixture = "twelve" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "twelve_n_minus_3"
+args = ["-n=-3", { fixture = "twelve" }]
+origin = { args = ["-n", "-3", { fixture = "twelve" }], reason = "BSD tail accepts the signed count as a separate option argument." }
+expect = { exit = 0, stdout_file = "twelve_n3.out" }
+
+[[cases]]
+name = "twelve_n4"
+args = ["-n", "4", { fixture = "twelve" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "twelve_n_minus_4"
+args = ["-n=-4", { fixture = "twelve" }]
+origin = { args = ["-n", "-4", { fixture = "twelve" }], reason = "BSD tail accepts the signed count as a separate option argument." }
+expect = { exit = 0, stdout_file = "twelve_n4.out" }
+
+[[cases]]
+name = "twelve_n200"
+args = ["-n", "200", { fixture = "twelve" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "twelve_n_minus_200"
+args = ["-n=-200", { fixture = "twelve" }]
+origin = { args = ["-n", "-200", { fixture = "twelve" }], reason = "BSD tail accepts the signed count as a separate option argument." }
+expect = { exit = 0, stdout_file = "twelve_n200.out" }
+
+[[cases]]
+name = "twelve_c3"
+args = ["-c", "3", { fixture = "twelve" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "twelve_c_minus_3"
+args = ["-c=-3", { fixture = "twelve" }]
+origin = { args = ["-c", "-3", { fixture = "twelve" }], reason = "BSD tail accepts the signed count as a separate option argument." }
+expect = { exit = 0, stdout_file = "twelve_c3.out" }
+
+[[cases]]
+name = "twelve_c8"
+args = ["-c", "8", { fixture = "twelve" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "twelve_c_minus_8"
+args = ["-c=8", { fixture = "twelve" }]
+origin = { args = ["-c", "8", { fixture = "twelve" }], reason = "BSD tail accepts the signed count as a separate option argument." }
+expect = { exit = 0, stdout_file = "twelve_c8.out" }
+
+[[cases]]
+name = "twelve_c12"
+args = ["-c", "12", { fixture = "twelve" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "twelve_c_minus_12"
+args = ["-c=-12", { fixture = "twelve" }]
+origin = { args = ["-c", "-12", { fixture = "twelve" }], reason = "BSD tail accepts the signed count as a separate option argument." }
+expect = { exit = 0, stdout_file = "twelve_c12.out" }
+
+[[cases]]
+name = "twelve_c200"
+args = ["-c", "200", { fixture = "twelve" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "twelve_c_minus_200"
+args = ["-c=-200", { fixture = "twelve" }]
+origin = { args = ["-c", "-200", { fixture = "twelve" }], reason = "BSD tail accepts the signed count as a separate option argument." }
+expect = { exit = 0, stdout_file = "twelve_c200.out" }
+
+[[cases]]
+name = "twelve_n_plus_0"
+args = ["-n", "+0", { fixture = "twelve" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "twelve_n_plus_1"
+args = ["-n", "+1", { fixture = "twelve" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "twelve_n_plus_2"
+args = ["-n", "+2", { fixture = "twelve" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "twelve_c_plus_0"
+args = ["-c", "+0", { fixture = "twelve" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "twelve_c_plus_1"
+args = ["-c", "+1", { fixture = "twelve" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "twelve_c_plus_2"
+args = ["-c", "+2", { fixture = "twelve" }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "multiple_files"
+args = [{ fixtures = ["twelve", "empty", "one", "three", "two"] }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "multiple_files_n0"
+args = ["-n", "0", { fixtures = ["twelve", "empty", "one", "three", "two"] }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "multiple_files_n1"
+args = ["-n", "1", { fixtures = ["twelve", "empty", "one", "three", "two"] }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "multiple_files_n1_q"
+args = ["-n", "1", "-q", { fixtures = ["twelve", "empty", "one", "three", "two"] }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "multiple_files_n1_quiet"
+args = ["-n", "1", "--quiet", { fixtures = ["twelve", "empty", "one", "three", "two"] }]
+expect = { exit = 0, stdout_file = "multiple_files_n1_q.out" }
+
+[[cases]]
+name = "multiple_files_n_minus_1"
+args = ["-n=-1", { fixtures = ["twelve", "empty", "one", "three", "two"] }]
+origin = { args = ["-n", "-1", { fixtures = ["twelve", "empty", "one", "three", "two"] }], reason = "BSD tail accepts the signed count as a separate option argument." }
+expect = { exit = 0, stdout_file = "multiple_files_n1.out" }
+
+[[cases]]
+name = "multiple_files_n_plus_1"
+args = ["-n", "+1", { fixtures = ["twelve", "empty", "one", "three", "two"] }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "multiple_files_n3"
+args = ["-n", "3", { fixtures = ["twelve", "empty", "one", "three", "two"] }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "multiple_files_n_minus_3"
+args = ["-n=-3", { fixtures = ["twelve", "empty", "one", "three", "two"] }]
+origin = { args = ["-n", "-3", { fixtures = ["twelve", "empty", "one", "three", "two"] }], reason = "BSD tail accepts the signed count as a separate option argument." }
+expect = { exit = 0, stdout_file = "multiple_files_n3.out" }
+
+[[cases]]
+name = "multiple_files_n_plus_3"
+args = ["-n", "+3", { fixtures = ["twelve", "empty", "one", "three", "two"] }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "multiple_files_c0"
+args = ["-c", "0", { fixtures = ["twelve", "empty", "one", "three", "two"] }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "multiple_files_c3"
+args = ["-c", "3", { fixtures = ["twelve", "empty", "one", "three", "two"] }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "multiple_files_c_minus_3"
+args = ["-c=-3", { fixtures = ["twelve", "empty", "one", "three", "two"] }]
+origin = { args = ["-c", "-3", { fixtures = ["twelve", "empty", "one", "three", "two"] }], reason = "BSD tail accepts the signed count as a separate option argument." }
+expect = { exit = 0, stdout_file = "multiple_files_c3.out" }
+
+[[cases]]
+name = "multiple_files_c_plus_3"
+args = ["-c", "+3", { fixtures = ["twelve", "empty", "one", "three", "two"] }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "reference_all_c_12"
+args = ["-c", "+12", { fixtures = ["twelve", "empty", "one", "three", "two"] }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "reference_all_c_8"
+args = ["-c", "+8", { fixtures = ["twelve", "empty", "one", "three", "two"] }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "reference_all_c12"
+args = ["-c", "12", { fixtures = ["twelve", "empty", "one", "three", "two"] }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "reference_all_c8"
+args = ["-c", "8", { fixtures = ["twelve", "empty", "one", "three", "two"] }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "reference_all_n_3_q"
+args = ["-n", "+3", "-q", { fixtures = ["twelve", "empty", "one", "three", "two"] }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "reference_all_n3_q"
+args = ["-n", "3", "-q", { fixtures = ["twelve", "empty", "one", "three", "two"] }]
+expect = { exit = 0 }

@@ -1,0 +1,197 @@
+schema = 1
+binary = "commr"
+reference = "comm"
+
+[fixtures]
+empty = "empty.txt"
+file1 = "file1.txt"
+file2 = "file2.txt"
+blank = "blank.txt"
+
+[references.comm]
+program = "/usr/bin/comm"
+platform = "macos"
+
+[references.comm_delimited]
+program = "/bin/bash"
+platform = "macos"
+
+[[cases]]
+name = "empty_empty"
+args = [{ fixtures = ["empty", "empty"] }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "file1_file1"
+args = [{ fixtures = ["file1", "file1"] }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "file1_file2"
+args = [{ fixtures = ["file1", "file2"] }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "file1_empty"
+args = [{ fixtures = ["file1", "empty"] }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "empty_file2"
+args = [{ fixtures = ["empty", "file2"] }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "file1_file2_1"
+args = ["-1", { fixtures = ["file1", "file2"] }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "file1_file2_2"
+args = ["-2", { fixtures = ["file1", "file2"] }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "file1_file2_3"
+args = ["-3", { fixtures = ["file1", "file2"] }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "file1_file2_1_2"
+args = ["-12", { fixtures = ["file1", "file2"] }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "file1_file2_2_3"
+args = ["-23", { fixtures = ["file1", "file2"] }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "file1_file2_13"
+args = ["-13", { fixtures = ["file1", "file2"] }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "file1_file2_123"
+args = ["-123", { fixtures = ["file1", "file2"] }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "file1_file2_1_i"
+args = ["-1", "-i", { fixtures = ["file1", "file2"] }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "file1_file2_2_i"
+args = ["-2", "-i", { fixtures = ["file1", "file2"] }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "file1_file2_3_i"
+args = ["-3", "-i", { fixtures = ["file1", "file2"] }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "file1_file2_1_2_i"
+args = ["-12", "-i", { fixtures = ["file1", "file2"] }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "file1_file2_2_3_i"
+args = ["-23", "-i", { fixtures = ["file1", "file2"] }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "file1_file2_13_i"
+args = ["-13", "-i", { fixtures = ["file1", "file2"] }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "file1_file2_123_i"
+args = ["-123", "-i", { fixtures = ["file1", "file2"] }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "stdin_file1"
+args = ["-123", "-i", "-", { fixture = "file2" }]
+stdin = { mode = "pipe", files = ["file1"] }
+expect = { exit = 0, stdout_file = "file1_file2_123_i.out" }
+
+[[cases]]
+name = "stdin_file2"
+args = ["-123", "-i", "-", { fixture = "file1" }]
+stdin = { mode = "pipe", files = ["file2"] }
+expect = { exit = 0, stdout_file = "file1_file2_123_i.out" }
+
+[[cases]]
+name = "file1_file2_delim"
+args = ["-d", ":", { fixtures = ["file1", "file2"] }]
+origin = { reference = "comm_delimited", args = ["-o", "pipefail", "-c", "/usr/bin/comm \"$@\" | /usr/bin/tr \"\\t\" \":\"", "comm", { fixtures = ["file1", "file2"] }], reason = "BSD comm has no custom separator; the independent pipeline replaces column tabs with colons and propagates failures." }
+expect = { exit = 0 }
+
+[[cases]]
+name = "file1_file2_1_delim"
+args = ["-1", "-d", ":", { fixtures = ["file1", "file2"] }]
+origin = { reference = "comm_delimited", args = ["-o", "pipefail", "-c", "/usr/bin/comm \"$@\" | /usr/bin/tr \"\\t\" \":\"", "comm", "-1", { fixtures = ["file1", "file2"] }], reason = "BSD comm has no custom separator; the independent pipeline replaces column tabs with colons and propagates failures." }
+expect = { exit = 0 }
+
+[[cases]]
+name = "file1_file2_2_delim"
+args = ["-2", "-d", ":", { fixtures = ["file1", "file2"] }]
+origin = { reference = "comm_delimited", args = ["-o", "pipefail", "-c", "/usr/bin/comm \"$@\" | /usr/bin/tr \"\\t\" \":\"", "comm", "-2", { fixtures = ["file1", "file2"] }], reason = "BSD comm has no custom separator; the independent pipeline replaces column tabs with colons and propagates failures." }
+expect = { exit = 0 }
+
+[[cases]]
+name = "file1_file2_3_delim"
+args = ["-3", "-d", ":", { fixtures = ["file1", "file2"] }]
+origin = { reference = "comm_delimited", args = ["-o", "pipefail", "-c", "/usr/bin/comm \"$@\" | /usr/bin/tr \"\\t\" \":\"", "comm", "-3", { fixtures = ["file1", "file2"] }], reason = "BSD comm has no custom separator; the independent pipeline replaces column tabs with colons and propagates failures." }
+expect = { exit = 0 }
+
+[[cases]]
+name = "file1_file2_12_delim"
+args = ["-12", "-d", ":", { fixtures = ["file1", "file2"] }]
+origin = { reference = "comm_delimited", args = ["-o", "pipefail", "-c", "/usr/bin/comm \"$@\" | /usr/bin/tr \"\\t\" \":\"", "comm", "-12", { fixtures = ["file1", "file2"] }], reason = "BSD comm has no custom separator; the independent pipeline replaces column tabs with colons and propagates failures." }
+expect = { exit = 0 }
+
+[[cases]]
+name = "file1_file2_23_delim"
+args = ["-23", "-d", ":", { fixtures = ["file1", "file2"] }]
+origin = { reference = "comm_delimited", args = ["-o", "pipefail", "-c", "/usr/bin/comm \"$@\" | /usr/bin/tr \"\\t\" \":\"", "comm", "-23", { fixtures = ["file1", "file2"] }], reason = "BSD comm has no custom separator; the independent pipeline replaces column tabs with colons and propagates failures." }
+expect = { exit = 0 }
+
+[[cases]]
+name = "file1_file2_13_delim"
+args = ["-13", "-d", ":", { fixtures = ["file1", "file2"] }]
+origin = { reference = "comm_delimited", args = ["-o", "pipefail", "-c", "/usr/bin/comm \"$@\" | /usr/bin/tr \"\\t\" \":\"", "comm", "-13", { fixtures = ["file1", "file2"] }], reason = "BSD comm has no custom separator; the independent pipeline replaces column tabs with colons and propagates failures." }
+expect = { exit = 0 }
+
+[[cases]]
+name = "file1_file2_123_delim"
+args = ["-123", "-d", ":", { fixtures = ["file1", "file2"] }]
+origin = { reference = "comm_delimited", args = ["-o", "pipefail", "-c", "/usr/bin/comm \"$@\" | /usr/bin/tr \"\\t\" \":\"", "comm", "-123", { fixtures = ["file1", "file2"] }], reason = "BSD comm has no custom separator; the independent pipeline replaces column tabs with colons and propagates failures." }
+expect = { exit = 0 }
+
+[[cases]]
+name = "blank_file1"
+args = [{ fixtures = ["blank", "file1"] }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "reference_file1_blank_1"
+args = ["-1", { fixtures = ["file1", "blank"] }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "reference_file1_blank_2"
+args = ["-2", { fixtures = ["file1", "blank"] }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "reference_file1_blank_3"
+args = ["-3", { fixtures = ["file1", "blank"] }]
+expect = { exit = 0 }
+
+[[cases]]
+name = "reference_file1_blank"
+args = [{ fixtures = ["file1", "blank"] }]
+expect = { exit = 0 }

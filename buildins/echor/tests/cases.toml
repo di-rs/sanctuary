@@ -1,0 +1,27 @@
+schema = 1
+binary = "echor"
+reference = "echo"
+
+[references.echo]
+program = "/bin/echo"
+platform = "macos"
+
+[[cases]]
+name = "hello1"
+args = ["Hello there"]
+expect = { exit = 0 }
+
+[[cases]]
+name = "hello2"
+args = ["Hello", "there"]
+expect = { exit = 0 }
+
+[[cases]]
+name = "hello1n"
+args = ["-n", "Hello there"]
+expect = { exit = 0 }
+
+[[cases]]
+name = "hello2n"
+args = ["-n", "Hello", "there"]
+expect = { exit = 0 }

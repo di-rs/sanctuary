@@ -1,5 +1,5 @@
 use assert_fs::prelude::*;
-use cli_testing::{cargo_bin_cmd, context};
+use cli_testing::{Context, TestContext, cli_test, test_case};
 use predicates::prelude::*;
 use std::{
     fs,
@@ -21,10 +21,10 @@ fn assert_modified(path: &Path, seconds: u64) -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn usage() {
+#[cli_test]
+fn usage(cx: &TestContext) {
     for flag in ["-h", "--help"] {
-        cargo_bin_cmd!()
+        cx.cmd()
             .arg(flag)
             .assert()
             .success()
@@ -33,32 +33,28 @@ fn usage() {
     }
 }
 
-#[test]
-fn creates_single_file() -> Result<()> {
-    let dir = context!().workspace()?;
-    dir.command()
-        .arg("new")
-        .assert()
-        .success()
-        .stdout("")
-        .stderr("");
-    dir.child("new")
-        .assert(predicate::path::is_file())
-        .assert("");
+#[test_case("creates_single_file")]
+fn creates_single_file(cx: &mut Context) -> cli_testing::Result<()> {
+    cx.workspace()?;
+    cx.run()?;
+    cx.workspace()?
+        .child("new")
+        .assert(predicate::path::is_file());
+    cx.workspace()?.child("new").assert("");
     Ok(())
 }
 
-#[test]
+#[cli_test]
 #[allow(
     clippy::panic_in_result_fn,
     reason = "Assertions fail the test; Result propagates fixture I/O errors."
 )]
-fn preserves_contents_and_updates_existing_file() -> Result<()> {
-    let dir = context!().workspace()?;
+fn preserves_contents_and_updates_existing_file(cx: &TestContext) -> Result<()> {
+    let dir = cx.workspace()?;
     let file = dir.child("existing");
     file.write_str("keep these contents\n")?;
     fs::File::open(file.path())?.set_modified(UNIX_EPOCH)?;
-    dir.command()
+    dir.cmd()
         .arg("existing")
         .assert()
         .success()
@@ -69,16 +65,16 @@ fn preserves_contents_and_updates_existing_file() -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn sets_supported_numeric_timestamps_on_multiple_files() -> Result<()> {
-    let dir = context!().workspace()?;
+#[cli_test]
+fn sets_supported_numeric_timestamps_on_multiple_files(cx: &TestContext) -> Result<()> {
+    let dir = cx.workspace()?;
     for (timestamp, seconds) in [
         ("200001010000", 946_684_800),
         ("20000101000007", 946_684_807),
     ] {
         dir.child("existing").write_str("preserve me")?;
         let new = dir.child(format!("new-{timestamp}"));
-        dir.command()
+        dir.cmd()
             .args(["-t", timestamp, "existing"])
             .arg(new.path())
             .assert()
@@ -93,10 +89,10 @@ fn sets_supported_numeric_timestamps_on_multiple_files() -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn c_does_not_create_missing_files() -> Result<()> {
-    let dir = context!().workspace()?;
-    dir.command()
+#[cli_test]
+fn c_does_not_create_missing_files(cx: &TestContext) -> Result<()> {
+    let dir = cx.workspace()?;
+    dir.cmd()
         .args(["-c", "missing", "also-missing"])
         .assert()
         .success()
@@ -108,11 +104,11 @@ fn c_does_not_create_missing_files() -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn c_still_updates_existing_files() -> Result<()> {
-    let dir = context!().workspace()?;
+#[cli_test]
+fn c_still_updates_existing_files(cx: &TestContext) -> Result<()> {
+    let dir = cx.workspace()?;
     dir.child("existing").write_str("keep me")?;
-    dir.command()
+    dir.cmd()
         .args(["-c", "-t", "20000101000007", "missing", "existing"])
         .assert()
         .success()
@@ -123,11 +119,11 @@ fn c_still_updates_existing_files() -> Result<()> {
     assert_modified(dir.child("existing").path(), 946_684_807)
 }
 
-#[test]
-fn rejects_invalid_timestamps_without_creating_files() -> Result<()> {
-    let dir = context!().workspace()?;
+#[cli_test]
+fn rejects_invalid_timestamps_without_creating_files(cx: &TestContext) -> Result<()> {
+    let dir = cx.workspace()?;
     for timestamp in ["bad", "202413010000", "202402300000"] {
-        dir.command()
+        dir.cmd()
             .args(["-t", timestamp, "new"])
             .assert()
             .code(2)
@@ -138,12 +134,12 @@ fn rejects_invalid_timestamps_without_creating_files() -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn reports_creation_path_errors() -> Result<()> {
-    let dir = context!().workspace()?;
+#[cli_test]
+fn reports_creation_path_errors(cx: &TestContext) -> Result<()> {
+    let dir = cx.workspace()?;
     dir.child("file").write_str("keep me")?;
     for path in ["missing/child", "file/child"] {
-        dir.command()
+        dir.cmd()
             .arg(path)
             .assert()
             .failure()
@@ -157,10 +153,10 @@ fn reports_creation_path_errors() -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn requires_file_operand() -> Result<()> {
-    let dir = context!().workspace()?;
-    dir.command()
+#[cli_test]
+fn requires_file_operand(cx: &TestContext) -> Result<()> {
+    let dir = cx.workspace()?;
+    dir.cmd()
         .assert()
         .failure()
         .stdout("")
@@ -169,12 +165,12 @@ fn requires_file_operand() -> Result<()> {
 }
 
 #[cfg(unix)]
-#[test]
-fn follows_symlinks_without_erasing_contents() -> Result<()> {
-    let dir = context!().workspace()?;
+#[cli_test]
+fn follows_symlinks_without_erasing_contents(cx: &TestContext) -> Result<()> {
+    let dir = cx.workspace()?;
     dir.child("target").write_str("preserve target")?;
     std::os::unix::fs::symlink("target", dir.child("link").path())?;
-    dir.command()
+    dir.cmd()
         .args(["-t", "20000101000007", "link"])
         .assert()
         .code(0)

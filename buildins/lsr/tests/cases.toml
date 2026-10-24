@@ -1,0 +1,33 @@
+schema = 1
+binary = "lsr"
+reference = "ls"
+
+[fixtures]
+empty = "empty.txt"
+bustle = "bustle.txt"
+fox = "fox.txt"
+hidden = ".hidden"
+
+[references.ls]
+program = "/bin/ls"
+platform = "macos"
+
+[[cases]]
+name = "empty"
+args = [{ fixture = "empty" }]
+expect = { exit = 0, stdout = "tests/inputs/empty.txt\n" }
+
+[[cases]]
+name = "bustle"
+args = [{ fixture = "bustle" }]
+expect = { exit = 0, stdout = "tests/inputs/bustle.txt\n" }
+
+[[cases]]
+name = "fox"
+args = [{ fixture = "fox" }]
+expect = { exit = 0, stdout = "tests/inputs/fox.txt\n" }
+
+[[cases]]
+name = "hidden"
+args = [{ fixture = "hidden" }]
+expect = { exit = 0, stdout = "tests/inputs/.hidden\n" }

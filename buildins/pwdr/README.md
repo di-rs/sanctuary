@@ -20,4 +20,17 @@ This implementation defaults to logical mode, unlike standalone GNU `pwd`'s
 usual physical default. `-L` and `-P` are mutually exclusive rather than using
 the last flag supplied. Paths containing non-Unicode bytes are displayed lossily.
 
+## CLI test structure
+
+Native tests use `#[cli_test]` to receive shared helpers as `cx: &TestContext`.
+
+Current-directory, PWD fallback, and symlink scenarios remain native Rust
+tests because their expected paths are generated inside temporary workspaces.
+All scenarios now share deterministic command defaults and isolated workspaces;
+explicit PWD manipulation and exact path assertions remain visible.
+
+Run `cargo nextest run -p pwdr --profile ci`. The
+[shared Rust testing helpers](../../tools/cli-testing/docs/testing.md) provide
+command defaults and isolated workspaces without hiding filesystem assertions.
+
 [All commands](../../README.md)
