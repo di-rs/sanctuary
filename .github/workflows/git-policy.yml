@@ -11,6 +11,7 @@ jobs:
   git-policy:
     if: >-
       ${{
+        (github.event.action != 'labeled' || github.event.label.name == 'run-ci') &&
         (!github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'run-ci'))
       }}
     # This check name is required by branch protection; keep its context stable.

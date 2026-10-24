@@ -12,7 +12,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.event.action == 'labeled' && github.event.label.name != 'run-ci' && github.run_id || 'checks' }}
   cancel-in-progress: true
 
 defaults:
@@ -28,6 +28,7 @@ jobs:
   quality:
     if: >-
       ${{
+        (github.event.action != 'labeled' || github.event.label.name == 'run-ci') &&
         (!github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'run-ci'))
       }}
     name: 🦀 Rust formatting, linting and documentation
@@ -65,6 +66,7 @@ jobs:
   python:
     if: >-
       ${{
+        (github.event.action != 'labeled' || github.event.label.name == 'run-ci') &&
         (!github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'run-ci'))
       }}
     name: 🐍 Python lint, types and tests (3.15)
@@ -112,6 +114,7 @@ jobs:
   frontend:
     if: >-
       ${{
+        (github.event.action != 'labeled' || github.event.label.name == 'run-ci') &&
         (!github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'run-ci'))
       }}
     name: 🎨 Frontend checks, builds and browser tests
@@ -167,6 +170,7 @@ jobs:
   tests:
     if: >-
       ${{
+        (github.event.action != 'labeled' || github.event.label.name == 'run-ci') &&
         (!github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'run-ci'))
       }}
     name: 🧪 Rust tests and doctests (${{ matrix.platform }})
@@ -224,6 +228,7 @@ jobs:
   packages:
     if: >-
       ${{
+        (github.event.action != 'labeled' || github.event.label.name == 'run-ci') &&
         (!github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'run-ci'))
       }}
     name: 📦 Rust package and feature compatibility
@@ -259,6 +264,7 @@ jobs:
   docs-policy:
     if: >-
       ${{
+        (github.event.action != 'labeled' || github.event.label.name == 'run-ci') &&
         (!github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'run-ci'))
       }}
     name: 📚 Documentation links and spelling
@@ -301,6 +307,7 @@ jobs:
   dependencies:
     if: >-
       ${{
+        (github.event.action != 'labeled' || github.event.label.name == 'run-ci') &&
         (!github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'run-ci'))
       }}
     name: 📦 Dependency vulnerabilities and license policy
@@ -325,6 +332,7 @@ jobs:
   workflows:
     if: >-
       ${{
+        (github.event.action != 'labeled' || github.event.label.name == 'run-ci') &&
         (!github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'run-ci'))
       }}
     name: 🛡️ Workflow syntax and security
@@ -356,6 +364,7 @@ jobs:
   secrets:
     if: >-
       ${{
+        (github.event.action != 'labeled' || github.event.label.name == 'run-ci') &&
         (!github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'run-ci'))
       }}
     name: 🔐 Repository secret scanning

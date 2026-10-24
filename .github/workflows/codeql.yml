@@ -24,13 +24,14 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.event.action == 'labeled' && github.event.label.name != 'run-ci' && github.run_id || 'checks' }}
   cancel-in-progress: true
 
 jobs:
   analyze:
     if: >-
       ${{
+        (github.event.action != 'labeled' || github.event.label.name == 'run-ci') &&
         (!github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'run-ci'))
       }}
     name: 🛡️ Analyze ${{ matrix.language }} security
