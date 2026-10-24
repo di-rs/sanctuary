@@ -93,19 +93,17 @@ expect = { exit = 0 }
 
 [[cases]]
 name = "all"
-args = [{ fixture = "fox" }, { fixture = "spiders" }, { fixture = "bustle" }]
+args = [{ fixtures = ["fox", "spiders", "bustle"] }]
 expect = { exit = 0 }
 
 [[cases]]
 name = "all_n"
-args = [{ fixture = "fox" }, { fixture = "spiders" }, { fixture = "bustle" }, "-n"]
-origin = { args = ["-n", { fixture = "fox" }, { fixture = "spiders" }, { fixture = "bustle" }], reason = "Use the BSD reference option spelling and place options before file operands." }
+args = ["-n", { fixtures = ["fox", "spiders", "bustle"] }]
 expect = { exit = 0 }
 
 [[cases]]
 name = "all_b"
-args = [{ fixture = "fox" }, { fixture = "spiders" }, { fixture = "bustle" }, "-b"]
-origin = { args = ["-b", { fixture = "fox" }, { fixture = "spiders" }, { fixture = "bustle" }], reason = "Use the BSD reference option spelling and place options before file operands." }
+args = ["-b", { fixtures = ["fox", "spiders", "bustle"] }]
 expect = { exit = 0 }
 
 [[cases]]
@@ -115,24 +113,20 @@ expect = { exit = 0 }
 
 [[cases]]
 name = "mutipspaces_s"
-args = [{ fixture = "multispaces" }, "-s"]
-origin = { args = ["-s", { fixture = "multispaces" }], reason = "Use the BSD reference option spelling and place options before file operands." }
+args = ["-s", { fixture = "multispaces" }]
 expect = { exit = 0 }
 
 [[cases]]
 name = "mutipspaces_s_n"
-args = [{ fixture = "multispaces" }, "-s", "-n"]
-origin = { args = ["-s", "-n", { fixture = "multispaces" }], reason = "Use the BSD reference option spelling and place options before file operands." }
+args = ["-s", "-n", { fixture = "multispaces" }]
 expect = { exit = 0 }
 
 [[cases]]
 name = "mutipspaces_s_b"
-args = [{ fixture = "multispaces" }, "-s", "-b"]
-origin = { args = ["-s", "-b", { fixture = "multispaces" }], reason = "Use the BSD reference option spelling and place options before file operands." }
+args = ["-s", "-b", { fixture = "multispaces" }]
 expect = { exit = 0 }
 
 [[cases]]
 name = "bustle_u"
-args = [{ fixture = "bustle" }, "-u"]
-origin = { args = ["-u", { fixture = "bustle" }], reason = "Use the BSD reference option spelling and place options before file operands." }
+args = ["-u", { fixture = "bustle" }]
 expect = { exit = 0, stdout_file = "bustle.out" }

@@ -28,9 +28,10 @@ pub(super) enum Argument {
 }
 
 #[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(super) struct FixtureArgument {
-    fixture: String,
+#[serde(untagged, deny_unknown_fields)]
+pub(super) enum FixtureArgument {
+    One { fixture: String },
+    Many { fixtures: Vec<String> },
 }
 
 impl Suite<Argument> {
@@ -151,17 +152,24 @@ fn arguments(
     fixtures: &BTreeMap<String, PathBuf>,
     inputs: &mut Vec<PathBuf>,
 ) -> Result<Vec<String>> {
-    args.into_iter()
-        .map(|arg| match arg {
-            Argument::Literal(value) => Ok(value),
+    let mut resolved = Vec::new();
+    for arg in args {
+        match arg {
+            Argument::Literal(value) => resolved.push(value),
             Argument::Fixture(value) => {
-                let path = input(std::path::Path::new(&value.fixture), fixtures)?;
-                let argument = format!("tests/{}", path.to_string_lossy());
-                inputs.push(path);
-                Ok(argument)
+                let names = match value {
+                    FixtureArgument::One { fixture } => vec![fixture],
+                    FixtureArgument::Many { fixtures } => fixtures,
+                };
+                for name in names {
+                    let path = input(std::path::Path::new(&name), fixtures)?;
+                    resolved.push(format!("tests/{}", path.to_string_lossy()));
+                    inputs.push(path);
+                }
             }
-        })
-        .collect()
+        }
+    }
+    Ok(resolved)
 }
 
 fn expected(expect: &mut Expected, name: &str, paths: &FixturePaths) -> Result {

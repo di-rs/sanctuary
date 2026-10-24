@@ -84,8 +84,13 @@ contracts and independent expected bytes.
 
 Arguments are passed directly, without a shell, in the package directory.
 `{ fixture = "fox" }` resolves to `tests/inputs/fox.txt` and automatically registers
-that dependency for recording. This works in both candidate and reference arguments.
-Literal strings are unchanged, including deliberately missing filenames in error tests.
+that dependency for recording. For consecutive operands, use `{ fixtures = ["fox", "spiders", "bustle"] }`
+to expand the list into separate arguments at that position. Order and repeated IDs
+are preserved; an empty list adds no arguments. Both forms work in candidate and
+reference arguments.
+Prefer a shared argument list with options before file operands when both CLIs
+accept it. Reserve reference argument overrides and their reasons for actual
+interface differences. Literal strings are unchanged, including deliberately missing filenames in error tests.
 Use `inputs = ["fixture_id"]` only for dependencies not mentioned in arguments or stdin.
 An alias may name a subdirectory; `all = "."` names the entire inputs directory.
 Directory dependencies include descendant files.

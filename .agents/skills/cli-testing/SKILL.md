@@ -31,7 +31,8 @@ grepr; existing packages can retain their native tests and generators.
 
 Use schema 1 for new catalogs. Declare each input filename once in `[fixtures]`;
 `inputs/` is implied. Cases reference stable IDs with `{ fixture = "fox" }` in
-candidate or reference arguments, or `files = ["fox"]` / `path = "fox"` for stdin.
+candidate or reference arguments; group operands with `{ fixtures = ["fox", "spiders"] }`.
+Use `files = ["fox"]` / `path = "fox"` for stdin.
 Dependencies are registered automatically. Use `inputs = ["id"]` only for additional
 dependencies not present in arguments or stdin. Directory aliases include descendant
 files; `all = "."` names the whole inputs directory.
@@ -56,7 +57,9 @@ expect = { exit = 0 }
 
 This reads `tests/inputs/fox.txt`, compares raw stdout with `tests/expected/fox.out`,
 and expects empty stderr. The suite reference is inherited, so ordinary cases need
-no origin table. Keep explicit reference arguments, status differences, or manual
+no origin table. Prefer shared arguments with options before file operands; avoid
+reference overrides just to repeat an equivalent ordering. Keep explicit reference
+arguments for actual interface differences, status differences, or manual
 expectation explanations where needed. Reference IDs need no BSD/GNU prefix;
 executable and platform configuration still select the actual implementation.
 

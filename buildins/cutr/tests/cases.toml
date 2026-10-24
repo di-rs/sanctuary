@@ -14,148 +14,125 @@ env = { LC_ALL = "en_US.UTF-8" }
 
 [[cases]]
 name = "tsv_f1"
-args = [{ fixture = "movies_tsv" }, "-f", "1"]
-origin = { args = ["-f", "1", { fixture = "movies_tsv" }], reason = "Use the BSD reference option spelling and place options before file operands." }
+args = ["-f", "1", { fixture = "movies_tsv" }]
 expect = { exit = 0 }
 
 [[cases]]
 name = "tsv_f2"
-args = [{ fixture = "movies_tsv" }, "-f", "2"]
-origin = { args = ["-f", "2", { fixture = "movies_tsv" }], reason = "Use the BSD reference option spelling and place options before file operands." }
+args = ["-f", "2", { fixture = "movies_tsv" }]
 expect = { exit = 0 }
 
 [[cases]]
 name = "tsv_f3"
-args = [{ fixture = "movies_tsv" }, "-f", "3"]
-origin = { args = ["-f", "3", { fixture = "movies_tsv" }], reason = "Use the BSD reference option spelling and place options before file operands." }
+args = ["-f", "3", { fixture = "movies_tsv" }]
 expect = { exit = 0 }
 
 [[cases]]
 name = "tsv_f1_2"
-args = [{ fixture = "movies_tsv" }, "-f", "1-2"]
-origin = { args = ["-f", "1-2", { fixture = "movies_tsv" }], reason = "Use the BSD reference option spelling and place options before file operands." }
+args = ["-f", "1-2", { fixture = "movies_tsv" }]
 expect = { exit = 0 }
 
 [[cases]]
 name = "tsv_f2_3"
-args = [{ fixture = "movies_tsv" }, "-f", "2-3"]
-origin = { args = ["-f", "2-3", { fixture = "movies_tsv" }], reason = "Use the BSD reference option spelling and place options before file operands." }
+args = ["-f", "2-3", { fixture = "movies_tsv" }]
 expect = { exit = 0 }
 
 [[cases]]
 name = "tsv_f1_3"
-args = [{ fixture = "movies_tsv" }, "-f", "1-3"]
-origin = { args = ["-f", "1-3", { fixture = "movies_tsv" }], reason = "Use the BSD reference option spelling and place options before file operands." }
+args = ["-f", "1-3", { fixture = "movies_tsv" }]
 expect = { exit = 0 }
 
 [[cases]]
 name = "csv_f1"
-args = [{ fixture = "movies_csv" }, "-f", "1", "-d", ","]
-origin = { args = ["-f", "1", "-d", ",", { fixture = "movies_csv" }], reason = "Use the BSD reference option spelling and place options before file operands." }
+args = ["-f", "1", "-d", ",", { fixture = "movies_csv" }]
 expect = { exit = 0 }
 
 [[cases]]
 name = "csv_f2"
-args = [{ fixture = "movies_csv" }, "-f", "2", "-d", ","]
-origin = { args = ["-f", "2", "-d", ",", { fixture = "movies_csv" }], reason = "Use the BSD reference option spelling and place options before file operands." }
+args = ["-f", "2", "-d", ",", { fixture = "movies_csv" }]
 expect = { exit = 0 }
 
 [[cases]]
 name = "csv_f3"
-args = [{ fixture = "movies_csv" }, "-f", "3", "-d", ","]
-origin = { args = ["-f", "3", "-d", ",", { fixture = "movies_csv" }], reason = "Use the BSD reference option spelling and place options before file operands." }
+args = ["-f", "3", "-d", ",", { fixture = "movies_csv" }]
 expect = { exit = 0 }
 
 [[cases]]
 name = "csv_f1_2"
-args = [{ fixture = "movies_csv" }, "-f", "1-2", "-d", ","]
-origin = { args = ["-f", "1-2", "-d", ",", { fixture = "movies_csv" }], reason = "Use the BSD reference option spelling and place options before file operands." }
+args = ["-f", "1-2", "-d", ",", { fixture = "movies_csv" }]
 expect = { exit = 0 }
 
 [[cases]]
 name = "csv_f2_3"
-args = [{ fixture = "movies_csv" }, "-f", "2-3", "-d", ","]
-origin = { args = ["-f", "2-3", "-d", ",", { fixture = "movies_csv" }], reason = "Use the BSD reference option spelling and place options before file operands." }
+args = ["-f", "2-3", "-d", ",", { fixture = "movies_csv" }]
 expect = { exit = 0 }
 
 [[cases]]
 name = "csv_f1_3"
-args = [{ fixture = "movies_csv" }, "-f", "1-3", "-d", ","]
-origin = { args = ["-f", "1-3", "-d", ",", { fixture = "movies_csv" }], reason = "Use the BSD reference option spelling and place options before file operands." }
+args = ["-f", "1-3", "-d", ",", { fixture = "movies_csv" }]
 expect = { exit = 0 }
 
 [[cases]]
 name = "tsv_b1"
-args = [{ fixture = "movies_tsv" }, "-b", "1"]
-origin = { args = ["-b", "1", { fixture = "movies_tsv" }], reason = "Use the BSD reference option spelling and place options before file operands." }
+args = ["-b", "1", { fixture = "movies_tsv" }]
 expect = { exit = 0 }
 
 [[cases]]
 name = "tsv_b2"
-args = [{ fixture = "movies_tsv" }, "-b", "2"]
-origin = { args = ["-b", "2", { fixture = "movies_tsv" }], reason = "Use the BSD reference option spelling and place options before file operands." }
+args = ["-b", "2", { fixture = "movies_tsv" }]
 expect = { exit = 0 }
 
 [[cases]]
 name = "tsv_b8"
-args = [{ fixture = "movies_tsv" }, "-b", "8"]
-origin = { args = ["-b", "8", { fixture = "movies_tsv" }], reason = "Use the BSD reference option spelling and place options before file operands." }
+args = ["-b", "8", { fixture = "movies_tsv" }]
 expect = { exit = 0 }
 adapt = { expected_stdout = "utf8-lossy", reason = "cutr replaces incomplete UTF-8 sequences; BSD cut emits raw bytes." }
 
 [[cases]]
 name = "tsv_b1_2"
-args = [{ fixture = "movies_tsv" }, "-b", "1-2"]
-origin = { args = ["-b", "1-2", { fixture = "movies_tsv" }], reason = "Use the BSD reference option spelling and place options before file operands." }
+args = ["-b", "1-2", { fixture = "movies_tsv" }]
 expect = { exit = 0 }
 
 [[cases]]
 name = "tsv_b2_3"
-args = [{ fixture = "movies_tsv" }, "-b", "2-3"]
-origin = { args = ["-b", "2-3", { fixture = "movies_tsv" }], reason = "Use the BSD reference option spelling and place options before file operands." }
+args = ["-b", "2-3", { fixture = "movies_tsv" }]
 expect = { exit = 0 }
 
 [[cases]]
 name = "tsv_b1_8"
 execution = "rust"
-args = [{ fixture = "movies_tsv" }, "-b", "1-8"]
-origin = { args = ["-b", "1-8", { fixture = "movies_tsv" }], reason = "BSD cut emits raw bytes; the Rust test adapts incomplete UTF-8 in the expectation. Options precede operands for BSD cut." }
+args = ["-b", "1-8", { fixture = "movies_tsv" }]
+origin = { reason = "BSD cut emits raw bytes; the Rust test adapts incomplete UTF-8 in the expectation." }
 expect = { exit = 0 }
 
 [[cases]]
 name = "tsv_c1"
-args = [{ fixture = "movies_tsv" }, "-c", "1"]
-origin = { args = ["-c", "1", { fixture = "movies_tsv" }], reason = "Use the BSD reference option spelling and place options before file operands." }
+args = ["-c", "1", { fixture = "movies_tsv" }]
 expect = { exit = 0 }
 
 [[cases]]
 name = "tsv_c2"
-args = [{ fixture = "movies_tsv" }, "-c", "2"]
-origin = { args = ["-c", "2", { fixture = "movies_tsv" }], reason = "Use the BSD reference option spelling and place options before file operands." }
+args = ["-c", "2", { fixture = "movies_tsv" }]
 expect = { exit = 0 }
 
 [[cases]]
 name = "tsv_c8"
-args = [{ fixture = "movies_tsv" }, "-c", "8"]
-origin = { args = ["-c", "8", { fixture = "movies_tsv" }], reason = "Use the BSD reference option spelling and place options before file operands." }
+args = ["-c", "8", { fixture = "movies_tsv" }]
 expect = { exit = 0 }
 
 [[cases]]
 name = "tsv_c1_2"
-args = [{ fixture = "movies_tsv" }, "-c", "1-2"]
-origin = { args = ["-c", "1-2", { fixture = "movies_tsv" }], reason = "Use the BSD reference option spelling and place options before file operands." }
+args = ["-c", "1-2", { fixture = "movies_tsv" }]
 expect = { exit = 0 }
 
 [[cases]]
 name = "tsv_c2_3"
-args = [{ fixture = "movies_tsv" }, "-c", "2-3"]
-origin = { args = ["-c", "2-3", { fixture = "movies_tsv" }], reason = "Use the BSD reference option spelling and place options before file operands." }
+args = ["-c", "2-3", { fixture = "movies_tsv" }]
 expect = { exit = 0 }
 
 [[cases]]
 name = "tsv_c1_8"
-args = [{ fixture = "movies_tsv" }, "-c", "1-8"]
-origin = { args = ["-c", "1-8", { fixture = "movies_tsv" }], reason = "Use the BSD reference option spelling and place options before file operands." }
+args = ["-c", "1-8", { fixture = "movies_tsv" }]
 expect = { exit = 0 }
 
 [[cases]]

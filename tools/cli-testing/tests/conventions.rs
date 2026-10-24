@@ -205,3 +205,68 @@ fn reference_only_operands_are_hashed_and_directory_aliases_are_supported() -> R
     );
     Ok(())
 }
+
+#[test]
+fn fixture_arrays_preserve_argument_order_repetitions_and_reference_recording() -> Result {
+    let root = TempDir::new()?;
+    let recipe = r#"schema = 1
+binary = "sample"
+reference = "cat"
+[fixtures]
+first = "first file"
+second = "second file"
+[references.cat]
+program = "/bin/cat"
+platform = "PLATFORM"
+[[cases]]
+name = "copy"
+args = ["-u", { fixtures = ["second", "first", "second"] }, { fixtures = [] }]
+origin = { args = [{ fixtures = [] }, "-u", { fixtures = ["second", "first"] }, { fixture = "second" }], reason = "Verify equivalent grouped and single reference operands." }
+expect = { exit = 0 }
+"#;
+    setup(&root, recipe, "inputs", "expected")?;
+    root.child("tests/inputs/first file").write_binary(b"a\0")?;
+    root.child("tests/inputs/second file")
+        .write_binary(b"\xffb")?;
+    root.child("tests/expected/copy.out")
+        .write_binary(b"\xffba\0\xffb")?;
+    let suite = Suite::load(root.path().join("tests/cases.toml"))?;
+    let case = suite.case("copy")?;
+    assert_eq!(
+        case.args,
+        [
+            "-u",
+            "tests/inputs/second file",
+            "tests/inputs/first file",
+            "tests/inputs/second file"
+        ]
+    );
+    assert_eq!(case.origin.args.as_ref(), Some(&case.args));
+    assert_eq!(case.inputs.len(), 2);
+    TestContext::new("/bin/cat", root.path())
+        .case("copy")?
+        .check()?;
+    let stage = TempDir::new()?;
+    let destination = stage.path().join("capture");
+    recording::record(&suite, &destination)?;
+    assert_eq!(
+        recording::preview(&suite, &destination)?,
+        Vec::<std::path::PathBuf>::new()
+    );
+    for invalid in [
+        "{ fixtures = [\"second\", \"absent\"] }",
+        "{ fixture = \"first\", fixtures = [\"second\"] }",
+        "{ fixtures = [\"second\"], typo = true }",
+    ] {
+        root.child("tests/cases.toml").write_str(
+            &recipe
+                .replace(
+                    "{ fixtures = [\"second\", \"first\", \"second\"] }",
+                    invalid,
+                )
+                .replace("PLATFORM", std::env::consts::OS),
+        )?;
+        assert!(Suite::load(root.path().join("tests/cases.toml")).is_err());
+    }
+    Ok(())
+}
