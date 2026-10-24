@@ -31,7 +31,7 @@ const T6: &str = "t6";
 #[cli_test]
 fn usage(cx: &TestContext) {
     for flag in &["-h", "--help"] {
-        cx.command()
+        cx.cmd()
             .arg(flag)
             .assert()
             .success()
@@ -50,7 +50,7 @@ fn gen_bad_file() -> Result<NamedTempFile> {
 fn dies_bad_file(cx: &TestContext) -> Result<()> {
     let bad = gen_bad_file()?;
     let expected = format!("{}: .* [(]os error 13[)]", bad.path().display());
-    cx.command()
+    cx.cmd()
         .arg(bad.path())
         .assert()
         .failure()
@@ -94,7 +94,7 @@ fn run_outfile_stdin_count(cx: &TestContext, name: &str) -> Result<()> {
 
 #[cli_test]
 fn rejects_unknown_flag(cx: &TestContext) {
-    cx.command()
+    cx.cmd()
         .arg("--unknown")
         .assert()
         .failure()
@@ -104,7 +104,7 @@ fn rejects_unknown_flag(cx: &TestContext) {
 
 #[cli_test]
 fn counts_adjacent_unicode_runs_and_unterminated_last_line(cx: &TestContext) {
-    cx.command()
+    cx.cmd()
         .args(["-c", "-"])
         .write_stdin("é\né\n界\né")
         .assert()
@@ -115,7 +115,7 @@ fn counts_adjacent_unicode_runs_and_unterminated_last_line(cx: &TestContext) {
 
 #[cli_test]
 fn counts_blank_runs_without_merging_nonadjacent_runs(cx: &TestContext) {
-    cx.command()
+    cx.cmd()
         .arg("-c")
         .write_stdin("\n\nx\n\n")
         .assert()
@@ -126,7 +126,7 @@ fn counts_blank_runs_without_merging_nonadjacent_runs(cx: &TestContext) {
 
 #[cli_test]
 fn trailing_spaces_and_tabs_distinguish_lines(cx: &TestContext) {
-    cx.command()
+    cx.cmd()
         .arg("-c")
         .write_stdin("x\nx \nx\t\n")
         .assert()
@@ -139,7 +139,7 @@ fn trailing_spaces_and_tabs_distinguish_lines(cx: &TestContext) {
 fn output_file_is_truncated_for_shorter_result(cx: &TestContext) -> Result<()> {
     let outfile = NamedTempFile::new()?;
     fs::write(outfile.path(), "stale data that must not survive")?;
-    cx.command()
+    cx.cmd()
         .arg("-")
         .arg(outfile.path())
         .write_stdin("é\né\n")
@@ -330,7 +330,7 @@ fn rejects_output_aliases_without_truncating(cx: &TestContext) -> Result<()> {
     let symlink = dir.path().join("symlink");
     std::os::unix::fs::symlink(&input, &symlink)?;
     for output in [&input, &alias, &symlink] {
-        cx.command()
+        cx.cmd()
             .arg(&input)
             .arg(output)
             .assert()
@@ -344,7 +344,7 @@ fn rejects_output_aliases_without_truncating(cx: &TestContext) -> Result<()> {
 
 #[cli_test]
 fn writes_to_non_regular_outputs(cx: &TestContext) {
-    cx.command()
+    cx.cmd()
         .args(["-", "/dev/null"])
         .write_stdin("a\na\nb\n")
         .assert()
@@ -369,7 +369,7 @@ fn writes_to_fifo(cx: &TestContext) -> Result<()> {
         .read(true)
         .write(true)
         .open(&path)?;
-    cx.command()
+    cx.cmd()
         .arg("-")
         .arg(&path)
         .write_stdin("a\na\nb\n")
