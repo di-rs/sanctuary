@@ -175,7 +175,7 @@ fn contexts_isolate_workspaces_and_share_command_defaults() -> Result {
     let right = test.workspace()?;
     left.copy_input("source", "nested/copied")?;
     assert!(!right.child("nested/copied").path().exists());
-    left.command()
+    left.cmd()
         .args([
             "-c",
             "printf '%s' \"$LC_ALL/$TZ/$TERM/$SANCTUARY_LOG_LEVEL\"",

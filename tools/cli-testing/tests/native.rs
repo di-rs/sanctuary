@@ -20,7 +20,7 @@ fn injects_package_defaults(cx: &TestContext) {
             .get_envs()
             .any(|entry| entry == (OsStr::new("LC_ALL"), Some(OsStr::new("C"))))
     );
-    cx.command().arg("--version").assert().code(0).stderr("");
+    cx.cmd().arg("--version").assert().code(0).stderr("");
 }
 
 #[cli_test]

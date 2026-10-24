@@ -12,7 +12,7 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 #[cli_test]
 fn usage(cx: &TestContext) {
     for flag in &["-h", "--help"] {
-        cx.command()
+        cx.cmd()
             .arg(flag)
             .assert()
             .success()
@@ -42,7 +42,7 @@ fn gen_bad_file() -> String {
 fn skips_bad_file(cx: &TestContext) -> Result<()> {
     let bad = gen_bad_file();
     let expected = format!("{bad}: .* [(]os error 2[)]");
-    cx.command()
+    cx.cmd()
         .args(["-f", "1", CSV, &bad, TSV])
         .assert()
         .code(1)
@@ -51,7 +51,7 @@ fn skips_bad_file(cx: &TestContext) -> Result<()> {
 }
 
 fn dies(cx: &TestContext, args: &[&str], expected: &str) {
-    cx.command()
+    cx.cmd()
         .args(args)
         .assert()
         .failure()
@@ -119,7 +119,7 @@ fn dies_bad_delimiter(cx: &TestContext) {
 
 #[cli_test]
 fn dies_chars_bytes_fields(cx: &TestContext) {
-    cx.command()
+    cx.cmd()
         .args([CSV, "-c", "1", "-f", "1", "-b", "1"])
         .assert()
         .failure();
@@ -127,7 +127,7 @@ fn dies_chars_bytes_fields(cx: &TestContext) {
 
 #[cli_test]
 fn dies_bytes_fields(cx: &TestContext) {
-    cx.command()
+    cx.cmd()
         .args([CSV, "-f", "1", "-b", "1"])
         .assert()
         .failure();
@@ -135,7 +135,7 @@ fn dies_bytes_fields(cx: &TestContext) {
 
 #[cli_test]
 fn dies_chars_fields(cx: &TestContext) {
-    cx.command()
+    cx.cmd()
         .args([CSV, "-c", "1", "-f", "1"])
         .assert()
         .failure();
@@ -143,7 +143,7 @@ fn dies_chars_fields(cx: &TestContext) {
 
 #[cli_test]
 fn dies_chars_bytes(cx: &TestContext) {
-    cx.command()
+    cx.cmd()
         .args([CSV, "-c", "1", "-b", "1"])
         .assert()
         .failure();
@@ -151,7 +151,7 @@ fn dies_chars_bytes(cx: &TestContext) {
 
 #[cli_test]
 fn stdin_chars_keep_requested_order_and_repetitions(cx: &TestContext) {
-    cx.command()
+    cx.cmd()
         .args(["-c", "3,1-2,1,9"])
         .write_stdin("é界x\n\n猫")
         .assert()
@@ -163,7 +163,7 @@ fn stdin_chars_keep_requested_order_and_repetitions(cx: &TestContext) {
 #[cli_test]
 fn stdin_bytes_use_lossy_utf8_at_split_boundaries(cx: &TestContext) {
     for (positions, expected) in [("1", "�\n"), ("1-2", "é\n"), ("9", "\n")] {
-        cx.command()
+        cx.cmd()
             .args(["-b", positions, "-"])
             .write_stdin("éx")
             .assert()
@@ -175,7 +175,7 @@ fn stdin_bytes_use_lossy_utf8_at_split_boundaries(cx: &TestContext) {
 
 #[cli_test]
 fn stdin_fields_parse_quoted_delimiters_and_empty_fields(cx: &TestContext) {
-    cx.command()
+    cx.cmd()
         .args(["-d", ",", "-f", "2,1,3"])
         .write_stdin("\"a,b\",,c\n\"é\n界\",x,y")
         .assert()
@@ -187,7 +187,7 @@ fn stdin_fields_parse_quoted_delimiters_and_empty_fields(cx: &TestContext) {
 #[cli_test]
 fn empty_stdin_in_each_mode(cx: &TestContext) {
     for mode in ["-f", "-b", "-c"] {
-        cx.command()
+        cx.cmd()
             .args([mode, "1"])
             .write_stdin("")
             .assert()
@@ -200,7 +200,7 @@ fn empty_stdin_in_each_mode(cx: &TestContext) {
 #[cli_test]
 fn rejects_invalid_lists_and_multibyte_delimiter(cx: &TestContext) {
     for positions in ["", "0", "2-1", "1,", "+1"] {
-        cx.command()
+        cx.cmd()
             .args(["-c", positions])
             .write_stdin("abc")
             .assert()
@@ -214,7 +214,7 @@ fn rejects_invalid_lists_and_multibyte_delimiter(cx: &TestContext) {
 
 #[cli_test]
 fn missing_operand_returns_failure(cx: &TestContext) {
-    cx.command()
+    cx.cmd()
         .args(["-b", "1", "/sanctuary-audit-missing/path"])
         .assert()
         .code(1)

@@ -169,7 +169,7 @@ runtime with the catalog/case context. There is no separate Rust scenario regist
 ## Keep involved scenarios in ordinary Rust
 
 `#[cli_test]` injects a `&TestContext` into a native test without requiring a
-catalog entry. Its `command()` provides an ordinary
+catalog entry. Its `cmd()` provides an ordinary
 `assert_cmd::Command`; `std_command()` provides a standard process command with the
 same cwd and environment defaults. Standard commands leave stream wiring,
 deadlines, signal handling, and child cleanup to the caller.
@@ -181,7 +181,7 @@ use cli_testing::{TestContext, cli_test};
 #[cli_test]
 fn creates_a_file(cx: &TestContext) -> Result<(), Box<dyn std::error::Error>> {
     let workspace = cx.workspace()?;
-    workspace.command().arg("new").assert().code(0).stdout("").stderr("");
+    workspace.cmd().arg("new").assert().code(0).stdout("").stderr("");
     workspace.child("new").assert("");
     Ok(())
 }

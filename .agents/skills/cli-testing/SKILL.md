@@ -110,7 +110,7 @@ Use `cx.workspace()` for temporary resources needed after the body returns.
 catalog or running automatic assertions. Pass `cx` to helpers that need it.
 The wrapper preserves the test name, return type, `cfg`, and `ignore`; errors and
 panics fail normally. Do not combine it with `#[test]` or `#[should_panic]`.
-`context!()` remains available for standalone setup. `command()` returns
+`context!()` remains available for standalone setup. `cmd()` returns
 assert_cmd; `std_command()` supplies the same environment/cwd defaults while
 leaving pipe wiring, deadlines, signals, and child cleanup to the test.
 `workspace()` owns an assert_fs temporary directory and supplies `child()`,
@@ -123,7 +123,7 @@ use cli_testing::{TestContext, cli_test};
 #[cli_test]
 fn creates_file(cx: &TestContext) -> Result<(), Box<dyn std::error::Error>> {
     let workspace = cx.workspace()?;
-    workspace.command().arg("new").assert().code(0).stdout("").stderr("");
+    workspace.cmd().arg("new").assert().code(0).stdout("").stderr("");
     workspace.child("new").assert("");
     Ok(())
 }

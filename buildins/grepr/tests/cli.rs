@@ -13,7 +13,7 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 #[cli_test]
 fn usage(cx: &TestContext) {
     for flag in &["-h", "--help"] {
-        cx.command()
+        cx.cmd()
             .arg(flag)
             .assert()
             .success()
@@ -27,7 +27,7 @@ fn gen_bad_file() -> String {
 
 #[cli_test]
 fn dies_no_args(cx: &TestContext) {
-    cx.command()
+    cx.cmd()
         .assert()
         .failure()
         .stderr(predicate::str::contains("Usage"));
@@ -35,7 +35,7 @@ fn dies_no_args(cx: &TestContext) {
 
 #[cli_test]
 fn dies_bad_pattern(cx: &TestContext) {
-    cx.command()
+    cx.cmd()
         .args(["*foo", FOX])
         .assert()
         .failure()
@@ -46,7 +46,7 @@ fn dies_bad_pattern(cx: &TestContext) {
 fn warns_bad_file(cx: &TestContext) {
     let bad = gen_bad_file();
     let expected = format!("{bad} doesn\'t exists");
-    cx.command()
+    cx.cmd()
         .args(["foo", &bad])
         .assert()
         .code(1)
@@ -57,7 +57,7 @@ fn warns_bad_file(cx: &TestContext) {
 fn warns_dir_not_recursive(cx: &TestContext) {
     let stdout = "tests/inputs/fox.txt:\
         The quick brown fox jumps over the lazy dog.";
-    cx.command()
+    cx.cmd()
         .args(["fox", INPUTS_DIR, FOX])
         .assert()
         .code(1)
@@ -70,7 +70,7 @@ fn file_content_in_file(cx: &TestContext) -> Result<()> {
     let file = NamedTempFile::new("sample.txt")?;
     file.write_str("A test\nActual content\nMore content\nAnother test")?;
 
-    let mut cmd = cx.command();
+    let mut cmd = cx.cmd();
     cmd.arg("test").arg(file.path());
 
     cmd.assert()
@@ -86,7 +86,7 @@ fn empty_pattern_returns_all_file(cx: &TestContext) -> Result<()> {
     let file_content = "A test\nActual content\nMore content\nAnother test";
     file.write_str(file_content)?;
 
-    let mut cmd = cx.command();
+    let mut cmd = cx.cmd();
     cmd.arg("").arg(file.path());
 
     cmd.assert()
@@ -97,7 +97,7 @@ fn empty_pattern_returns_all_file(cx: &TestContext) -> Result<()> {
 }
 
 fn check_stdin(cx: &TestContext, args: &[&str], input: &str, expected: &str) {
-    cx.command()
+    cx.cmd()
         .args(args)
         .write_stdin(input)
         .assert()
@@ -138,7 +138,7 @@ fn count_counts_matching_lines_not_occurrences(cx: &TestContext) {
 
 #[cli_test]
 fn stdin_invalid_regex_produces_no_output(cx: &TestContext) {
-    cx.command()
+    cx.cmd()
         .arg("[")
         .write_stdin("alpha\n")
         .assert()
@@ -151,7 +151,7 @@ fn stdin_invalid_regex_produces_no_output(cx: &TestContext) {
 fn stdin_and_file_are_both_prefixed(cx: &TestContext) -> Result<()> {
     let dir = TempDir::new()?;
     dir.child("sample.txt").write_str("skip\nmatch file\n")?;
-    cx.command()
+    cx.cmd()
         .current_dir(dir.path())
         .args(["match", "-", "sample.txt"])
         .write_stdin("match stdin\nskip\n")
@@ -167,7 +167,7 @@ fn multiple_files_inverted_count_includes_zero(cx: &TestContext) -> Result<()> {
     let dir = TempDir::new()?;
     dir.child("first.txt").write_str("cat\ndog\n\n")?;
     dir.child("second.txt").write_str("CAT\n")?;
-    cx.command()
+    cx.cmd()
         .current_dir(dir.path())
         .args(["-ivc", "cat", "first.txt", "second.txt"])
         .assert()
@@ -181,7 +181,7 @@ fn multiple_files_inverted_count_includes_zero(cx: &TestContext) -> Result<()> {
 fn recursive_search_skips_empty_nested_directories(cx: &TestContext) -> Result<()> {
     let dir = TempDir::new()?;
     dir.child("tree/nested/empty").create_dir_all()?;
-    cx.command()
+    cx.cmd()
         .current_dir(dir.path())
         .args(["-rc", "match", "tree"])
         .assert()
@@ -197,7 +197,7 @@ fn recursive_search_preserves_explicit_files_and_missing_path_errors(
 ) -> Result<()> {
     let dir = TempDir::new()?;
     dir.child("sample.txt").write_str("match file\n")?;
-    cx.command()
+    cx.cmd()
         .current_dir(dir.path())
         .args(["-r", "match", "missing.txt", "sample.txt"])
         .assert()
@@ -216,7 +216,7 @@ fn recursive_search_visits_nested_files_without_reading_directories(
     dir.child("tree/nested/bottom.txt")
         .write_str("match bottom\n")?;
     let cmd = cx
-        .command()
+        .cmd()
         .current_dir(dir.path())
         .args(["-r", "match", "tree"])
         .assert()
@@ -246,7 +246,7 @@ fn recursive_search_visits_nested_files_without_reading_directories(
 fn debug_logging_preserves_match_output_without_storing_input(cx: &TestContext) -> Result<()> {
     let logs = TempDir::new()?;
     let secret = "private-match-payload-782541";
-    cx.command()
+    cx.cmd()
         .env("SANCTUARY_LOG_DIR", logs.path())
         .env("SANCTUARY_LOG_LEVEL", "debug")
         .args(["--verbose", "--verbose", "--verbose", "private-match"])
@@ -279,7 +279,7 @@ fn debug_logging_preserves_match_output_without_storing_input(cx: &TestContext) 
 
 #[cli_test]
 fn missing_operand_returns_failure(cx: &TestContext) {
-    cx.command()
+    cx.cmd()
         .args(["x", "/sanctuary-audit-missing/path"])
         .assert()
         .code(1)
@@ -299,7 +299,7 @@ fn sigint_terminates_without_stdout_chatter(cx: &TestContext) -> Result<()> {
         process::{Command, Stdio},
         time::{Duration, Instant},
     };
-    let mut child = Command::new(cx.command().get_program())
+    let mut child = Command::new(cx.cmd().get_program())
         .args(["x", "-"])
         .env("SANCTUARY_LOG_LEVEL", "off")
         .env("SANCTUARY_LOG_STDERR", "off")

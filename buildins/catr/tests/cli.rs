@@ -9,7 +9,7 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 #[cli_test]
 fn usage(cx: &TestContext) {
     for flag in &["-h", "--help"] {
-        cx.command()
+        cx.cmd()
             .arg(flag)
             .assert()
             .success()
@@ -29,7 +29,7 @@ fn gen_bad_file() -> Result<NamedTempFile> {
 fn skip_bad_file(cx: &TestContext) -> Result<()> {
     let bad = gen_bad_file()?;
     let expected = format!("{}: .* [(]os error 13[)]", bad.path().display());
-    cx.command()
+    cx.cmd()
         .arg(bad.path())
         .assert()
         .code(1)
@@ -40,7 +40,7 @@ fn skip_bad_file(cx: &TestContext) -> Result<()> {
 #[cli_test]
 fn rejects_unknown_and_conflicting_flags(cx: &TestContext) {
     for args in [&["--unknown"][..], &["-n", "-b"]] {
-        cx.command()
+        cx.cmd()
             .args(args)
             .assert()
             .failure()
@@ -52,7 +52,7 @@ fn rejects_unknown_and_conflicting_flags(cx: &TestContext) {
 #[cli_test]
 fn default_stdin_preserves_empty_and_unterminated_unicode(cx: &TestContext) {
     for input in ["", "é\r\n世界"] {
-        cx.command()
+        cx.cmd()
             .write_stdin(input)
             .assert()
             .success()
@@ -63,7 +63,7 @@ fn default_stdin_preserves_empty_and_unterminated_unicode(cx: &TestContext) {
 
 #[cli_test]
 fn number_nonblank_keeps_whitespace_only_lines(cx: &TestContext) {
-    cx.command()
+    cx.cmd()
         .arg("--number-nonblank")
         .write_stdin("\n \n\t\né")
         .assert()
@@ -74,7 +74,7 @@ fn number_nonblank_keeps_whitespace_only_lines(cx: &TestContext) {
 
 #[cli_test]
 fn squeeze_and_number_preserve_whitespace_lines(cx: &TestContext) {
-    cx.command()
+    cx.cmd()
         .args(["-s", "-n"])
         .write_stdin("\n\n \n\n\né")
         .assert()
@@ -85,7 +85,7 @@ fn squeeze_and_number_preserve_whitespace_lines(cx: &TestContext) {
 
 #[cli_test]
 fn missing_operand_returns_failure(cx: &TestContext) {
-    cx.command()
+    cx.cmd()
         .args(["/sanctuary-audit-missing/path"])
         .assert()
         .code(1)
