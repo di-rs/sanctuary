@@ -11,7 +11,7 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 #[cli_test]
 fn usage(cx: &TestContext) {
     for flag in &["-h", "--help"] {
-        cx.command()
+        cx.cmd()
             .arg(flag)
             .assert()
             .success()
@@ -32,7 +32,7 @@ fn skip_bad_file(cx: &TestContext) -> Result<()> {
     let bad = gen_bad_file()?;
     let bad = bad.path().display().to_string();
     let expected = format!("{bad}: .* [(]os error 13[)]");
-    cx.command()
+    cx.cmd()
         .args([EMPTY, &bad])
         .assert()
         .code(1)
@@ -47,7 +47,7 @@ fn dies_bad_bytes(cx: &TestContext) {
         "invalid value '{bad}' for \
         '--bytes <BYTES>': invalid digit found in string"
     );
-    cx.command()
+    cx.cmd()
         .args(["-c", bad, EMPTY])
         .assert()
         .failure()
@@ -61,7 +61,7 @@ fn dies_bad_lines(cx: &TestContext) {
         "invalid value '{bad}' for \
         '--lines <LINES>': invalid digit found in string"
     );
-    cx.command()
+    cx.cmd()
         .args(["-n", bad, EMPTY])
         .assert()
         .failure()
@@ -72,7 +72,7 @@ fn dies_bad_lines(cx: &TestContext) {
 fn dies_bytes_and_lines(cx: &TestContext) {
     let expected = "the argument '--lines <LINES>' cannot be \
                used with '--bytes <BYTES>'";
-    cx.command()
+    cx.cmd()
         .args(["-n", "1", "-c", "2"])
         .assert()
         .failure()
@@ -82,7 +82,7 @@ fn dies_bytes_and_lines(cx: &TestContext) {
 #[cli_test]
 fn rejects_zero_counts_and_unknown_flag(cx: &TestContext) {
     for args in [["-n", "0"], ["-c", "0"], ["--unknown", "1"]] {
-        cx.command()
+        cx.cmd()
             .args(args)
             .assert()
             .failure()
@@ -94,7 +94,7 @@ fn rejects_zero_counts_and_unknown_flag(cx: &TestContext) {
 #[cli_test]
 fn explicit_stdin_preserves_line_endings_and_unterminated_line(cx: &TestContext) {
     for (count, expected) in [("1", "é\r\n"), ("2", "é\r\n世界"), ("9", "é\r\n世界")] {
-        cx.command()
+        cx.cmd()
             .args(["-n", count, "-"])
             .write_stdin("é\r\n世界")
             .assert()
@@ -107,7 +107,7 @@ fn explicit_stdin_preserves_line_endings_and_unterminated_line(cx: &TestContext)
 #[cli_test]
 fn stdin_byte_limit_handles_utf8_boundaries(cx: &TestContext) {
     for (count, expected) in [("1", "�"), ("2", "é"), ("3", "é�"), ("99", "é界")] {
-        cx.command()
+        cx.cmd()
             .args(["-c", count])
             .write_stdin("é界")
             .assert()
@@ -120,7 +120,7 @@ fn stdin_byte_limit_handles_utf8_boundaries(cx: &TestContext) {
 #[cli_test]
 fn empty_stdin_in_line_and_byte_modes(cx: &TestContext) {
     for mode in ["-n", "-c"] {
-        cx.command()
+        cx.cmd()
             .args([mode, "1"])
             .write_stdin("")
             .assert()
@@ -134,7 +134,7 @@ fn empty_stdin_in_line_and_byte_modes(cx: &TestContext) {
 
 #[cli_test]
 fn missing_operand_returns_failure(cx: &TestContext) {
-    cx.command()
+    cx.cmd()
         .args(["/sanctuary-audit-missing/path"])
         .assert()
         .code(1)
