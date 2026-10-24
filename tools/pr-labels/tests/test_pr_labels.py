@@ -158,12 +158,9 @@ def test_evidence_edit_invalidates_candidate() -> None:
     assert AUTO not in desired
 
 
-def test_low_risk_does_not_grant_candidate_and_backfill_revokes_old_candidate() -> None:
-    for current, backfill in [(pr(labels=[]), False), (pr(), True)]:
-        desired, _ = desired_labels(
-            current, [], ENTRIES, {}, authorized_candidate=True, backfill=backfill
-        )
-        assert AUTO not in desired and MANUAL in desired
+def test_low_risk_does_not_grant_candidate() -> None:
+    desired, _ = desired_labels(pr(labels=[]), [], ENTRIES, {}, authorized_candidate=True)
+    assert AUTO not in desired and MANUAL in desired
     desired, _ = desired_labels(pr(), [], ENTRIES, {}, authorized_candidate=True)
     assert AUTO in desired and MANUAL not in desired
 

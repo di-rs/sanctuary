@@ -135,7 +135,6 @@ installation. These commands default to dry runs and print JSON:
 ```sh
 GH_TOKEN="$(gh auth token)" python3 tools/pr-labels/pr_labels.py sync --repo di-rs/sanctuary
 GH_TOKEN="$(gh auth token)" python3 tools/pr-labels/pr_labels.py reconcile --repo di-rs/sanctuary --pr 123
-GH_TOKEN="$(gh auth token)" python3 tools/pr-labels/pr_labels.py backfill --repo di-rs/sanctuary
 ```
 
 Add `--apply` to write the reviewed changes. Catalog synchronization creates or
@@ -143,11 +142,8 @@ updates declared labels and never deletes unrelated labels. Run it before enabli
 the workflow or adding new labels to the template. It needs repository label-write
 permission; routine PR reconciliation only needs contents-read and PR-write access.
 
-Backfill processes open PRs, excludes #65 by default, and accepts additional
-`--exclude NUMBER` arguments. It derives areas and honors explicit checkbox
-selections; it never infers intent or risk from titles. Old descriptions without
-checkboxes need contributor classification. Backfill revokes old merge candidacy
-so reviewers can reassess the current revision.
+There is no bulk migration of existing PR labels. Reconciliation handles one PR
+at a time, on workflow events or an explicit maintainer invocation.
 
 The metadata workflow runs trusted default-branch code and never installs or
 executes PR code. It operates on forks and stacked PRs without changing their

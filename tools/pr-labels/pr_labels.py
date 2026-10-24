@@ -115,7 +115,6 @@ def desired_labels(
     event: dict[str, Any],
     *,
     authorized_candidate: bool,
-    backfill: bool = False,
 ) -> tuple[set[str], tuple[str, ...]]:
     current = {label["name"] for label in pr["labels"]}
     owned = {entry["name"] for entry in entries if entry["owner"] in {"author", "paths"}}
@@ -138,7 +137,6 @@ def desired_labels(
         and "risk:low" in selection.labels
         and not invalidate(event)
         and authorized_candidate
-        and not backfill
     )
     desired.discard(AUTO if not candidate else MANUAL)
     desired.add(AUTO if candidate else MANUAL)
@@ -200,7 +198,6 @@ def reconcile(
     event: dict[str, Any],
     *,
     apply: bool,
-    backfill: bool = False,
 ) -> dict[str, Any]:
     for _ in range(3):
         pr = api.request("GET", f"pulls/{number}")
@@ -222,7 +219,6 @@ def reconcile(
             entries,
             event,
             authorized_candidate=authorized,
-            backfill=backfill,
         )
         current = {label["name"] for label in pr["labels"]}
         result = {
@@ -285,12 +281,11 @@ def sync(api: GitHub, entries: list[dict[str, Any]], *, apply: bool) -> list[dic
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("sync", "reconcile", "backfill"))
+    parser.add_argument("command", choices=("sync", "reconcile"))
     parser.add_argument("--repo", default=os.environ.get("GITHUB_REPOSITORY"))
     parser.add_argument("--catalog", type=Path, default=ROOT / ".github/labels.yml")
     parser.add_argument("--pr", type=int)
     parser.add_argument("--event", type=Path)
-    parser.add_argument("--exclude", type=int, action="append", default=[65])
     parser.add_argument("--apply", action="store_true", help="Write changes (default: dry run)")
     args = parser.parse_args()
     token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
@@ -302,21 +297,10 @@ def main() -> int:
         results: object = sync(api, entries, apply=args.apply)
     else:
         event = json.loads(args.event.read_text()) if args.event else {}
-        if args.command == "backfill":
-            numbers = [
-                pr["number"]
-                for pr in api.pages("pulls?state=open")
-                if pr["number"] not in args.exclude
-            ]
-        else:
-            number = args.pr or event.get("pull_request", {}).get("number")
-            if not isinstance(number, int) or number <= 0:
-                parser.error("reconcile requires --pr or a PR event")
-            numbers = [number]
-        results = [
-            reconcile(api, n, entries, event, apply=args.apply, backfill=args.command == "backfill")
-            for n in numbers
-        ]
+        number = args.pr or event.get("pull_request", {}).get("number")
+        if not isinstance(number, int) or number <= 0:
+            parser.error("reconcile requires --pr or a PR event")
+        results = [reconcile(api, number, entries, event, apply=args.apply)]
     rendered = json.dumps(results, indent=2)
     print(rendered)
     if summary := os.environ.get("GITHUB_STEP_SUMMARY"):
