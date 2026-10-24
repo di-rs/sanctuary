@@ -1,12 +1,12 @@
-use assert_fs::{TempDir, prelude::*};
-use cli_testing::{Command, cargo_bin_cmd};
+use assert_fs::prelude::*;
+use cli_testing::{Command, context};
 use predicates::prelude::*;
 use std::path::Path;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 fn command(cwd: &Path) -> Command {
-    let mut cmd = cargo_bin_cmd!();
+    let mut cmd = context!().command();
     cmd.current_dir(cwd).env_remove("PWD");
     cmd
 }
@@ -21,7 +21,8 @@ fn assert_path(cmd: &mut Command, expected: &Path) {
 #[test]
 fn usage() {
     for flag in ["-h", "--help"] {
-        cargo_bin_cmd!()
+        context!()
+            .command()
             .arg(flag)
             .assert()
             .success()
@@ -32,7 +33,7 @@ fn usage() {
 
 #[test]
 fn prints_current_directory_in_each_mode() -> Result<()> {
-    let dir = TempDir::new()?;
+    let dir = context!().workspace()?;
     let physical = dir.path().canonicalize()?;
     for args in [&[][..], &["-L"][..], &["-P"][..]] {
         assert_path(
@@ -45,7 +46,7 @@ fn prints_current_directory_in_each_mode() -> Result<()> {
 
 #[test]
 fn falls_back_when_pwd_is_unset() -> Result<()> {
-    let dir = TempDir::new()?;
+    let dir = context!().workspace()?;
     let physical = dir.path().canonicalize()?;
     for args in [&[][..], &["-L"][..]] {
         assert_path(command(&physical).args(args), &physical);
@@ -55,7 +56,7 @@ fn falls_back_when_pwd_is_unset() -> Result<()> {
 
 #[test]
 fn falls_back_when_pwd_is_invalid() -> Result<()> {
-    let dir = TempDir::new()?;
+    let dir = context!().workspace()?;
     dir.child("cwd").create_dir_all()?;
     dir.child("other").create_dir_all()?;
     dir.child("file").write_str("not a directory")?;
@@ -77,7 +78,7 @@ fn falls_back_when_pwd_is_invalid() -> Result<()> {
 #[cfg(unix)]
 #[test]
 fn logical_modes_preserve_symlink_pwd() -> Result<()> {
-    let dir = TempDir::new()?;
+    let dir = context!().workspace()?;
     dir.child("real").create_dir_all()?;
     let physical = dir.child("real").path().canonicalize()?;
     let logical = dir.path().canonicalize()?.join("link");
@@ -91,7 +92,7 @@ fn logical_modes_preserve_symlink_pwd() -> Result<()> {
 #[cfg(unix)]
 #[test]
 fn physical_mode_resolves_symlink_pwd() -> Result<()> {
-    let dir = TempDir::new()?;
+    let dir = context!().workspace()?;
     dir.child("real").create_dir_all()?;
     let physical = dir.child("real").path().canonicalize()?;
     let logical = dir.path().canonicalize()?.join("link");
@@ -102,7 +103,7 @@ fn physical_mode_resolves_symlink_pwd() -> Result<()> {
 
 #[test]
 fn rejects_conflicting_modes() -> Result<()> {
-    let dir = TempDir::new()?;
+    let dir = context!().workspace()?;
     for args in [["-L", "-P"], ["-P", "-L"]] {
         command(dir.path())
             .args(args)
