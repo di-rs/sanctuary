@@ -113,18 +113,22 @@ fn failed_spawn_is_not_retried_and_configuration_stays_frozen() -> Result {
 fn raw_concatenated_stdin_and_regular_file_transport_are_distinct() -> Result {
     let dir = package(
         r#"
+[fixtures]
+first = "first"
+last = "last"
+all = "all"
 [[cases]]
 name = "pipe"
 args = ["-c", "test -p /dev/stdin || exit 7; cat"]
-stdin = { mode = "pipe", files = ["inputs/first", "inputs/last"] }
+stdin = { mode = "pipe", files = ["first", "last"] }
 origin = { manual = "Raw byte concatenation through a real pipe." }
-expect = { exit = 0, stdout_file = "expected/raw", stderr = "" }
+expect = { exit = 0, stdout_file = "raw", stderr = "" }
 [[cases]]
 name = "file"
 args = ["-c", "test -f /dev/stdin || exit 8; cat"]
-stdin = { mode = "file", path = "inputs/all" }
+stdin = { mode = "file", path = "all" }
 origin = { manual = "A regular file remains seekable stdin." }
-expect = { exit = 0, stdout_file = "expected/raw", stderr = "" }
+expect = { exit = 0, stdout_file = "raw", stderr = "" }
 "#,
     )?;
     let raw = b"\0\xff\r\nlast";
@@ -193,8 +197,8 @@ fn catalogs_reject_unknown_fields_duplicates_invalid_paths_and_missing_files() -
         format!("unknown = 1\n{valid}"),
         format!("{valid}\n{valid}"),
         valid.replace("args =", "typo ="),
-        valid.replace("stdout = \"\"", "stdout_file = \"expected/missing\""),
-        valid.replace("stdout = \"\"", "stdout_file = \"expected/../outside\""),
+        valid.replace("stdout = \"\"", "stdout_file = \"missing\""),
+        valid.replace("stdout = \"\"", "stdout_file = \"../outside\""),
         valid.replace("stdout = \"\"", "stdout_file = \"/tmp/outside\""),
         valid.replace("exit = 0", "exit = 256"),
         valid.replace("manual =", "unknown ="),
@@ -233,7 +237,7 @@ fn adaptation_changes_only_expected_bytes_and_requires_a_reason() -> Result {
             "manual = \"Controlled shell probe of the test runtime.\"",
             "reference = \"source\"",
         )
-        .replace("stdout = \"\"", "stdout_file = \"expected/raw\"");
+        .replace("stdout = \"\"", "stdout_file = \"raw\"");
     let recipe = format!(
         "[references.source]\nprogram = '/bin/sh'\nplatform = '{}'\n{cases}\nadapt = {{ expected_stdout = 'utf8-lossy', reason = 'Replace a split UTF-8 sequence in reference bytes.' }}\n",
         std::env::consts::OS
@@ -264,7 +268,7 @@ fn adaptation_changes_only_expected_bytes_and_requires_a_reason() -> Result {
 #[test]
 fn missing_expectation_fails_before_customization() -> Result {
     let text = shell("printf launched > marker", "")?
-        .replace("stdout = \"\"", "stdout_file = \"expected/missing\"");
+        .replace("stdout = \"\"", "stdout_file = \"missing\"");
     let dir = package(&text)?;
     let mut called = false;
     let result = customize(&TestContext::new("/bin/sh", dir.path()), "sample", |_| {

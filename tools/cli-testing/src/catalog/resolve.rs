@@ -35,17 +35,8 @@ pub(super) struct FixtureArgument {
 
 impl Suite<Argument> {
     pub(super) fn resolve(self) -> Result<Suite> {
-        if !matches!(self.schema, 1 | 2) {
-            return Err(Error::new("catalog requires schema = 1 or 2"));
-        }
-        if self.schema == 1
-            && (!self.fixtures.is_empty()
-                || self.reference.is_some()
-                || self.paths != FixturePaths::default())
-        {
-            return Err(Error::new(
-                "fixtures and directory overrides require schema = 2",
-            ));
+        if self.schema != 1 {
+            return Err(Error::new("catalog requires schema = 1"));
         }
         relative_path(&self.paths.inputs)?;
         relative_path(&self.paths.expected)?;
@@ -75,7 +66,7 @@ impl Suite<Argument> {
                 case.origin.reference.clone_from(&self.reference);
             }
             let name = case.name.clone();
-            let resolved = resolve_case(case, self.schema, &self.paths, &fixtures)
+            let resolved = resolve_case(case, &self.paths, &fixtures)
                 .map_err(|error| Error::caused_by(format!("invalid case {name:?}"), error))?;
             cases.push(resolved);
         }
@@ -96,34 +87,31 @@ impl Suite<Argument> {
 
 fn resolve_case(
     case: Case<Argument>,
-    schema: u32,
     paths: &FixturePaths,
     fixtures: &BTreeMap<String, PathBuf>,
 ) -> Result<Case> {
     let mut inputs = case.inputs;
     let mut stdin = case.stdin;
     let mut expect = case.expect;
-    if schema == 2 {
-        for path in &mut inputs {
-            *path = input(path, fixtures)?;
-        }
-        if let Some(stdin) = &mut stdin {
-            match stdin {
-                Input::Pipe { files, .. } => {
-                    for path in files {
-                        *path = input(path, fixtures)?;
-                    }
-                }
-                Input::File { path } => *path = input(path, fixtures)?,
-            }
-        }
-        expected(&mut expect, &case.name, paths)?;
+    for path in &mut inputs {
+        *path = input(path, fixtures)?;
     }
-    let args = arguments(case.args, schema, fixtures, &mut inputs)?;
+    if let Some(stdin) = &mut stdin {
+        match stdin {
+            Input::Pipe { files, .. } => {
+                for path in files {
+                    *path = input(path, fixtures)?;
+                }
+            }
+            Input::File { path } => *path = input(path, fixtures)?,
+        }
+    }
+    expected(&mut expect, &case.name, paths)?;
+    let args = arguments(case.args, fixtures, &mut inputs)?;
     let origin_args = case
         .origin
         .args
-        .map(|args| arguments(args, schema, fixtures, &mut inputs))
+        .map(|args| arguments(args, fixtures, &mut inputs))
         .transpose()?;
     inputs.sort();
     inputs.dedup();
@@ -160,20 +148,18 @@ fn input(name: &std::path::Path, fixtures: &BTreeMap<String, PathBuf>) -> Result
 
 fn arguments(
     args: Vec<Argument>,
-    schema: u32,
     fixtures: &BTreeMap<String, PathBuf>,
     inputs: &mut Vec<PathBuf>,
 ) -> Result<Vec<String>> {
     args.into_iter()
         .map(|arg| match arg {
             Argument::Literal(value) => Ok(value),
-            Argument::Fixture(value) if schema == 2 => {
+            Argument::Fixture(value) => {
                 let path = input(std::path::Path::new(&value.fixture), fixtures)?;
                 let argument = format!("tests/{}", path.to_string_lossy());
                 inputs.push(path);
                 Ok(argument)
             }
-            Argument::Fixture(_) => Err(Error::new("fixture arguments require schema = 2")),
         })
         .collect()
 }

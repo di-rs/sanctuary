@@ -100,23 +100,26 @@ fn reference_package(expected: &[u8]) -> TestResult<TempDir> {
             r#"
 schema = 1
 binary = "probe"
+[fixtures]
+raw = "raw"
+all = "."
 [references.shell]
 program = "/bin/sh"
 platform = "{}"
 [[cases]]
 name = "raw"
 args = []
-inputs = ["inputs"]
-stdin = {{ mode = "pipe", files = ["inputs/raw"] }}
+inputs = ["all"]
+stdin = {{ mode = "pipe", files = ["raw"] }}
 origin = {{ reference = "shell", args = ["-c", "cat; exit 1"], exit = 1, reason = "The controlled reference probe exits 1; the candidate cat exits 0." }}
-expect = {{ exit = 0, stdout_file = "expected/raw", stderr = "" }}
+expect = {{ exit = 0, stdout_file = "raw", stderr = "" }}
 [[cases]]
 name = "native"
 execution = "rust"
 args = []
-stdin = {{ mode = "file", path = "inputs/raw" }}
+stdin = {{ mode = "file", path = "raw" }}
 origin = {{ reference = "shell", args = ["-c", "cat"], reason = "Controlled reference probe through regular-file stdin." }}
-expect = {{ exit = 0, stdout_file = "expected/raw", stderr = "" }}
+expect = {{ exit = 0, stdout_file = "raw", stderr = "" }}
 "#,
             std::env::consts::OS
         ),
@@ -338,11 +341,11 @@ fn shared_fixtures_preserve_expectations_without_recorded_replacements() -> Test
     let raw = b"\xff\0\r\nlast";
     for owner in [
         r#"origin = { manual = "Independently specified stdout." }
-expect = { exit = 0, stdout_file = "expected/raw", stderr = "" }"#,
+expect = { exit = 0, stdout_file = "raw", stderr = "" }"#,
         r#"origin = { manual = "Independently specified stderr." }
-expect = { exit = 0, stdout = "", stderr_file = "expected/raw" }"#,
+expect = { exit = 0, stdout = "", stderr_file = "raw" }"#,
         r#"origin = { reference = "shell", args = ["-c", ":"], stderr = "", reason = "The candidate has a different stderr contract." }
-expect = { exit = 0, stdout = "", stderr_file = "expected/raw" }"#,
+expect = { exit = 0, stdout = "", stderr_file = "raw" }"#,
     ] {
         for expected in [b"old".as_slice(), raw.as_slice()] {
             let dir = reference_package(expected)?;
@@ -394,7 +397,7 @@ name = "inline"
 args = []
 stdin = {{ mode = "pipe", text = "old" }}
 origin = {{ reference = "shell", args = ["-c", "cat"], reason = "Controlled stdin reference." }}
-expect = {{ exit = 0, stdout_file = "expected/raw", stderr = "" }}
+expect = {{ exit = 0, stdout_file = "raw", stderr = "" }}
 "#,
         std::env::consts::OS
     );

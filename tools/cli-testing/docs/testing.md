@@ -50,7 +50,7 @@ A catalog lives at `tests/cases.toml`. Declare each input filename once. Cases
 refer to its stable fixture ID; output filenames default to the case name:
 
 ```toml
-schema = 2
+schema = 1
 binary = "catr"
 reference = "cat"
 
@@ -112,9 +112,7 @@ expected = "golden"
 Directories must not overlap; paths cannot be absolute, traverse parents, or use
 symlinks. Catalog contexts and their workspace fixture helpers honor these overrides.
 Standalone `context!()` and `fixtures!()` helpers retain the conventional directories.
-Schema 1 remains supported with its original explicit `inputs/` and `expected/`
-paths, required stream expectations, and per-case origins; it does not accept fixture
-aliases or directory overrides.
+Only `schema = 1` is supported; it uses the conventions described above.
 
 ## Customize a named case in Rust
 
@@ -197,12 +195,12 @@ starting a manually orchestrated process.
 Unknown fields, duplicate or invalid names, missing files, absolute fixture paths,
 parent traversal, and symlink fixture paths are rejected. Names use ASCII letters,
 digits, `_`, and `-`. `binary` must match the owning Cargo package. Catalogs must
-contain at least one case. Input fixtures live under `inputs/`, expected fixtures
-under `expected/`.
+contain at least one case. Input fixtures default to `inputs/`, expected fixtures
+to `expected/`; `[paths]` overrides these directories.
 
 | Table | Fields |
 | --- | --- |
-| Root | `schema = 2`, `binary`, `cases`; optional `reference`, `fixtures`, `paths`, `env`, and `references`. |
+| Root | `schema = 1`, `binary`, `cases`; optional `reference`, `fixtures`, `paths`, `env`, and `references`. |
 | `fixtures` | Map of stable IDs to names relative to the inputs directory. `"."` names that entire directory. |
 | `paths` | Optional `inputs` and `expected` directory names, defaulting to `inputs` and `expected`, relative to `tests/`. |
 | `references.NAME` | Absolute `program`, exact Rust OS `platform` such as `macos` or `linux`; optional `env` string map and `version_args` argument array for version identity. |

@@ -29,7 +29,7 @@ in `tests/inputs/` and raw expectations in `tests/expected/`. Read the
 catalog or using the context API. The representative catalogs are catr, cutr, and
 grepr; existing packages can retain their native tests and generators.
 
-Use schema 2 for new catalogs. Declare each input filename once in `[fixtures]`;
+Use schema 1 for new catalogs. Declare each input filename once in `[fixtures]`;
 `inputs/` is implied. Cases reference stable IDs with `{ fixture = "fox" }` in
 candidate or reference arguments, or `files = ["fox"]` / `path = "fox"` for stdin.
 Dependencies are registered automatically. Use `inputs = ["id"]` only for additional
@@ -37,7 +37,7 @@ dependencies not present in arguments or stdin. Directory aliases include descen
 files; `all = "."` names the whole inputs directory.
 
 ```toml
-schema = 2
+schema = 1
 binary = "catr"
 reference = "cat"
 
@@ -63,8 +63,8 @@ executable and platform configuration still select the actual implementation.
 Override a stream with inline text or a filename relative to `expected/`, such as
 `stdout_file = "shared.out"`. Override directories once through `[paths]` when needed.
 Keep expected filenames based on stable case names, independent of input filenames.
-Renaming an input should change its file and one fixture declaration. Schema 1
-retains its original explicit paths and expectation requirements.
+Renaming an input should change its file and one fixture declaration. Only
+`schema = 1` is supported, with these conventions.
 
 Pipe `files` concatenate in order without separators. Regular-file stdin is a
 separate explicit mode. Every retained expected file needs a catalog owner,

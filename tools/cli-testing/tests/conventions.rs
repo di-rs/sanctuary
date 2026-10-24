@@ -9,7 +9,7 @@ use std::fs;
 
 type Result = std::result::Result<(), Box<dyn std::error::Error>>;
 
-const RECIPE: &str = r#"schema = 2
+const RECIPE: &str = r#"schema = 1
 binary = "sample"
 reference = "cat"
 [fixtures]
@@ -140,7 +140,7 @@ fn invalid_aliases_defaults_and_paths_fail_before_execution() -> Result {
             "stdout_file = \"copy.out\"",
             "stdout_file = \"../copy.out\"",
         ),
-        RECIPE.replace("schema = 2", "schema = 1"),
+        RECIPE.replace("schema = 1", "schema = 2"),
     ] {
         let root = TempDir::new()?;
         setup(&root, &recipe, "inputs", "expected")?;

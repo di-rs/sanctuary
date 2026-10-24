@@ -252,9 +252,9 @@ impl Suite {
     }
 
     fn validate(&self) -> Result {
-        if !matches!(self.schema, 1 | 2) || !identifier(&self.binary) || self.cases.is_empty() {
+        if self.schema != 1 || !identifier(&self.binary) || self.cases.is_empty() {
             return Err(Error::new(
-                "catalog requires schema = 1 or 2, a binary name, and nonempty cases",
+                "catalog requires schema = 1, a binary name, and nonempty cases",
             ));
         }
         let manifest: toml::Value =
