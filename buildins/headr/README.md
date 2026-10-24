@@ -26,4 +26,17 @@ Reference `head` emits raw bytes, including partial UTF-8 sequences in byte
 mode. Keep those fixture bytes unchanged. The assertions explicitly decode
 expected bytes with replacement to match `headr`'s intentional UTF-8 behavior.
 
+## CLI test recipes
+
+Stable invocations and every retained expectation are connected in
+[the catalog](tests/cases.toml). Boundary, error, and process scenarios remain in Rust.
+The catalog replaces the Nushell generator; references use explicit macOS system
+executables. Multi-file headers retain their historical `./tests/inputs/` spelling. Expected bytes are unchanged.
+
+Run `cargo nextest run -p headr --profile ci` from the repository root.
+Inspect recipes with `cli-testing --suite buildins/headr/tests/cases.toml explain NAME`.
+Use the [fixture workflow](../../tools/cli-testing/README.md) to record independent
+references and review changes before applying them. Ordinary tests only read
+committed expectations.
+
 [All commands](../../README.md)
