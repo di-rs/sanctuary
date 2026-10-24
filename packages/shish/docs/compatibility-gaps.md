@@ -104,8 +104,8 @@ currently ignored.
 
 ## Input and command lookup gaps
 
-Evidence was collected on macOS 27.0.1 (arm64) with shish 0.1.0, brush-core 0.5.0,
-and brush-parser 0.4.0 in the default sh/POSIX mode. Other platforms are unverified.
+Evidence was collected on macOS 27.0.1 (arm64) in the default sh/POSIX mode.
+Other platforms are unverified.
 The reference is `/bin/sh` (Bash 3.2.57 in sh mode); it passes both fixtures.
 The ignored tests in [the CLI suite](../tests/cli.rs) assert the desired behavior;
 they are not passing support claims.
@@ -156,9 +156,8 @@ the runtime replacement and covered by an active CLI regression.
 ## Interactive compatibility gaps
 
 These are product/Readline behaviors, separate from the POSIX scope. They use the
-recorded shish 0.1.0, Brush 0.5.0/interactive 0.4.0, Reedline 0.47.0, and Darwin
-27 arm64 environment, with `-i`; Bash mode is stated when required. Terminal
-output combines stdout/stderr. Acceptance tests assert the intended behavior and
+recorded Darwin 27 arm64 audit environment, with `-i`; Bash mode is stated when
+required. Terminal output combines stdout/stderr. Acceptance tests assert the intended behavior and
 are ignored because they currently fail.
 
 ### C25: Enter after an empty command-completion menu
@@ -247,7 +246,7 @@ argument without Tab. Ignored acceptance: `task_44_programmed_common_prefix` in
 ### J54: job numbers collide after selective reaping
 
 Reference: POSIX §2.11 job-control job IDs must identify jobs unambiguously.
-Reproduced with the recorded default interactive sh mode on Darwin and Brush 0.5.0:
+Reproduced with the recorded default interactive sh mode on Darwin:
 launch two workers blocked on separate release files, release and `wait %1`,
 then launch a third worker while job 2 is still running.
 
