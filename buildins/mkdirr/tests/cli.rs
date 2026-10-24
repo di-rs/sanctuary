@@ -7,7 +7,7 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 #[cli_test]
 fn usage(cx: &TestContext) {
     for flag in ["-h", "--help"] {
-        cx.command()
+        cx.cmd()
             .arg(flag)
             .assert()
             .success()
@@ -29,7 +29,7 @@ fn creates_single_directory(cx: &mut Context) -> cli_testing::Result<()> {
 #[cli_test]
 fn creates_multiple_directories(cx: &TestContext) -> Result<()> {
     let dir = cx.workspace()?;
-    dir.command()
+    dir.cmd()
         .args(["one", "two", "three"])
         .assert()
         .success()
@@ -45,7 +45,7 @@ fn creates_multiple_directories(cx: &TestContext) -> Result<()> {
 fn creates_nested_directories_by_default(cx: &TestContext) -> Result<()> {
     // mkdirr currently defaults parent creation to true, unlike standard mkdir.
     let dir = cx.workspace()?;
-    dir.command()
+    dir.cmd()
         .arg("one/two/three")
         .assert()
         .success()
@@ -58,7 +58,7 @@ fn creates_nested_directories_by_default(cx: &TestContext) -> Result<()> {
 #[cli_test]
 fn creates_nested_directories_with_p(cx: &TestContext) -> Result<()> {
     let dir = cx.workspace()?;
-    dir.command()
+    dir.cmd()
         .args(["-p", "one/two/three"])
         .assert()
         .success()
@@ -74,7 +74,7 @@ fn p_accepts_existing_directory(cx: &TestContext) -> Result<()> {
     let dir = cx.workspace()?;
     dir.child("existing").create_dir_all()?;
     dir.child("existing/contents").write_str("keep me")?;
-    dir.command()
+    dir.cmd()
         .args(["-p", "existing"])
         .assert()
         .success()
@@ -88,7 +88,7 @@ fn p_accepts_existing_directory(cx: &TestContext) -> Result<()> {
 fn rejects_existing_file(cx: &TestContext) -> Result<()> {
     let dir = cx.workspace()?;
     dir.child("existing").write_str("keep me")?;
-    dir.command()
+    dir.cmd()
         .arg("existing")
         .assert()
         .failure()
@@ -102,7 +102,7 @@ fn rejects_existing_file(cx: &TestContext) -> Result<()> {
 fn rejects_file_as_parent(cx: &TestContext) -> Result<()> {
     let dir = cx.workspace()?;
     dir.child("file").write_str("keep me")?;
-    dir.command()
+    dir.cmd()
         .arg("file/child")
         .assert()
         .failure()
@@ -115,7 +115,7 @@ fn rejects_file_as_parent(cx: &TestContext) -> Result<()> {
 #[cli_test]
 fn requires_directory_operand(cx: &TestContext) -> Result<()> {
     let dir = cx.workspace()?;
-    dir.command()
+    dir.cmd()
         .assert()
         .failure()
         .stdout("")
@@ -128,7 +128,7 @@ fn rich_error_is_persisted_with_failing_completion(cx: &TestContext) -> Result<(
     let dir = cx.workspace()?;
     let logs = cx.workspace()?;
     dir.child("parent-file").write_str("keep me")?;
-    dir.command()
+    dir.cmd()
         .env("SANCTUARY_LOG_DIR", logs.path())
         .env("SANCTUARY_LOG_LEVEL", "info")
         .env("SANCTUARY_LOG_STDERR", "off")
