@@ -1,12 +1,12 @@
-use cli_testing::cargo_bin_cmd;
+use cli_testing::{TestContext, cli_test};
 use predicates::prelude::*;
 use pretty_assertions::assert_eq;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-#[test]
-fn dies_year_0() {
-    cargo_bin_cmd!()
+#[cli_test]
+fn dies_year_0(cx: &TestContext) {
+    cx.command()
         .arg("0")
         .assert()
         .failure()
@@ -15,9 +15,9 @@ fn dies_year_0() {
         ));
 }
 
-#[test]
-fn dies_year_10000() {
-    cargo_bin_cmd!()
+#[cli_test]
+fn dies_year_10000(cx: &TestContext) {
+    cx.command()
         .arg("10000")
         .assert()
         .failure()
@@ -27,9 +27,9 @@ fn dies_year_10000() {
         ));
 }
 
-#[test]
-fn dies_invalid_year() {
-    cargo_bin_cmd!()
+#[cli_test]
+fn dies_invalid_year(cx: &TestContext) {
+    cx.command()
         .arg("foo")
         .assert()
         .failure()
@@ -39,9 +39,9 @@ fn dies_invalid_year() {
         ));
 }
 
-#[test]
-fn dies_month_0() {
-    cargo_bin_cmd!()
+#[cli_test]
+fn dies_month_0(cx: &TestContext) {
+    cx.command()
         .args(["-m", "0"])
         .assert()
         .failure()
@@ -50,9 +50,9 @@ fn dies_month_0() {
         ));
 }
 
-#[test]
-fn dies_month_13() {
-    cargo_bin_cmd!()
+#[cli_test]
+fn dies_month_13(cx: &TestContext) {
+    cx.command()
         .args(["-m", "13"])
         .assert()
         .failure()
@@ -61,9 +61,9 @@ fn dies_month_13() {
         ));
 }
 
-#[test]
-fn dies_invalid_month() {
-    cargo_bin_cmd!()
+#[cli_test]
+fn dies_invalid_month(cx: &TestContext) {
+    cx.command()
         .args(["-m", "foo"])
         .assert()
         .failure()
@@ -72,28 +72,28 @@ fn dies_invalid_month() {
         ));
 }
 
-#[test]
-fn dies_y_and_month() {
+#[cli_test]
+fn dies_y_and_month(cx: &TestContext) {
     let expected = "the argument '-m <MONTH>' cannot be used with '--year'";
-    cargo_bin_cmd!()
+    cx.command()
         .args(["-m", "1", "-y"])
         .assert()
         .failure()
         .stderr(predicate::str::contains(expected));
 }
 
-#[test]
-fn dies_y_and_year() {
+#[cli_test]
+fn dies_y_and_year(cx: &TestContext) {
     let expected = "the argument '--year' cannot be used with '[YEAR]'";
-    cargo_bin_cmd!()
+    cx.command()
         .args(["-y", "2000"])
         .assert()
         .failure()
         .stderr(predicate::str::contains(expected));
 }
 
-#[test]
-fn month_num() {
+#[cli_test]
+fn month_num(cx: &TestContext) {
     let expected = &[
         ("1", "January"),
         ("2", "February"),
@@ -110,7 +110,7 @@ fn month_num() {
     ];
 
     for (num, month) in expected {
-        cargo_bin_cmd!()
+        cx.command()
             .args(["-m", num])
             .assert()
             .success()
@@ -118,8 +118,8 @@ fn month_num() {
     }
 }
 
-#[test]
-fn partial_month() {
+#[cli_test]
+fn partial_month(cx: &TestContext) {
     let expected = &[
         ("ja", "January"),
         ("f", "February"),
@@ -135,7 +135,7 @@ fn partial_month() {
     ];
 
     for (arg, month) in expected {
-        cargo_bin_cmd!()
+        cx.command()
             .args(["-m", arg])
             .assert()
             .success()
@@ -143,9 +143,9 @@ fn partial_month() {
     }
 }
 
-#[test]
-fn default_one_month() -> Result<()> {
-    let cmd = cargo_bin_cmd!().assert().success();
+#[cli_test]
+fn default_one_month(cx: &TestContext) -> Result<()> {
+    let cmd = cx.command().assert().success();
     let out = cmd.get_output();
     let stdout = String::from_utf8(out.stdout.clone())?;
     let lines: Vec<_> = stdout.split('\n').collect();
@@ -154,19 +154,19 @@ fn default_one_month() -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn year() -> Result<()> {
-    let cmd = cargo_bin_cmd!().arg("-y").assert().success();
+#[cli_test]
+fn year(cx: &TestContext) -> Result<()> {
+    let cmd = cx.command().arg("-y").assert().success();
     let stdout = String::from_utf8(cmd.get_output().stdout.clone())?;
     let lines = stdout.split('\n');
     assert_eq!(lines.count(), 37);
     Ok(())
 }
 
-#[test]
-fn usage() {
+#[cli_test]
+fn usage(cx: &TestContext) {
     for flag in ["-h", "--help"] {
-        cargo_bin_cmd!()
+        cx.command()
             .arg(flag)
             .assert()
             .success()
@@ -174,10 +174,10 @@ fn usage() {
     }
 }
 
-#[test]
-fn dies_ambiguous_or_empty_month() {
+#[cli_test]
+fn dies_ambiguous_or_empty_month(cx: &TestContext) {
     for month in ["", "m", "j", "a"] {
-        cargo_bin_cmd!()
+        cx.command()
             .args(["2020", "-m", month])
             .assert()
             .failure()
@@ -186,10 +186,10 @@ fn dies_ambiguous_or_empty_month() {
     }
 }
 
-#[test]
-fn dies_long_year_and_month_in_either_order() {
+#[cli_test]
+fn dies_long_year_and_month_in_either_order(cx: &TestContext) {
     for args in [["--year", "-m", "December"], ["-m", "December", "--year"]] {
-        cargo_bin_cmd!()
+        cx.command()
             .args(args)
             .assert()
             .failure()
@@ -198,10 +198,10 @@ fn dies_long_year_and_month_in_either_order() {
     }
 }
 
-#[test]
-fn dies_long_year_and_explicit_year_in_either_order() {
+#[cli_test]
+fn dies_long_year_and_explicit_year_in_either_order(cx: &TestContext) {
     for args in [["--year", "2000"], ["2000", "--year"]] {
-        cargo_bin_cmd!()
+        cx.command()
             .args(args)
             .assert()
             .failure()
@@ -210,9 +210,9 @@ fn dies_long_year_and_explicit_year_in_either_order() {
     }
 }
 
-#[test]
-fn redirected_calendar_has_no_ansi() {
-    cargo_bin_cmd!()
+#[cli_test]
+fn redirected_calendar_has_no_ansi(cx: &TestContext) {
+    cx.command()
         .assert()
         .code(0)
         .stderr("")
