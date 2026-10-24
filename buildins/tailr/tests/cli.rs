@@ -1,4 +1,4 @@
-use cli_testing::cargo_bin_cmd;
+use cli_testing::{TestContext, cli_test};
 use predicates::prelude::*;
 
 const EMPTY: &str = "tests/inputs/empty.txt";
@@ -7,10 +7,10 @@ const TWO: &str = "tests/inputs/two.txt";
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-#[test]
-fn usage() {
+#[cli_test]
+fn usage(cx: &TestContext) {
     for flag in &["-h", "--help"] {
-        cargo_bin_cmd!()
+        cx.command()
             .arg(flag)
             .assert()
             .success()
@@ -23,53 +23,53 @@ fn gen_bad_file() -> String {
     "tests/file/doesnt/exist".to_owned()
 }
 
-#[test]
-fn dies_no_args() {
-    cargo_bin_cmd!()
+#[cli_test]
+fn dies_no_args(cx: &TestContext) {
+    cx.command()
         .assert()
         .failure()
         .stderr(predicate::str::contains("Usage"));
 }
 
-#[test]
-fn dies_bad_bytes() {
+#[cli_test]
+fn dies_bad_bytes(cx: &TestContext) {
     let bad = gen_bad_file();
     let expected = "invalid digit found in string";
-    cargo_bin_cmd!()
+    cx.command()
         .args(["-c", &bad, EMPTY])
         .assert()
         .failure()
         .stderr(predicate::str::contains(expected));
 }
 
-#[test]
-fn dies_bad_lines() {
+#[cli_test]
+fn dies_bad_lines(cx: &TestContext) {
     let bad = gen_bad_file();
     let expected = "invalid digit found in string";
-    cargo_bin_cmd!()
+    cx.command()
         .args(["-n", &bad, EMPTY])
         .assert()
         .failure()
         .stderr(predicate::str::contains(expected));
 }
 
-#[test]
-fn dies_bytes_and_lines() {
+#[cli_test]
+fn dies_bytes_and_lines(cx: &TestContext) {
     let msg = "the argument '--lines <LINES>' cannot be used \
                with '--bytes <BYTES>'";
 
-    cargo_bin_cmd!()
+    cx.command()
         .args(["-n", "1", "-c", "2"])
         .assert()
         .failure()
         .stderr(predicate::str::contains(msg));
 }
 
-#[test]
-fn skips_bad_file() -> Result<()> {
+#[cli_test]
+fn skips_bad_file(cx: &TestContext) -> Result<()> {
     let bad = gen_bad_file();
     let expected = format!("{bad}: .* [(]os error 2[)]");
-    cargo_bin_cmd!()
+    cx.command()
         .args([ONE, &bad, TWO])
         .assert()
         .code(1)
@@ -77,9 +77,9 @@ fn skips_bad_file() -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn rejects_unknown_flag() {
-    cargo_bin_cmd!()
+#[cli_test]
+fn rejects_unknown_flag(cx: &TestContext) {
+    cx.command()
         .args(["--unknown", EMPTY])
         .assert()
         .failure()
@@ -87,9 +87,9 @@ fn rejects_unknown_flag() {
         .stderr(predicate::str::contains("--unknown"));
 }
 
-#[test]
-fn explicit_stdin_returns_last_line() {
-    cargo_bin_cmd!()
+#[cli_test]
+fn explicit_stdin_returns_last_line(cx: &TestContext) {
+    cx.command()
         .args(["-n", "1", "-"])
         .write_stdin("first\né")
         .assert()
@@ -98,8 +98,8 @@ fn explicit_stdin_returns_last_line() {
         .stderr("");
 }
 
-#[test]
-fn stdin_line_boundaries() {
+#[cli_test]
+fn stdin_line_boundaries(cx: &TestContext) {
     for input in [&b"a\n\xff\n\nz"[..], &b"a\n\xff\n\nz\n"[..]] {
         for (count, start) in [
             ("1", 5),
@@ -115,7 +115,7 @@ fn stdin_line_boundaries() {
             ("99", 0),
             ("-9223372036854775808", 0),
         ] {
-            cargo_bin_cmd!()
+            cx.command()
                 .args([&format!("--lines={count}"), "-"])
                 .write_stdin(input)
                 .assert()
@@ -126,8 +126,8 @@ fn stdin_line_boundaries() {
     }
 }
 
-#[test]
-fn stdin_byte_boundaries() {
+#[cli_test]
+fn stdin_byte_boundaries(cx: &TestContext) {
     let input = &b"a\n\xc3\xa9\0\xff"[..];
     for (count, start) in [
         ("1", 5),
@@ -143,7 +143,7 @@ fn stdin_byte_boundaries() {
         ("99", 0),
         ("-9223372036854775808", 0),
     ] {
-        cargo_bin_cmd!()
+        cx.command()
             .args([&format!("--bytes={count}"), "-"])
             .write_stdin(input)
             .assert()
@@ -153,11 +153,11 @@ fn stdin_byte_boundaries() {
     }
 }
 
-#[test]
-fn stdin_empty() {
+#[cli_test]
+fn stdin_empty(cx: &TestContext) {
     for flag in ["--lines", "--bytes"] {
         for count in ["0", "+0", "1", "+1", "-1"] {
-            cargo_bin_cmd!()
+            cx.command()
                 .args([&format!("{flag}={count}"), "-"])
                 .write_stdin("")
                 .assert()
@@ -168,8 +168,8 @@ fn stdin_empty() {
     }
 }
 
-#[test]
-fn stdin_crosses_read_boundaries() {
+#[cli_test]
+fn stdin_crosses_read_boundaries(cx: &TestContext) {
     let mut input = vec![b'x'; 32_769];
     input.extend_from_slice(b"\n\xff\0\nlast");
     for (option, expected) in [
@@ -178,7 +178,7 @@ fn stdin_crosses_read_boundaries() {
         ("--bytes=5", &b"\nlast"[..]),
         ("--bytes=+32773", &b"\nlast"[..]),
     ] {
-        cargo_bin_cmd!()
+        cx.command()
             .args([option, "-"])
             .write_stdin(input.clone())
             .assert()
@@ -188,10 +188,10 @@ fn stdin_crosses_read_boundaries() {
     }
 }
 
-#[test]
-fn stdin_mixed_with_files_and_repeated() {
+#[cli_test]
+fn stdin_mixed_with_files_and_repeated(cx: &TestContext) {
     for quiet in [false, true] {
-        let mut cmd = cargo_bin_cmd!();
+        let mut cmd = cx.command();
         cmd.args(["-n", "1", EMPTY, "-", EMPTY, "-"]);
         if quiet {
             cmd.arg("-q");
@@ -209,8 +209,8 @@ fn stdin_mixed_with_files_and_repeated() {
     }
 }
 
-#[test]
-fn unterminated_final_line_counts_toward_line_offsets() {
+#[cli_test]
+fn unterminated_final_line_counts_toward_line_offsets(cx: &TestContext) {
     for (count, expected) in [
         ("1", "γ"),
         ("+2", "β\nγ"),
@@ -218,7 +218,7 @@ fn unterminated_final_line_counts_toward_line_offsets() {
         ("+4", ""),
         ("0", ""),
     ] {
-        cargo_bin_cmd!()
+        cx.command()
             .args(["-n", count, "tests/inputs/unterminated.txt"])
             .assert()
             .success()
@@ -227,15 +227,15 @@ fn unterminated_final_line_counts_toward_line_offsets() {
     }
 }
 
-#[test]
-fn byte_offsets_preserve_raw_utf8_fragments() {
+#[cli_test]
+fn byte_offsets_preserve_raw_utf8_fragments(cx: &TestContext) {
     for (count, expected) in [
         ("1", &b"\xb3"[..]),
         ("2", &b"\xce\xb3"[..]),
         ("+2", &b"\xb1\n\xce\xb2\n\xce\xb3"[..]),
         ("+9", &b""[..]),
     ] {
-        cargo_bin_cmd!()
+        cx.command()
             .args(["-c", count, "tests/inputs/unterminated.txt"])
             .assert()
             .success()
@@ -244,9 +244,9 @@ fn byte_offsets_preserve_raw_utf8_fragments() {
     }
 }
 
-#[test]
-fn missing_operand_returns_failure() {
-    cli_testing::cargo_bin_cmd!()
+#[cli_test]
+fn missing_operand_returns_failure(cx: &TestContext) {
+    cx.command()
         .args(["/sanctuary-audit-missing/path"])
         .assert()
         .code(1)
@@ -254,12 +254,12 @@ fn missing_operand_returns_failure() {
         .stderr(predicates::str::contains("/sanctuary-audit-missing/path"));
 }
 
-#[test]
-fn unreadable_operand_continues_to_later_files() -> Result<()> {
+#[cli_test]
+fn unreadable_operand_continues_to_later_files(cx: &TestContext) -> Result<()> {
     let dir = assert_fs::TempDir::new()?;
     let valid = dir.path().join("valid");
     std::fs::write(&valid, "later\n")?;
-    cli_testing::cargo_bin_cmd!()
+    cx.command()
         .arg("-q")
         .arg(dir.path())
         .arg(&valid)
@@ -270,13 +270,13 @@ fn unreadable_operand_continues_to_later_files() -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn directory_byte_operand_continues_to_later_files() -> Result<()> {
+#[cli_test]
+fn directory_byte_operand_continues_to_later_files(cx: &TestContext) -> Result<()> {
     let dir = assert_fs::TempDir::new()?;
     let valid = dir.path().join("valid");
     std::fs::write(&valid, b"later\n")?;
     for (count, expected) in [("3", "er\n"), ("+2", "ater\n"), ("0", "")] {
-        cargo_bin_cmd!()
+        cx.command()
             .args(["-q", "-c", count])
             .arg(dir.path())
             .arg(&valid)
@@ -288,12 +288,12 @@ fn directory_byte_operand_continues_to_later_files() -> Result<()> {
     Ok(())
 }
 
-#[test]
+#[cli_test]
 #[allow(
     clippy::panic_in_result_fn,
     reason = "Assertions verify observable CLI behavior."
 )]
-fn broken_stdout_does_not_wait_for_later_stdin() -> Result<()> {
+fn broken_stdout_does_not_wait_for_later_stdin(cx: &TestContext) -> Result<()> {
     use std::{
         io,
         process::Stdio,
@@ -307,14 +307,16 @@ fn broken_stdout_does_not_wait_for_later_stdin() -> Result<()> {
         drop(reader);
         let (stdin, pending_input) = io::pipe()?;
         // A standard Command preserves the deliberately closed stdout pipe.
-        let mut command = cli_testing::context!().std_command();
+        let mut command = cx.std_command();
         command.args(["-q", mode, "+1"]).arg(&input).arg("-");
         let mut child = command
             .stdin(stdin)
             .stdout(writer)
             .stderr(Stdio::piped())
             .spawn()?;
-        let deadline = Instant::now() + Duration::from_secs(5);
+        let deadline = Instant::now()
+            .checked_add(Duration::from_secs(5))
+            .ok_or("deadline overflow")?;
         while child.try_wait()?.is_none() && Instant::now() < deadline {
             std::thread::sleep(Duration::from_millis(10));
         }
