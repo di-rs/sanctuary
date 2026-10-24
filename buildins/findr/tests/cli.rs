@@ -8,7 +8,7 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 #[cli_test]
 fn usage(cx: &TestContext) {
     for flag in &["-h", "--help"] {
-        cx.command()
+        cx.cmd()
             .arg(flag)
             .assert()
             .success()
@@ -18,7 +18,7 @@ fn usage(cx: &TestContext) {
 
 #[cli_test]
 fn dies_bad_name(cx: &TestContext) {
-    cx.command()
+    cx.cmd()
         .args(["--name", "*.csv"])
         .assert()
         .failure()
@@ -28,7 +28,7 @@ fn dies_bad_name(cx: &TestContext) {
 #[cli_test]
 fn dies_bad_type(cx: &TestContext) {
     let expected = "error: invalid value 'x' for '--type [<TYPE>...]'";
-    cx.command()
+    cx.cmd()
         .args(["--type", "x"])
         .assert()
         .failure()
@@ -54,7 +54,7 @@ fn run(cx: &TestContext, args: &[&str], expected_file: &str) -> Result<()> {
     expected.sort_unstable();
 
     // Directory traversal order is unspecified, so compare the explicit line multiset.
-    let cmd = cx.command().args(args).assert().success().stderr("");
+    let cmd = cx.cmd().args(args).assert().success().stderr("");
     let out = cmd.get_output();
     let stdout = String::from_utf8(out.stdout.clone())?;
     let mut lines: Vec<&str> = stdout.split('\n').filter(|s| !s.is_empty()).collect();
@@ -235,7 +235,7 @@ fn unreadable_dir(cx: &TestContext) -> Result<()> {
     fs::create_dir(&unreadable)?;
     fs::set_permissions(&unreadable, fs::Permissions::from_mode(0o000))?;
 
-    let cmd = cx.command().arg(dir.path()).assert();
+    let cmd = cx.cmd().arg(dir.path()).assert();
     fs::set_permissions(&unreadable, fs::Permissions::from_mode(0o700))?;
     let cmd = cmd.code(1);
 
@@ -260,7 +260,7 @@ fn filter_tree(cx: &TestContext) -> Result<Workspace> {
 }
 
 fn run_tree(dir: &Workspace, args: &[&str], expected: &[&str]) -> Result<()> {
-    let cmd = dir.command().args(args).assert().code(0).stderr("");
+    let cmd = dir.cmd().args(args).assert().code(0).stderr("");
     let stdout = String::from_utf8(cmd.get_output().stdout.clone())?;
     let mut lines: Vec<_> = stdout.lines().collect();
     lines.sort_unstable();
@@ -337,7 +337,7 @@ fn multiple_roots_apply_the_same_filter(cx: &TestContext) -> Result<()> {
 
 #[cli_test]
 fn invalid_regex_among_valid_names_is_rejected(cx: &TestContext) {
-    cx.command()
+    cx.cmd()
         .args(["-n", "valid", "-n", "["])
         .assert()
         .failure()
@@ -360,7 +360,7 @@ fn symlink_filter_does_not_follow_directory_targets(cx: &TestContext) -> Result<
 
 #[cli_test]
 fn missing_operand_returns_failure(cx: &TestContext) {
-    cx.command()
+    cx.cmd()
         .args(["/sanctuary-audit-missing/path"])
         .assert()
         .code(1)
