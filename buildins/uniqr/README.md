@@ -30,6 +30,8 @@ and count spacing.
 
 ## CLI test recipes
 
+Native tests use `#[cli_test]` to receive shared helpers as `cx: &TestContext`.
+
 File and stdin fixture cases live in [the catalog](tests/cases.toml).
 Output-file, alias-safety, and error scenarios remain in Rust and share the same
 committed expectations. Explicit BSD uniq recipes replace the Nushell generator;
