@@ -15,28 +15,8 @@ pub fn test_case(attribute: TokenStream, item: TokenStream) -> TokenStream {
 }
 
 fn expand(name: &LitStr, function: &ItemFn) -> syn::Result<proc_macro2::TokenStream> {
+    validate_function(function, "test_case")?;
     let signature = &function.sig;
-    if signature.asyncness.is_some()
-        || signature.constness.is_some()
-        || !matches!(signature.safety, syn::Safety::Default)
-        || signature.abi.is_some()
-        || !signature.generics.params.is_empty()
-        || signature.generics.where_clause.is_some()
-        || signature.variadic.is_some()
-    {
-        return Err(syn::Error::new_spanned(
-            signature,
-            "#[test_case] requires a synchronous, safe, nongeneric Rust function",
-        ));
-    }
-    for attribute in &function.attrs {
-        if conflicting_attribute(&attribute.meta)? {
-            return Err(syn::Error::new_spanned(
-                attribute,
-                "#[test_case] supplies #[test] and cannot be combined with #[test] or #[should_panic]",
-            ));
-        }
-    }
     let Some(FnArg::Typed(argument)) = signature.inputs.first() else {
         return Err(syn::Error::new_spanned(
             signature,
@@ -133,4 +113,92 @@ fn conflicting_attribute(meta: &syn::Meta) -> syn::Result<bool> {
         }
     }
     Ok(false)
+}
+
+fn validate_function(function: &ItemFn, attribute_name: &str) -> syn::Result<()> {
+    let signature = &function.sig;
+    if signature.asyncness.is_some()
+        || signature.constness.is_some()
+        || !matches!(signature.safety, syn::Safety::Default)
+        || signature.abi.is_some()
+        || !signature.generics.params.is_empty()
+        || signature.generics.where_clause.is_some()
+        || signature.variadic.is_some()
+    {
+        return Err(syn::Error::new_spanned(
+            signature,
+            format!("#[{attribute_name}] requires a synchronous, safe, nongeneric Rust function"),
+        ));
+    }
+    for attribute in &function.attrs {
+        if conflicting_attribute(&attribute.meta)? {
+            return Err(syn::Error::new_spanned(
+                attribute,
+                format!(
+                    "#[{attribute_name}] supplies #[test] and cannot be combined with #[test] or #[should_panic]"
+                ),
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// Inject package helpers into a native test without loading or executing a case.
+#[proc_macro_attribute]
+pub fn cli_test(attribute: TokenStream, item: TokenStream) -> TokenStream {
+    let function = parse_macro_input!(item as ItemFn);
+    let result = if attribute.is_empty() {
+        expand_cli_test(&function)
+    } else {
+        Err(syn::Error::new_spanned(
+            proc_macro2::TokenStream::from(attribute),
+            "#[cli_test] takes no arguments; use #[test_case(\"name\")] for a catalog case",
+        ))
+    };
+    result.unwrap_or_else(syn::Error::into_compile_error).into()
+}
+
+fn expand_cli_test(function: &ItemFn) -> syn::Result<proc_macro2::TokenStream> {
+    validate_function(function, "cli_test")?;
+    let signature = &function.sig;
+    let argument = match signature.inputs.first() {
+        Some(FnArg::Typed(argument)) if signature.inputs.len() == 1 => argument,
+        _ => {
+            return Err(syn::Error::new_spanned(
+                signature,
+                "#[cli_test] requires exactly one parameter: cx: &TestContext",
+            ));
+        }
+    };
+    if !matches!(argument.ty.as_ref(), Type::Reference(reference)
+        if reference.mutability.is_none()
+        && matches!(reference.elem.as_ref(), Type::Path(path)
+            if path.path.segments.last().is_some_and(|segment| segment.ident == "TestContext")))
+    {
+        return Err(syn::Error::new_spanned(
+            &argument.ty,
+            "context must be borrowed as &TestContext",
+        ));
+    }
+    if !matches!(argument.pat.as_ref(), Pat::Ident(_)) {
+        return Err(syn::Error::new_spanned(
+            &argument.pat,
+            "context parameter must be an identifier",
+        ));
+    }
+    let attributes = &function.attrs;
+    let visibility = &function.vis;
+    let identifier = &signature.ident;
+    let output = &signature.output;
+    let parameter = &argument.pat;
+    let context_type = &argument.ty;
+    let body = &function.block;
+    Ok(quote! {
+        #(#attributes)*
+        #[test]
+        #visibility fn #identifier() #output {
+            let #parameter: #context_type = &::cli_testing::context!();
+            #body
+        }
+    })
 }

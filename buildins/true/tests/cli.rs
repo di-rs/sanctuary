@@ -1,4 +1,4 @@
-use cli_testing::{Command, cargo_bin_cmd};
+use cli_testing::{Command, TestContext, cli_test};
 use predicates::prelude::*;
 
 fn assert_silent_status(cmd: &mut Command, status: i32) {
@@ -8,7 +8,7 @@ fn assert_silent_status(cmd: &mut Command, status: i32) {
         .code(status);
 }
 
-#[test]
-fn true_ignores_arguments() {
-    assert_silent_status(cargo_bin_cmd!("true").args(["--help", "ignored"]), 0);
+#[cli_test]
+fn true_ignores_arguments(cx: &TestContext) {
+    assert_silent_status(cx.cmd().args(["--help", "ignored"]), 0);
 }

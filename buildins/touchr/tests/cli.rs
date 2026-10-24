@@ -36,7 +36,7 @@ fn usage() {
 #[test]
 fn creates_single_file() -> Result<()> {
     let dir = context!().workspace()?;
-    dir.command()
+    dir.cmd()
         .arg("new")
         .assert()
         .success()
@@ -58,7 +58,7 @@ fn preserves_contents_and_updates_existing_file() -> Result<()> {
     let file = dir.child("existing");
     file.write_str("keep these contents\n")?;
     fs::File::open(file.path())?.set_modified(UNIX_EPOCH)?;
-    dir.command()
+    dir.cmd()
         .arg("existing")
         .assert()
         .success()
@@ -78,7 +78,7 @@ fn sets_supported_numeric_timestamps_on_multiple_files() -> Result<()> {
     ] {
         dir.child("existing").write_str("preserve me")?;
         let new = dir.child(format!("new-{timestamp}"));
-        dir.command()
+        dir.cmd()
             .args(["-t", timestamp, "existing"])
             .arg(new.path())
             .assert()
@@ -96,7 +96,7 @@ fn sets_supported_numeric_timestamps_on_multiple_files() -> Result<()> {
 #[test]
 fn c_does_not_create_missing_files() -> Result<()> {
     let dir = context!().workspace()?;
-    dir.command()
+    dir.cmd()
         .args(["-c", "missing", "also-missing"])
         .assert()
         .success()
@@ -112,7 +112,7 @@ fn c_does_not_create_missing_files() -> Result<()> {
 fn c_still_updates_existing_files() -> Result<()> {
     let dir = context!().workspace()?;
     dir.child("existing").write_str("keep me")?;
-    dir.command()
+    dir.cmd()
         .args(["-c", "-t", "20000101000007", "missing", "existing"])
         .assert()
         .success()
@@ -127,7 +127,7 @@ fn c_still_updates_existing_files() -> Result<()> {
 fn rejects_invalid_timestamps_without_creating_files() -> Result<()> {
     let dir = context!().workspace()?;
     for timestamp in ["bad", "202413010000", "202402300000"] {
-        dir.command()
+        dir.cmd()
             .args(["-t", timestamp, "new"])
             .assert()
             .code(2)
@@ -143,7 +143,7 @@ fn reports_creation_path_errors() -> Result<()> {
     let dir = context!().workspace()?;
     dir.child("file").write_str("keep me")?;
     for path in ["missing/child", "file/child"] {
-        dir.command()
+        dir.cmd()
             .arg(path)
             .assert()
             .failure()
@@ -160,7 +160,7 @@ fn reports_creation_path_errors() -> Result<()> {
 #[test]
 fn requires_file_operand() -> Result<()> {
     let dir = context!().workspace()?;
-    dir.command()
+    dir.cmd()
         .assert()
         .failure()
         .stdout("")
@@ -174,7 +174,7 @@ fn follows_symlinks_without_erasing_contents() -> Result<()> {
     let dir = context!().workspace()?;
     dir.child("target").write_str("preserve target")?;
     std::os::unix::fs::symlink("target", dir.child("link").path())?;
-    dir.command()
+    dir.cmd()
         .args(["-t", "20000101000007", "link"])
         .assert()
         .code(0)
