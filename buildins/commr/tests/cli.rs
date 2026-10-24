@@ -10,7 +10,7 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 #[cli_test]
 fn usage(cx: &TestContext) {
     for flag in &["-h", "--help"] {
-        cx.command()
+        cx.cmd()
             .arg(flag)
             .assert()
             .success()
@@ -25,7 +25,7 @@ fn gen_bad_file() -> String {
 
 #[cli_test]
 fn dies_no_args(cx: &TestContext) {
-    cx.command()
+    cx.cmd()
         .assert()
         .failure()
         .stderr(predicate::str::contains("Usage"));
@@ -35,7 +35,7 @@ fn dies_no_args(cx: &TestContext) {
 fn dies_bad_file1(cx: &TestContext) -> Result<()> {
     let bad = gen_bad_file();
     let expected = format!("{bad}: .* [(]os error 2[)]");
-    cx.command()
+    cx.cmd()
         .args([&bad, FILE1])
         .assert()
         .failure()
@@ -47,7 +47,7 @@ fn dies_bad_file1(cx: &TestContext) -> Result<()> {
 fn dies_bad_file2(cx: &TestContext) -> Result<()> {
     let bad = gen_bad_file();
     let expected = format!("{bad}: .* [(]os error 2[)]");
-    cx.command()
+    cx.cmd()
         .args([FILE1, &bad])
         .assert()
         .failure()
@@ -58,7 +58,7 @@ fn dies_bad_file2(cx: &TestContext) -> Result<()> {
 #[cli_test]
 fn dies_both_stdin(cx: &TestContext) {
     let expected = "Error: both input files cannot be STDIN (`-`)";
-    cx.command()
+    cx.cmd()
         .args(["-", "-"])
         .assert()
         .failure()
@@ -67,7 +67,7 @@ fn dies_both_stdin(cx: &TestContext) {
 
 #[cli_test]
 fn rejects_unknown_flag(cx: &TestContext) {
-    cx.command()
+    cx.cmd()
         .args(["--unknown", EMPTY, EMPTY])
         .assert()
         .failure()
@@ -81,7 +81,7 @@ fn stdin_on_either_side_emits_visible_columns(cx: &TestContext) {
         (["-", FILE1], "\t\ta\n\tb\nbb\n\tc\n\td\nz\n"),
         ([FILE1, "-"], "\t\ta\nb\n\tbb\nc\nd\n\tz\n"),
     ] {
-        cx.command()
+        cx.cmd()
             .args(args)
             .write_stdin("a\nbb\nz")
             .assert()
@@ -94,7 +94,7 @@ fn stdin_on_either_side_emits_visible_columns(cx: &TestContext) {
 #[cli_test]
 fn custom_delimiter_handles_blank_common_line(cx: &TestContext) {
     for (delimiter, expected) in [("::", "::::\nα\n"), ("", "\nα\n")] {
-        cx.command()
+        cx.cmd()
             .args(["-d", delimiter, "-", BLANK])
             .write_stdin("\nα")
             .assert()
@@ -106,7 +106,7 @@ fn custom_delimiter_handles_blank_common_line(cx: &TestContext) {
 
 #[cli_test]
 fn insensitive_stdin_matches_common_column(cx: &TestContext) {
-    cx.command()
+    cx.cmd()
         .args(["-i", "-12", "-", FILE1])
         .write_stdin("A\nC")
         .assert()
@@ -122,7 +122,7 @@ fn malformed_input_is_not_eof(cx: &TestContext) -> Result<()> {
     let dir = assert_fs::TempDir::new()?;
     let empty = dir.path().join("empty");
     std::fs::write(&empty, b"")?;
-    cx.command()
+    cx.cmd()
         .arg("-")
         .arg(empty)
         .write_stdin(b"a\n\xff\nz\n")
