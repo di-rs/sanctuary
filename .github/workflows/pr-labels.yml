@@ -15,10 +15,9 @@ permissions:
   contents: read
   pull-requests: write
 
-# Do not coalesce events: synchronize must always revoke stale candidacy.
 jobs:
   labels:
-    name: Reconcile advisory labels
+    name: Reconcile classification labels
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:

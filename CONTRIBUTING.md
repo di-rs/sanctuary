@@ -90,25 +90,11 @@ live in [the label catalog](.github/labels.yml).
 | Playground flag-search fix confined to filtering displayed rows | `type:fix`, `risk:low`, `impact:none`, with the affected interaction and browser regression explained |
 | Shared test-harness behavior change | `type:maintenance`, `risk:medium`; identify affected consumers and their test results |
 
-## Reviewer decisions and CI
+## Review and CI
 
-Only reviewers with write access or higher should apply `auto-merge-candidate`.
-Before doing so, inspect the current diff, require a complete classification with
-`risk:low`, and verify applicable checks and evidence for the current revision.
-For stacked PRs, review the intended parent and merge order. A green aggregate
-status with only a bot review is not evidence that platform tests ran.
-
-The bot removes candidacy on new commits, reopening, retargeting, conversion to
-draft, or a description edit. It also removes candidacy when classification is
-incomplete, risk is not low, or someone without write access adds the label.
-`manual-verification-required` is the default until a reviewer grants candidacy;
-the two recommendation labels are mutually exclusive. Reapply candidacy only
-after checking the updated evidence.
-
-These labels are advisory snapshots. They do not enable automatic merging,
-replace branch protection, or continuously track CI failures. Always inspect
-current checks before merging. GitHub labels do not provide per-label access
-controls; the bot corrects unauthorized candidacy after receiving the event.
+Classification labels describe changes; they do not express merge readiness.
+Reviewers assess the current diff, test evidence, and required checks before
+merging. For stacked PRs, review the intended parent and merge order.
 
 Apply `run-ci` manually to request existing CI on a draft. Template selections
 cannot request it. Other label additions skip expensive CI jobs and use separate

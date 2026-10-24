@@ -11,8 +11,6 @@ from typing import Any
 import pytest
 import yaml
 from pr_labels import (
-    AUTO,
-    MANUAL,
     ROOT,
     GitHub,
     areas,
@@ -43,7 +41,7 @@ def pr(**updates: Any) -> dict[str, Any]:
         head={"sha": "head"},
         base={"sha": "base", "ref": "feature/parent"},
         body=body("type:fix", "risk:low", "impact:none"),
-        labels=[{"name": name} for name in [AUTO, "run-ci", "custom"]],
+        labels=[{"name": name} for name in ["run-ci", "custom", "risk:medium"]],
     )
     result.update(updates)
     return result
@@ -77,7 +75,7 @@ def test_conflicting_selections_do_not_assign_family(choices: tuple[str, ...]) -
 @pytest.mark.parametrize(
     "extra",
     [
-        "- [x] `auto-merge-candidate`",
+        "- [x] `run-ci`",
         "- [x] `risk:unknown`",
         "- [x] low",
         "- [x] `risk:low`",
@@ -121,63 +119,16 @@ def test_overlapping_paths_and_renames_include_old_and_new_areas() -> None:
     }
 
 
-@pytest.mark.parametrize(
-    "event,updates,authorized",
-    [
-        ({"action": "synchronize"}, {}, True),
-        ({"action": "reopened"}, {}, True),
-        ({"action": "edited", "changes": {"base": {}}}, {}, True),
-        ({}, {"draft": True}, True),
-        ({}, {"body": body("type:fix", "risk:medium", "impact:none")}, True),
-        ({}, {"body": TEMPLATE}, True),
-        ({}, {}, False),
-    ],
-)
-def test_candidate_revocation(
-    event: dict[str, Any], updates: dict[str, Any], authorized: bool
-) -> None:
-    desired, _ = desired_labels(
-        pr(**updates),
-        [{"filename": "packages/kara/src/main.rs"}],
-        ENTRIES,
-        event,
-        authorized_candidate=authorized,
-    )
-    assert AUTO not in desired and MANUAL in desired
-    assert {"run-ci", "custom", "area:kara"} <= desired
-
-
-def test_evidence_edit_invalidates_candidate() -> None:
-    current = pr()
-    event = {
-        "action": "edited",
-        "changes": {"body": {"from": current["body"] + "\nold evidence"}},
-        "pull_request": current,
-    }
-    desired, _ = desired_labels(current, [], ENTRIES, event, authorized_candidate=True)
-    assert AUTO not in desired
-
-
-def test_low_risk_does_not_grant_candidate() -> None:
-    desired, _ = desired_labels(pr(labels=[]), [], ENTRIES, {}, authorized_candidate=True)
-    assert AUTO not in desired and MANUAL in desired
-    desired, _ = desired_labels(pr(), [], ENTRIES, {}, authorized_candidate=True)
-    assert AUTO in desired and MANUAL not in desired
-
-
 class FakeGitHub(GitHub):
     def __init__(self, current: dict[str, Any] | None = None) -> None:
         super().__init__("owner/repo", "unused")
         self.current = current or pr()
         self.files = [{"filename": "packages/kara/README.md"}]
         self.writes: list[tuple[str, str, object]] = []
-        self.permission = "write"
         self.existing: list[dict[str, Any]] = []
 
     def request(self, method: str, path: str, data: object = None) -> Any:
         if method == "GET":
-            if path.startswith("collaborators/"):
-                return {"permission": self.permission}
             if path == "pulls/42":
                 return copy.deepcopy(self.current)
             if path.startswith("pulls/42/files?"):
@@ -201,14 +152,14 @@ class FakeGitHub(GitHub):
 
 def test_reconcile_dry_run_apply_and_idempotence() -> None:
     api = FakeGitHub()
-    planned = reconcile(api, 42, ENTRIES, {"action": "synchronize"}, apply=False)
+    planned = reconcile(api, 42, ENTRIES, apply=False)
     assert not api.writes
-    assert planned["remove"] == [AUTO]
-    assert {"area:kara", "area:docs", MANUAL} <= set(planned["add"])
-    applied = reconcile(api, 42, ENTRIES, {"action": "synchronize"}, apply=True)
+    assert planned["remove"] == ["risk:medium"]
+    assert {"area:kara", "area:docs"} <= set(planned["add"])
+    applied = reconcile(api, 42, ENTRIES, apply=True)
     assert applied["add"] == planned["add"]
     api.writes.clear()
-    reconcile(api, 42, ENTRIES, {}, apply=True)
+    reconcile(api, 42, ENTRIES, apply=True)
     assert not api.writes
     assert {"run-ci", "custom"} <= {label["name"] for label in api.current["labels"]}
 
@@ -216,39 +167,14 @@ def test_reconcile_dry_run_apply_and_idempotence() -> None:
 def test_partial_file_listing_fails_without_mutation() -> None:
     api = FakeGitHub(pr(changed_files=3001))
     with pytest.raises(ValueError, match="incomplete"):
-        reconcile(api, 42, ENTRIES, {}, apply=True)
+        reconcile(api, 42, ENTRIES, apply=True)
     assert not api.writes
 
 
 def test_closed_pr_is_not_modified() -> None:
     api = FakeGitHub(pr(state="closed"))
-    assert reconcile(api, 42, ENTRIES, {}, apply=True)["skipped"] == "closed"
+    assert reconcile(api, 42, ENTRIES, apply=True)["skipped"] == "closed"
     assert not api.writes
-
-
-@pytest.mark.parametrize("permission", ["read", "triage"])
-def test_only_write_or_higher_can_add_candidate(permission: str) -> None:
-    api = FakeGitHub()
-    api.permission = permission
-    event = {
-        "action": "labeled",
-        "label": {"name": AUTO},
-        "sender": {"login": "contributor"},
-        "pull_request": pr(),
-    }
-    result = reconcile(api, 42, ENTRIES, event, apply=True)
-    assert AUTO in result["remove"]
-
-
-def test_stale_candidate_event_cannot_approve_new_head() -> None:
-    api = FakeGitHub(pr(head={"sha": "new"}))
-    event = {
-        "action": "labeled",
-        "label": {"name": AUTO},
-        "sender": {"login": "maintainer"},
-        "pull_request": pr(),
-    }
-    assert AUTO in reconcile(api, 42, ENTRIES, event, apply=True)["remove"]
 
 
 def test_pagination_reads_every_page() -> None:
@@ -333,29 +259,15 @@ def test_unrelated_labels_skip_expensive_jobs_and_cannot_cancel_ci(name: str) ->
         )
 
 
-def test_manual_recommendation_overrides_existing_candidate() -> None:
-    desired, _ = desired_labels(
-        pr(),
-        [],
-        ENTRIES,
-        {"action": "labeled", "label": {"name": MANUAL}},
-        authorized_candidate=True,
-    )
-    assert MANUAL in desired and AUTO not in desired
-
-
 def test_dependabot_has_known_type_but_no_invented_risk() -> None:
     desired, errors = desired_labels(
         pr(body="Bumps a dependency", user={"login": "dependabot[bot]", "type": "Bot"}),
         [],
         ENTRIES,
-        {},
-        authorized_candidate=True,
     )
     assert "type:dependencies" in desired
     assert len(errors) == 2
     assert not any(label.startswith("risk:") for label in desired)
-    assert AUTO not in desired
 
 
 def test_reconcile_retries_changed_metadata_before_writing() -> None:
@@ -370,10 +282,9 @@ def test_reconcile_retries_changed_metadata_before_writing() -> None:
             return super().request(method, path, data)
 
     api = ChangingGitHub()
-    result = reconcile(api, 42, ENTRIES, {}, apply=True)
+    result = reconcile(api, 42, ENTRIES, apply=True)
     assert "risk:high" in result["add"]
     assert "risk:low" not in result["add"]
-    assert AUTO in result["remove"]
 
 
 @pytest.mark.parametrize(
@@ -405,10 +316,10 @@ def test_concurrent_label_removal_is_reconciled() -> None:
             if method == "POST" and path == "issues/42/labels" and not self.raced:
                 self.raced = True
                 self.current["labels"] = [
-                    label for label in self.current["labels"] if label["name"] != MANUAL
+                    label for label in self.current["labels"] if label["name"] != "area:kara"
                 ]
             return result
 
     api = ConcurrentGitHub(pr(labels=[]))
-    reconcile(api, 42, ENTRIES, {}, apply=True)
-    assert MANUAL in {label["name"] for label in api.current["labels"]}
+    reconcile(api, 42, ENTRIES, apply=True)
+    assert "area:kara" in {label["name"] for label in api.current["labels"]}

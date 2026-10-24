@@ -19,8 +19,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-AUTO = "auto-merge-candidate"
-MANUAL = "manual-verification-required"
 FAMILIES = ("type", "risk", "impact")
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -97,24 +95,10 @@ def areas(files: list[dict[str, Any]], entries: list[dict[str, Any]]) -> set[str
     }
 
 
-def invalidate(event: dict[str, Any]) -> bool:
-    action = event.get("action")
-    if action in {"synchronize", "reopened", "converted_to_draft"}:
-        return True
-    if action == "labeled" and event.get("label", {}).get("name") == MANUAL:
-        return True
-    changes = event.get("changes", {})
-    # Evidence edits invalidate verification even when checkboxes are unchanged.
-    return "base" in changes or "body" in changes
-
-
 def desired_labels(
     pr: dict[str, Any],
     files: list[dict[str, Any]],
     entries: list[dict[str, Any]],
-    event: dict[str, Any],
-    *,
-    authorized_candidate: bool,
 ) -> tuple[set[str], tuple[str, ...]]:
     current = {label["name"] for label in pr["labels"]}
     owned = {entry["name"] for entry in entries if entry["owner"] in {"author", "paths"}}
@@ -130,16 +114,6 @@ def desired_labels(
             tuple(error for error in selection.errors if not error.startswith("Restore the type ")),
         )
     desired = (current - owned) | areas(files, entries) | set(selection.labels)
-    candidate = (
-        AUTO in current
-        and not pr["draft"]
-        and not selection.errors
-        and "risk:low" in selection.labels
-        and not invalidate(event)
-        and authorized_candidate
-    )
-    desired.discard(AUTO if not candidate else MANUAL)
-    desired.add(AUTO if candidate else MANUAL)
     return desired, selection.errors
 
 
@@ -195,7 +169,6 @@ def reconcile(
     api: GitHub,
     number: int,
     entries: list[dict[str, Any]],
-    event: dict[str, Any],
     *,
     apply: bool,
 ) -> dict[str, Any]:
@@ -206,20 +179,7 @@ def reconcile(
         files = api.pages(f"pulls/{number}/files")
         if len(files) != pr["changed_files"]:
             raise ValueError(f"PR {number}: incomplete changed-file list; refusing partial labels")
-        authorized = True
-        if event.get("action") == "labeled" and event.get("label", {}).get("name") == AUTO:
-            login = urllib.parse.quote(event["sender"]["login"], safe="")
-            permission = api.request("GET", f"collaborators/{login}/permission")
-            authorized = permission.get("permission") in {"admin", "maintain", "write"}
-            # Do not grant candidacy against a newer revision than the label event.
-            authorized = authorized and signature(pr)[:6] == signature(event["pull_request"])[:6]
-        desired, errors = desired_labels(
-            pr,
-            files,
-            entries,
-            event,
-            authorized_candidate=authorized,
-        )
+        desired, errors = desired_labels(pr, files, entries)
         current = {label["name"] for label in pr["labels"]}
         result = {
             "number": number,
@@ -233,7 +193,7 @@ def reconcile(
         if signature(latest) != signature(pr):
             continue
         if apply:
-            # Remove obsolete recommendations first; never PUT the entire label set.
+            # Remove obsolete classifications; never PUT the entire label set.
             for label in result["remove"]:
                 try:
                     api.request(
@@ -246,7 +206,7 @@ def reconcile(
                 api.request("POST", f"issues/{number}/labels", {"labels": result["add"]})
             # Concurrent events may have changed labels between the snapshot and writes.
             after = api.request("GET", f"pulls/{number}")
-            managed = {entry["name"] for entry in entries if entry["name"] != "run-ci"}
+            managed = {entry["name"] for entry in entries if entry["owner"] in {"author", "paths"}}
             actual = {label["name"] for label in after["labels"]}
             if signature(after)[:6] != signature(pr)[:6] or actual & managed != desired & managed:
                 continue
@@ -300,7 +260,7 @@ def main() -> int:
         number = args.pr or event.get("pull_request", {}).get("number")
         if not isinstance(number, int) or number <= 0:
             parser.error("reconcile requires --pr or a PR event")
-        results = [reconcile(api, number, entries, event, apply=args.apply)]
+        results = [reconcile(api, number, entries, apply=args.apply)]
     rendered = json.dumps(results, indent=2)
     print(rendered)
     if summary := os.environ.get("GITHUB_STEP_SUMMARY"):

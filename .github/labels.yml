@@ -266,18 +266,6 @@
       "color": "d4c5f9"
     },
     {
-      "name": "auto-merge-candidate",
-      "description": "Low-risk reviewed change with passing checks. Advisory; merge policy still applies.",
-      "owner": "reviewer",
-      "color": "0e8a16"
-    },
-    {
-      "name": "manual-verification-required",
-      "description": "Requires verification and a human merge decision: scope, draft, unreviewed changes, or CI gaps.",
-      "owner": "reviewer",
-      "color": "fbca04"
-    },
-    {
       "name": "run-ci",
       "description": "Run CI on draft pull requests. Apply manually; template selections cannot request CI.",
       "owner": "reviewer",

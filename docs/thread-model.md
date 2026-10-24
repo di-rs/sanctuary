@@ -34,8 +34,7 @@ service availability. User files and terminal contents may contain sensitive dat
 - **PR metadata to repository labels:** The label controller runs trusted
   default-branch code with contents-read and PR-write permissions. Treat PR bodies,
   filenames, and event payloads as data; never execute PR code or interpolate these
-  values into shell scripts. Author selections cannot grant merge candidacy or
-  request draft CI. Labels are advisory and do not replace branch protection.
+  values into shell scripts. Author selections cannot request draft CI. Labels are advisory and do not replace branch protection.
 - **PR build to publication:** PR source and build outputs are untrusted.
   The [privileged controller](../.github/workflows/cli-playground-preview.yml)
   uses default-branch code. Never execute PR-controlled scripts or binaries with
