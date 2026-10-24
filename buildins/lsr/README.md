@@ -22,4 +22,17 @@ and group names are resolved from group IDs, falling back to numeric IDs.
 Invalid operands go to stderr; other operands are processed and the final status
 is 1.
 
+## CLI test recipes
+
+Single-file short listings live in [the catalog](tests/cases.toml), with
+independent /bin/ls recipes and exact output. Long listings, permissions, directory
+contents, and variable metadata remain Rust assertions using shared workspaces.
+These tests keep filesystem modes and metadata checks explicit.
+
+Run `cargo nextest run -p lsr --profile ci` from the repository root.
+Inspect recipes with `cli-testing --suite buildins/lsr/tests/cases.toml explain NAME`.
+Use the [fixture workflow](../../tools/cli-testing/README.md) to record independent
+references and review changes before applying them. Ordinary tests only read
+committed expectations.
+
 [All commands](../../README.md)
