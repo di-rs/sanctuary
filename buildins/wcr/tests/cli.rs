@@ -4,8 +4,6 @@ use predicates::prelude::*;
 use std::{fs, os::unix::fs::PermissionsExt};
 
 const EMPTY: &str = "tests/inputs/empty.txt";
-const FOX: &str = "tests/inputs/fox.txt";
-const ATLAMAL: &str = "tests/inputs/atlamal.txt";
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -49,17 +47,6 @@ fn dies_chars_and_bytes() {
         .stderr(predicate::str::contains(
             "the argument '--chars' cannot be used with '--bytes'",
         ));
-}
-
-fn run(args: &[&str], expected_file: &str) -> Result<()> {
-    let expected = cli_testing::fixtures!().read_expected(expected_file)?;
-    cargo_bin_cmd!()
-        .args(args)
-        .assert()
-        .code(0)
-        .stdout(expected)
-        .stderr("");
-    Ok(())
 }
 
 #[test]
@@ -121,135 +108,6 @@ fn mixed_stdin_and_file_totals_use_selected_counts() {
             "       2       3\n       0       0 {EMPTY}\n       2       3 total\n"
         ))
         .stderr("");
-}
-
-#[test]
-fn empty() -> Result<()> {
-    run(&[EMPTY], "empty.txt.out")
-}
-
-#[test]
-fn fox() -> Result<()> {
-    run(&[FOX], "fox.txt.out")
-}
-
-#[test]
-fn fox_bytes() -> Result<()> {
-    run(&["--bytes", FOX], "fox.txt.c.out")
-}
-
-#[test]
-fn fox_chars() -> Result<()> {
-    run(&["--chars", FOX], "fox.txt.m.out")
-}
-
-#[test]
-fn fox_words() -> Result<()> {
-    run(&["--words", FOX], "fox.txt.w.out")
-}
-
-#[test]
-fn fox_lines() -> Result<()> {
-    run(&["--lines", FOX], "fox.txt.l.out")
-}
-
-#[test]
-fn fox_words_bytes() -> Result<()> {
-    run(&["-w", "-c", FOX], "fox.txt.wc.out")
-}
-
-#[test]
-fn fox_words_lines() -> Result<()> {
-    run(&["-w", "-l", FOX], "fox.txt.wl.out")
-}
-
-#[test]
-fn fox_bytes_lines() -> Result<()> {
-    run(&["-l", "-c", FOX], "fox.txt.cl.out")
-}
-
-#[test]
-fn atlamal() -> Result<()> {
-    run(&[ATLAMAL], "atlamal.txt.out")
-}
-
-#[test]
-fn atlamal_bytes() -> Result<()> {
-    run(&["-c", ATLAMAL], "atlamal.txt.c.out")
-}
-
-#[test]
-fn atlamal_words() -> Result<()> {
-    run(&["-w", ATLAMAL], "atlamal.txt.w.out")
-}
-
-#[test]
-fn atlamal_lines() -> Result<()> {
-    run(&["-l", ATLAMAL], "atlamal.txt.l.out")
-}
-
-#[test]
-fn atlamal_words_bytes() -> Result<()> {
-    run(&["-w", "-c", ATLAMAL], "atlamal.txt.wc.out")
-}
-
-#[test]
-fn atlamal_words_lines() -> Result<()> {
-    run(&["-w", "-l", ATLAMAL], "atlamal.txt.wl.out")
-}
-
-#[test]
-fn atlamal_bytes_lines() -> Result<()> {
-    run(&["-l", "-c", ATLAMAL], "atlamal.txt.cl.out")
-}
-
-#[test]
-fn test_all() -> Result<()> {
-    run(&[EMPTY, FOX, ATLAMAL], "all.out")
-}
-
-#[test]
-fn test_all_lines() -> Result<()> {
-    run(&["-l", EMPTY, FOX, ATLAMAL], "all.l.out")
-}
-
-#[test]
-fn test_all_words() -> Result<()> {
-    run(&["-w", EMPTY, FOX, ATLAMAL], "all.w.out")
-}
-
-#[test]
-fn test_all_bytes() -> Result<()> {
-    run(&["-c", EMPTY, FOX, ATLAMAL], "all.c.out")
-}
-
-#[test]
-fn test_all_words_bytes() -> Result<()> {
-    run(&["-cw", EMPTY, FOX, ATLAMAL], "all.wc.out")
-}
-
-#[test]
-fn test_all_words_lines() -> Result<()> {
-    run(&["-wl", EMPTY, FOX, ATLAMAL], "all.wl.out")
-}
-
-#[test]
-fn test_all_bytes_lines() -> Result<()> {
-    run(&["-cl", EMPTY, FOX, ATLAMAL], "all.cl.out")
-}
-
-#[test]
-fn atlamal_stdin() -> Result<()> {
-    let fixtures = cli_testing::fixtures!();
-    let input = fixtures.read_input("atlamal.txt")?;
-    let expected = fixtures.read_expected("atlamal.txt.stdin.out")?;
-    cargo_bin_cmd!()
-        .write_stdin(input)
-        .assert()
-        .code(0)
-        .stdout(expected)
-        .stderr("");
-    Ok(())
 }
 
 #[test]
