@@ -64,11 +64,11 @@ def snapshot(root: Path, names: tuple[str, ...] = ("first", "second")) -> None:
         (["utils/helper/src/lib.rs"], {"first"}),
         (["packages/first/tests/cli.rs", "packages/first/README.md"], set()),
         (["tools/cli-bench/README.md", "tools/cli-bench/tests/test_sizes.py"], set()),
-        (["tools/cli-bench/collect_sizes.py"], {"first", "second"}),
+        (["tools/cli-bench/collect_sizes.py"], set()),
         (["Cargo.toml"], {"first", "second"}),
         ([".cargo/config.toml"], {"first", "second"}),
         (["rust-toolchain.toml"], {"first", "second"}),
-        ([".github/workflows/cli-size.yml"], {"first", "second"}),
+        ([".github/workflows/cli-size.yml"], set()),
     ],
 )
 def test_selection_without_benchmark_suites(
@@ -391,3 +391,52 @@ def test_size_archive_limits_are_enforced(
     size_github.responses[f"{BASE}/actions/artifacts/1/zip"] = archive(content)
     result = report.generate(size_github, REPO, 500, kind="size")
     assert result is not None and "artifact unavailable or invalid" in result
+
+
+def test_reporting_only_pr_skips_builds_and_writes_summary(
+    repo: Repository,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo.write("rust-toolchain.toml", (TOOLS.parents[1] / "rust-toolchain.toml").read_text())
+    base = repo.commit()
+    repo.write("tools/cli-bench/report.py", "# reporting-only change\n")
+    head = repo.commit()
+    for key in list(os.environ):
+        if key.startswith("GIT_") and key not in repo.env:
+            monkeypatch.delenv(key)
+    for key, value in repo.env.items():
+        if key.startswith("GIT_"):
+            monkeypatch.setenv(key, value)
+    # Keep the collector's toolchain and target settings local to this test.
+    monkeypatch.setenv("RUSTUP_TOOLCHAIN", os.environ.get("RUSTUP_TOOLCHAIN", ""))
+    monkeypatch.setenv("CARGO_BUILD_TARGET", os.environ.get("CARGO_BUILD_TARGET", ""))
+
+    def unexpected_build(*args: object, **kwargs: object) -> None:
+        pytest.fail("an unaffected PR must never invoke the build function")
+
+    monkeypatch.setattr(collect_sizes, "build_sizes", unexpected_build)
+    output = tmp_path / "report.json"
+    summary = tmp_path / "summary.md"
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
+    monkeypatch.setenv("GITHUB_RUN_NUMBER", "10")
+    monkeypatch.setenv("GITHUB_RUN_ID", "500")
+    monkeypatch.setenv("GITHUB_REPOSITORY", REPO)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "collect_sizes.py",
+            "--root",
+            str(repo.root),
+            "--base",
+            base,
+            "--head",
+            head,
+            "--output",
+            str(output),
+        ],
+    )
+    collect_sizes.main()
+    assert SizeReport.model_validate_json(output.read_bytes()).rows == []
+    assert "No affected binary packages; no builds were needed." in summary.read_text()

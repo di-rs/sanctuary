@@ -21,19 +21,7 @@ ROOT = Path(__file__).resolve().parents[2]
 def selected_packages(before: Path, after: Path, paths: list[str]) -> set[str]:
     members = [*discover(before), *discover(after)]
     binaries = {member.name for member in members if member.binaries}
-    global_files = {
-        "Cargo.toml",
-        "rust-toolchain",
-        "rust-toolchain.toml",
-        "tools/cli-bench/collect_sizes.py",
-        "tools/cli-bench/size_data.py",
-        "tools/cli-bench/size_report.py",
-        "tools/cli-bench/report.py",
-        "tools/cli-check/src/cli_check/affected.py",
-        "tools/cli-check/src/cli_check/workspace.py",
-        ".github/workflows/cli-size.yml",
-        ".github/workflows/cli-size-report.yml",
-    }
+    global_files = {"Cargo.toml", "rust-toolchain", "rust-toolchain.toml"}
     if any(path in global_files or path.startswith(".cargo/") for path in paths):
         return binaries
     changed: set[str] = set()
@@ -167,6 +155,10 @@ def collect(root: Path, base: str, head: str, attempt: int, output: Path) -> Siz
             )
             output.parent.mkdir(parents=True, exist_ok=True)
             output.write_text(report.model_dump_json(indent=2) + "\n")
+            if not selected:
+                print("No affected binary packages; skipping all builds.")
+                return report
+            print("Selected binary packages: " + ", ".join(sorted(selected)), flush=True)
             for label, snapshot, members in (
                 ("base", before, old_members),
                 ("head", after, new_members),
@@ -194,7 +186,21 @@ def main() -> None:
         report = collect(
             args.root.resolve(), args.base, args.head, args.attempt, args.output.resolve()
         )
-        if any(build.status == "failed" for row in report.rows for build in (row.base, row.head)):
+        failed = any(
+            build.status == "failed" for row in report.rows for build in (row.base, row.head)
+        )
+        if summary := os.environ.get("GITHUB_STEP_SUMMARY"):
+            from size_report import render_size
+
+            run: dict[str, object] = {
+                "run_number": int(os.environ["GITHUB_RUN_NUMBER"]),
+                "id": int(os.environ["GITHUB_RUN_ID"]),
+                "run_attempt": args.attempt,
+                "conclusion": "failure" if failed else "success",
+            }
+            with Path(summary).open("a", encoding="utf-8") as destination:
+                destination.write(render_size(os.environ["GITHUB_REPOSITORY"], run, report))
+        if failed:
             sys.exit("Some binary builds failed; see the size report and build logs.")
     except (OSError, ValueError, subprocess.SubprocessError) as error:
         sys.exit(f"Cannot collect sizes: {error}")

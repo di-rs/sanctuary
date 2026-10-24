@@ -139,9 +139,9 @@ manifest, and build-script changes select the owning packages and their dependen
 binaries. Lockfile changes select binaries whose dependency closures changed.
 Selection considers both revisions, so removed binaries remain visible.
 
-Root Cargo manifests, `.cargo/` configuration, Rust toolchain files, and changes
-to size collection, reporting, shared selection code, or the size workflows select
-all binaries. Documentation-only and test-only changes do not select builds. Size selection is
+Root Cargo manifests, `.cargo/` configuration, and Rust toolchain files select
+all binaries. Reporting scripts, CI workflows, documentation, and tests do not
+select builds. An empty affected set skips both revision builds. Size selection is
 independent of benchmark selection.
 
 On Ubuntu 24.04, the collector builds the merge base and PR head with the PR's
@@ -151,7 +151,7 @@ It measures executable file bytes from Cargo's reported output paths, with no
 additional stripping or compression. These are build artifact sizes, not memory
 usage or download sizes.
 
-The comment shows a total for the affected set, an expanded **Changed binaries**
+The Actions job summary and PR comment show a total for the affected set, an expanded **Changed binaries**
 table, and collapsed unchanged results and build details. Changes include bytes
 and percentages; a zero or absent baseline has no percentage. Added and removed
 binaries have explicit statuses. Failed or missing builds are unavailable, never
