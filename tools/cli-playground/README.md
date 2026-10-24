@@ -102,10 +102,11 @@ no persisted cursor or screen snapshot to restore after a page reload.
 
 ### Change terminal input handling
 
-The `terminal/input-intent.ts` adapter uses the pinned xterm 6.0.0 internal
-`triggerDataEvent` source flag to distinguish user input from terminal-generated
+The `terminal/input-intent.ts` adapter uses xterm's internal `triggerDataEvent`
+source flag to distinguish user input from terminal-generated
 replies. Those replies must keep working during replay without renewing idle time.
-The adapter checks the version and runtime shape and fails on unsupported bundles.
+The xterm dependency is pinned in [package.json](frontend/package.json). The
+adapter checks the version and runtime shape and fails on unsupported bundles.
 
 When upgrading xterm, run the browser suite for keyboard input, paste, asynchronous
 composition, and parser replies. Its DOM composition tests do not cover OS-native
