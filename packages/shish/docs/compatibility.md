@@ -85,8 +85,7 @@ in explicit Bash mode and stay outside the POSIX gap count.
 
 All P01–P04 reproducers use the version/platform/mode snapshot above. Unless noted,
 stdout is shown with `\n` for a newline and stderr is empty. The expected status
-is 0. The owner identifies the component responsible for a fix. No upstream issues
-are recorded for these reproductions.
+is 0. The owner identifies the component responsible for the behavior.
 
 ### P01: non-whitespace IFS fields
 
@@ -100,8 +99,7 @@ Expected `<>\n<a>\n<>\n<b>\n`; observed `<a>\n<b>\n`, status 0. Empty fields
 are lost, corrupting delimiter-based records. Owner: Brush expansion. Workaround:
 keep values quoted and use an explicit data parser when delimiters matter.
 Acceptance test: `posix_ifs_preserves_empty_fields` in [audit.rs](../tests/audit.rs),
-currently ignored because it fails. Fix requirements: reproduce in Brush,
-fix field splitting upstream, adopt a published release, and enable the test.
+currently ignored because it fails.
 
 ### P02: assignments before special builtins
 
@@ -115,8 +113,7 @@ Expected `<kept>\n`; observed `<>\n`, status 0. Subsequent commands lose assigne
 shell state. Owner: Brush evaluation. Workaround: `v=kept; :` when that separate
 assignment has the intended semantics. Acceptance test:
 `posix_special_builtin_assignment_persists` in [audit.rs](../tests/audit.rs),
-currently ignored. Fix requirements: upstream special-builtin assignment
-semantics, published dependency update, and assignment/error regression matrix.
+currently ignored.
 
 ### P03: asynchronous process parameter
 
@@ -130,10 +127,9 @@ Expected `<set>\n`; observed `<>\n`, status 0. PID-based wait, cancellation, and
 ownership scripts cannot identify the launched process through `$!`. Owner:
 Brush job tracking; jobs currently use internal asynchronous tasks without a
 reliable process ID. Workaround: `wait` without a PID when waiting for all jobs is
-acceptable; do not use this as a durable-job identity. Acceptance test:
+acceptable. Acceptance test:
 `posix_background_process_parameter_is_set` in [audit.rs](../tests/audit.rs),
-currently ignored. Fix requirements: upstream job/process identity and
-published dependency update.
+currently ignored.
 
 ### P04: signal traps
 
@@ -149,8 +145,7 @@ Brush signal/trap dispatch; handler registration does not establish TERM deliver
 EXIT handling works separately. Workaround: delegate signal-sensitive scripts to
 a shell with verified handling; do not depend on this trap for cleanup.
 Acceptance test: `posix_term_trap_handles_signal` in [audit.rs](../tests/audit.rs),
-currently ignored. Fix requirements: upstream signal delivery, handler
-execution and inheritance, published update, and PTY/noninteractive regressions.
+currently ignored.
 
 ### P05: interactive startup files are skipped
 
@@ -161,9 +156,6 @@ MARK unset. Owner: intentional shish integration policy (`ProfileLoadBehavior`
 and `RcLoadBehavior` are Skip), verified by the PTY test
 `startup_policy_skips_interactive_env` in [audit.rs](../tests/audit.rs).
 Impact: users must source configuration explicitly. Workaround: `. /absolute/startup`.
-If strict startup compatibility is selected: implement
-and test ENV expansion, privilege checks, interaction modes, and file errors.
-Do not silently enable host startup files as an unrelated feature fix.
 
 ### P06: command descriptions omit functions
 
@@ -179,8 +171,7 @@ that use `command -v` to detect a function incorrectly conclude it is absent.
 Owner: Brush's `command` builtin lookup only considers builtins and executables.
 Workaround: use `type` for inspection where its descriptive format is acceptable.
 Acceptance test: `posix_command_v_reports_functions` in [audit.rs](../tests/audit.rs),
-currently ignored. Fix requirements: upstream function/alias description
-lookup, published dependency update, and acceptance tests.
+currently ignored.
 
 ## Input and command lookup gaps
 
@@ -208,14 +199,8 @@ cargo test -p shish --test cli large_multiline_stdin_completes_within_budget -- 
 
 As a workaround, save generated code in a script and invoke `shish script.sh`.
 Script operands use Brush's script API and avoid the adapter's prefix loop.
-Reading all stdin before execution is not an equivalent fix: `read` and external
-programs must retain access to their portion of stdin.
-
-A fix needs a published incremental command parser to replace the prefix loop.
-It must pass the acceptance test above and retain
-`read`, external-program stdin, incomplete-EOF, and positional-argument behavior.
-Brush's published parser currently exposes whole-program parsing; its tokenizer
-is private.
+The shell preserves stdin for `read` and external programs instead of consuming
+the entire stream before execution.
 
 ### Directory entries in PATH: partial support
 
@@ -236,8 +221,6 @@ conflicting directory entry from PATH as a workaround.
 cargo test -p shish --test cli path_lookup_skips_directories_and_nonexecutable_files -- --ignored --exact
 ```
 
-A published Brush fix must pass this test and cover normal dispatch, cached
-lookup, and explicit PATH assignments.
 The separate checkout-relative `target/debug` lookup vulnerability is removed by
 the runtime replacement and covered by an active CLI regression.
 
@@ -247,9 +230,7 @@ These are product/Readline behaviors, separate from the POSIX scope. They use th
 recorded shish 0.1.0, Brush 0.5.0/interactive 0.4.0, Reedline 0.47.0, and Darwin
 27 arm64 environment, with `-i`; Bash mode is stated when required. Terminal
 output combines stdout/stderr. Acceptance tests assert the intended behavior and
-remain ignored until a published dependency or integration fix makes them pass.
-The platform keeps published dependencies instead of introducing patches for these
-gaps.
+are ignored because they currently fail.
 
 ### C25: Enter after an empty command-completion menu
 
@@ -267,8 +248,6 @@ with Ctrl-C and type the full command without Tab.
 
 Tests: `task_25_unmatched_input_can_be_cancelled` and the ignored
 `task_25_enter_executes_after_no_completion` in [audit.rs](../tests/audit.rs).
-Fix requirements: adopt published empty-menu handling, enable this
-acceptance case, and retain the cancellation regression.
 
 ### C28: command completion does not insert the common prefix
 
@@ -284,8 +263,6 @@ themselves. Workaround: cancel and type the complete command, or use the candida
 menu. Task 27 verifies candidate display separately.
 
 Ignored acceptance: `task_28_command_common_prefix` in [audit.rs](../tests/audit.rs).
-Fix requirements: adopt a published partial-completion setting,
-enable it in shish, and enable this acceptance test.
 
 ### C32: Enter after unmatched filename completion
 
@@ -299,8 +276,6 @@ Owner: the same Brush/Reedline empty-menu handling as C25. Impact: filename
 completion adds an extra submission step. Workaround: cancel with Ctrl-C and
 retype the full command without Tab. Ignored acceptance:
 `task_32_missing_file_completion` in [audit.rs](../tests/audit.rs).
-Fix requirements: adopt published empty-menu handling and enable the
-filename-specific case; passing the command-name case alone does not close it.
 
 ### C34: filename completion does not insert the common prefix
 
@@ -312,8 +287,7 @@ Create files `shared_one` and `shared_two`. In default `shish -i`, type
 Owner: Brush's disabled Reedline partial-completion setting (C28). Impact: the
 shared filename suffix must be entered manually. Workaround: cancel and type the
 full filename without Tab. Ignored acceptance: `task_34_file_common_prefix` in
-[audit.rs](../tests/audit.rs). Fix requirements: enable a published
-partial-completion option and this filename-specific acceptance case.
+[audit.rs](../tests/audit.rs).
 
 ### C40: Enter after an empty programmable-completion result
 
@@ -328,8 +302,6 @@ Owner: Brush/Reedline empty-menu handling (C25); the empty result itself is
 preserved. Impact: a completer returning no candidates impedes command submission.
 Workaround: cancel and retype the command without Tab. Ignored acceptance:
 `task_40_empty_programmed_completion` in [audit.rs](../tests/audit.rs).
-Fix requirements: adopt published empty-menu handling and enable the
-programmable-completion case.
 
 ### C44: programmable completion does not insert the longest common prefix
 
@@ -341,8 +313,7 @@ In `shish --bash -i`, run `complete -W 'prefix_one prefix_two' pick`, then type
 Owner: Brush's disabled Reedline partial-completion setting (C28). Impact: users
 must enter the shared suffix themselves. Workaround: cancel and type the full
 argument without Tab. Ignored acceptance: `task_44_programmed_common_prefix` in
-[audit.rs](../tests/audit.rs). Fix requirements: adopt published
-configuration support and enable this programmed-candidate acceptance case.
+[audit.rs](../tests/audit.rs).
 
 ### J54: job numbers collide after selective reaping
 
@@ -360,9 +331,6 @@ contains active jobs; use an external supervisor for reliable job identity.
 
 Acceptance: `task_54_job_number_recycling` in [audit.rs](../tests/audit.rs)
 is ignored after reproducing the collision.
-Follow-up: fix allocation upstream, adopt a published release, and enable the
-acceptance test. Public shish builtin
-adapters cannot intercept Brush's asynchronous job allocation safely.
 
 ### H68: exit persistence ignores overwrite mode
 
@@ -382,10 +350,6 @@ when replacement is required. This also disables the later automatic save.
 
 Acceptance: `task_68_exit_history_overwrite` in [audit.rs](../tests/audit.rs),
 ignored after reproducing the failure; fresh-file saving has a passing test.
-Fix requirements: honor the option upstream, adopt
-a published release, and enable the acceptance test.
-Rewriting the file after Brush's exit hook would change ordering and risk overwriting
-hook effects; shish does not introduce that workaround internally.
 
 ## Feature coverage
 
@@ -476,8 +440,3 @@ Bash-extension references: [completion](https://www.gnu.org/software/bash/manual
 [completion builtins](https://www.gnu.org/software/bash/manual/html_node/Programmable-Completion-Builtins.html),
 [history](https://www.gnu.org/software/bash/manual/html_node/Bash-History-Facilities.html),
 and [Bash builtins](https://www.gnu.org/software/bash/manual/html_node/Bash-Builtins.html).
-
-When updating this reference, retain the tested environment, reproducer, expected
-and actual results, impact, workaround, responsible component, and regression test.
-Recheck evidence after implementation or dependency changes; mark untested
-platforms and behavior explicitly.

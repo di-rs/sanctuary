@@ -70,11 +70,10 @@ Linux and macOS CI evidence. gVisor integration remains unverified.
 
 Shish runs with the invoking user's privileges. It supplies neither sandbox
 isolation nor recovery of interrupted processes. Boxie owns isolation and lifecycle
-recovery; its integration with shish remains a separate design stage.
+recovery. Boxie currently runs Bash; shish is not included in its approved profiles.
 
 - [Compatibility](docs/compatibility.md): tested features, known gaps, and workarounds.
 - [Testing](docs/testing.md): package checks and terminal test conventions.
 - [Architecture](docs/architecture.md): runtime and adapter responsibilities.
-- [Durability design](docs/durability.md): proposed Boxie integration and recovery requirements.
 
 [All projects](../../README.md)

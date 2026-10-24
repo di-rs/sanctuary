@@ -33,7 +33,7 @@ process termination.
 ## Dependencies and origin
 
 Dependencies use published releases recorded in the workspace lockfile. Known
-limitations, evidence, and follow-up acceptance criteria live in the
+limitations and test evidence live in the
 [compatibility reference](compatibility.md). See the [README](../README.md) for
 invocation, startup behavior, and the current compatibility promise.
 

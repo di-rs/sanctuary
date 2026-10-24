@@ -35,7 +35,7 @@ cursor movement matters. Wait for `expect_line("shish-test> ")` between commands
 a substring match can see an old prompt, and the input backend can discard input
 queued beyond the command it has just returned.
 
-## Deferred acceptance cases
+## Known-failing acceptance cases
 
 P01–P04 and P06 in the [compatibility inventory](compatibility.md#confirmed-posix-gaps)
 and C25/C28/C32/C34/C40/C44/J54/H68 in the interactive gap section are explicit
@@ -47,9 +47,8 @@ Ignored cases are never counted as verified support. To reproduce them:
 cargo nextest run -p shish --profile ci --run-ignored only
 ```
 
-A future focused fix must make its case pass, remove its ignore annotation, and
-update the inventory. Do not replace the expected result with the current defect
-or claim a green default suite establishes conformance.
+A passing default suite does not establish conformance: it excludes these
+known-failing cases.
 
 ## Independent expectations
 
@@ -62,5 +61,4 @@ the reference predates POSIX.1-2024. No snapshot generator uses shish as its ora
 Repository CI runs workspace tests; local work runs affected packages only. The PTY test helpers
 use portable-pty 0.9.0 (which currently brings nix 0.28.0), sysinfo 0.37.2, and
 vt100 0.16.2. The pinned nightly reports a future-compatibility warning in that
-transitive nix version; current compilation and Clippy pass. Track an upstream
-helper release before upgrading Rust past the warning's compatibility boundary.
+transitive nix version; current compilation and Clippy pass.
