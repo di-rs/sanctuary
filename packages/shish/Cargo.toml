@@ -28,5 +28,5 @@ cli-testing.workspace = true
 portable-pty = "0.9"
 predicates.workspace = true
 sysinfo = { version = "0.37", default-features = false, features = ["system"] }
-vt100 = "0.16"
+vt100 = "0.18"
 
