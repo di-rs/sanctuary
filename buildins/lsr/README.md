@@ -24,6 +24,8 @@ is 1.
 
 ## CLI test recipes
 
+Native tests use `#[cli_test]` to receive shared helpers as `cx: &TestContext`.
+
 Single-file short listings live in [the catalog](tests/cases.toml), with
 independent /bin/ls recipes and exact output. Long listings, permissions, directory
 contents, and variable metadata remain Rust assertions using shared workspaces.
