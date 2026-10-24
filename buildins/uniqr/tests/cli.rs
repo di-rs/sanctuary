@@ -1,87 +1,37 @@
-use cli_testing::cargo_bin_cmd;
+use cli_testing::{TestContext, cli_test};
 use predicates::prelude::*;
 use pretty_assertions::assert_eq;
 use std::{fs, os::unix::fs::PermissionsExt};
 use tempfile::NamedTempFile;
 
-struct Test {
-    input: &'static str,
-    out: &'static str,
-    out_count: &'static str,
-}
-
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-const EMPTY: Test = Test {
-    input: "tests/inputs/empty.txt",
-    out: "empty.txt.out",
-    out_count: "empty.txt.c.out",
-};
+const EMPTY: &str = "empty";
 
-const ONE: Test = Test {
-    input: "tests/inputs/one.txt",
-    out: "one.txt.out",
-    out_count: "one.txt.c.out",
-};
+const ONE: &str = "one";
 
-const TWO: Test = Test {
-    input: "tests/inputs/two.txt",
-    out: "two.txt.out",
-    out_count: "two.txt.c.out",
-};
+const TWO: &str = "two";
 
-const THREE: Test = Test {
-    input: "tests/inputs/three.txt",
-    out: "three.txt.out",
-    out_count: "three.txt.c.out",
-};
+const THREE: &str = "three";
 
-const SKIP: Test = Test {
-    input: "tests/inputs/skip.txt",
-    out: "skip.txt.out",
-    out_count: "skip.txt.c.out",
-};
+const SKIP: &str = "skip";
 
-const T1: Test = Test {
-    input: "tests/inputs/t1.txt",
-    out: "t1.txt.out",
-    out_count: "t1.txt.c.out",
-};
+const T1: &str = "t1";
 
-const T2: Test = Test {
-    input: "tests/inputs/t2.txt",
-    out: "t2.txt.out",
-    out_count: "t2.txt.c.out",
-};
+const T2: &str = "t2";
 
-const T3: Test = Test {
-    input: "tests/inputs/t3.txt",
-    out: "t3.txt.out",
-    out_count: "t3.txt.c.out",
-};
+const T3: &str = "t3";
 
-const T4: Test = Test {
-    input: "tests/inputs/t4.txt",
-    out: "t4.txt.out",
-    out_count: "t4.txt.c.out",
-};
+const T4: &str = "t4";
 
-const T5: Test = Test {
-    input: "tests/inputs/t5.txt",
-    out: "t5.txt.out",
-    out_count: "t5.txt.c.out",
-};
+const T5: &str = "t5";
 
-const T6: Test = Test {
-    input: "tests/inputs/t6.txt",
-    out: "t6.txt.out",
-    out_count: "t6.txt.c.out",
-};
+const T6: &str = "t6";
 
-#[test]
-fn usage() {
+#[cli_test]
+fn usage(cx: &TestContext) {
     for flag in &["-h", "--help"] {
-        cargo_bin_cmd!()
+        cx.cmd()
             .arg(flag)
             .assert()
             .success()
@@ -96,11 +46,11 @@ fn gen_bad_file() -> Result<NamedTempFile> {
     Ok(file)
 }
 
-#[test]
-fn dies_bad_file() -> Result<()> {
+#[cli_test]
+fn dies_bad_file(cx: &TestContext) -> Result<()> {
     let bad = gen_bad_file()?;
     let expected = format!("{}: .* [(]os error 13[)]", bad.path().display());
-    cargo_bin_cmd!()
+    cx.cmd()
         .arg(bad.path())
         .assert()
         .failure()
@@ -108,105 +58,43 @@ fn dies_bad_file() -> Result<()> {
     Ok(())
 }
 
-fn run(test: &Test) -> Result<()> {
-    let expected = cli_testing::fixtures!().read_expected(test.out)?;
-    cargo_bin_cmd!()
-        .arg(test.input)
-        .assert()
-        .code(0)
-        .stdout(expected)
-        .stderr("");
+fn run_outfile_case(cx: &TestContext, name: &str) -> Result<()> {
+    let suite = cx.suite()?;
+    let case = suite.case(name)?;
+    let path = case
+        .expect
+        .stdout_file
+        .as_deref()
+        .ok_or("missing output fixture")?;
+    let expected = suite.read(path)?;
+    let workspace = cx.workspace()?;
+    let output = workspace.child("output");
+    let mut case_context = cx.case(name)?;
+    if case.stdin.is_some() {
+        case_context.args(["-"])?;
+    }
+    case_context.args([output.path()])?;
+    case_context.map_expected_stdout(|_| Vec::new())?;
+    case_context.check()?;
+    assert_eq!(fs::read(output.path())?, expected);
     Ok(())
 }
 
-fn run_count(test: &Test) -> Result<()> {
-    let expected = cli_testing::fixtures!().read_expected(test.out_count)?;
-    cargo_bin_cmd!()
-        .args([test.input, "-c"])
-        .assert()
-        .code(0)
-        .stdout(expected)
-        .stderr("");
-    Ok(())
+fn run_outfile(cx: &TestContext, name: &str) -> Result<()> {
+    run_outfile_case(cx, name)
 }
 
-fn run_stdin(test: &Test) -> Result<()> {
-    let fixtures = cli_testing::fixtures!();
-    let input = fs::read(test.input)?;
-    let expected = fixtures.read_expected(test.out)?;
-    cargo_bin_cmd!()
-        .write_stdin(input)
-        .assert()
-        .code(0)
-        .stdout(expected)
-        .stderr("");
-    Ok(())
+fn run_outfile_count(cx: &TestContext, name: &str) -> Result<()> {
+    run_outfile_case(cx, &format!("{name}_count"))
 }
 
-fn run_stdin_count(test: &Test) -> Result<()> {
-    let fixtures = cli_testing::fixtures!();
-    let input = fs::read(test.input)?;
-    let expected = fixtures.read_expected(test.out_count)?;
-    cargo_bin_cmd!()
-        .arg("--count")
-        .write_stdin(input)
-        .assert()
-        .code(0)
-        .stdout(expected)
-        .stderr("");
-    Ok(())
+fn run_outfile_stdin_count(cx: &TestContext, name: &str) -> Result<()> {
+    run_outfile_case(cx, &format!("{name}_stdin_count"))
 }
 
-fn run_outfile(test: &Test) -> Result<()> {
-    let expected = cli_testing::fixtures!().read_expected(test.out)?;
-    let outfile = NamedTempFile::new()?;
-    cargo_bin_cmd!()
-        .arg(test.input)
-        .arg(outfile.path())
-        .assert()
-        .success()
-        .stdout("")
-        .stderr("");
-    assert_eq!(fs::read(outfile.path())?, expected);
-    Ok(())
-}
-
-fn run_outfile_count(test: &Test) -> Result<()> {
-    let expected = cli_testing::fixtures!().read_expected(test.out_count)?;
-    let outfile = NamedTempFile::new()?;
-    cargo_bin_cmd!()
-        .arg(test.input)
-        .arg(outfile.path())
-        .arg("--count")
-        .assert()
-        .success()
-        .stdout("")
-        .stderr("");
-    assert_eq!(fs::read(outfile.path())?, expected);
-    Ok(())
-}
-
-fn run_outfile_stdin_count(test: &Test) -> Result<()> {
-    let fixtures = cli_testing::fixtures!();
-    let input = fs::read(test.input)?;
-    let expected = fixtures.read_expected(test.out_count)?;
-    let outfile = NamedTempFile::new()?;
-    cargo_bin_cmd!()
-        .arg("-")
-        .arg(outfile.path())
-        .arg("--count")
-        .write_stdin(input)
-        .assert()
-        .success()
-        .stdout("")
-        .stderr("");
-    assert_eq!(fs::read(outfile.path())?, expected);
-    Ok(())
-}
-
-#[test]
-fn rejects_unknown_flag() {
-    cargo_bin_cmd!()
+#[cli_test]
+fn rejects_unknown_flag(cx: &TestContext) {
+    cx.cmd()
         .arg("--unknown")
         .assert()
         .failure()
@@ -214,9 +102,9 @@ fn rejects_unknown_flag() {
         .stderr(predicate::str::contains("--unknown"));
 }
 
-#[test]
-fn counts_adjacent_unicode_runs_and_unterminated_last_line() {
-    cargo_bin_cmd!()
+#[cli_test]
+fn counts_adjacent_unicode_runs_and_unterminated_last_line(cx: &TestContext) {
+    cx.cmd()
         .args(["-c", "-"])
         .write_stdin("é\né\n界\né")
         .assert()
@@ -225,9 +113,9 @@ fn counts_adjacent_unicode_runs_and_unterminated_last_line() {
         .stderr("");
 }
 
-#[test]
-fn counts_blank_runs_without_merging_nonadjacent_runs() {
-    cargo_bin_cmd!()
+#[cli_test]
+fn counts_blank_runs_without_merging_nonadjacent_runs(cx: &TestContext) {
+    cx.cmd()
         .arg("-c")
         .write_stdin("\n\nx\n\n")
         .assert()
@@ -236,9 +124,9 @@ fn counts_blank_runs_without_merging_nonadjacent_runs() {
         .stderr("");
 }
 
-#[test]
-fn trailing_spaces_and_tabs_distinguish_lines() {
-    cargo_bin_cmd!()
+#[cli_test]
+fn trailing_spaces_and_tabs_distinguish_lines(cx: &TestContext) {
+    cx.cmd()
         .arg("-c")
         .write_stdin("x\nx \nx\t\n")
         .assert()
@@ -247,11 +135,11 @@ fn trailing_spaces_and_tabs_distinguish_lines() {
         .stderr("");
 }
 
-#[test]
-fn output_file_is_truncated_for_shorter_result() -> Result<()> {
+#[cli_test]
+fn output_file_is_truncated_for_shorter_result(cx: &TestContext) -> Result<()> {
     let outfile = NamedTempFile::new()?;
     fs::write(outfile.path(), "stale data that must not survive")?;
-    cargo_bin_cmd!()
+    cx.cmd()
         .arg("-")
         .arg(outfile.path())
         .write_stdin("é\né\n")
@@ -263,397 +151,177 @@ fn output_file_is_truncated_for_shorter_result() -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn empty() -> Result<()> {
-    run(&EMPTY)
+#[cli_test]
+fn empty_outfile(cx: &TestContext) -> Result<()> {
+    run_outfile(cx, EMPTY)
 }
 
-#[test]
-fn empty_count() -> Result<()> {
-    run_count(&EMPTY)
+#[cli_test]
+fn empty_outfile_count(cx: &TestContext) -> Result<()> {
+    run_outfile_count(cx, EMPTY)
 }
 
-#[test]
-fn empty_stdin() -> Result<()> {
-    run_stdin(&EMPTY)
+#[cli_test]
+fn empty_stdin_outfile_count(cx: &TestContext) -> Result<()> {
+    run_outfile_stdin_count(cx, EMPTY)
 }
 
-#[test]
-fn empty_stdin_count() -> Result<()> {
-    run_stdin_count(&EMPTY)
+#[cli_test]
+fn one_outfile(cx: &TestContext) -> Result<()> {
+    run_outfile(cx, ONE)
 }
 
-#[test]
-fn empty_outfile() -> Result<()> {
-    run_outfile(&EMPTY)
+#[cli_test]
+fn one_outfile_count(cx: &TestContext) -> Result<()> {
+    run_outfile_count(cx, ONE)
 }
 
-#[test]
-fn empty_outfile_count() -> Result<()> {
-    run_outfile_count(&EMPTY)
+#[cli_test]
+fn one_stdin_outfile_count(cx: &TestContext) -> Result<()> {
+    run_outfile_stdin_count(cx, ONE)
 }
 
-#[test]
-fn empty_stdin_outfile_count() -> Result<()> {
-    run_outfile_stdin_count(&EMPTY)
+#[cli_test]
+fn two_outfile(cx: &TestContext) -> Result<()> {
+    run_outfile(cx, TWO)
 }
 
-#[test]
-fn one() -> Result<()> {
-    run(&ONE)
+#[cli_test]
+fn two_outfile_count(cx: &TestContext) -> Result<()> {
+    run_outfile_count(cx, TWO)
 }
 
-#[test]
-fn one_count() -> Result<()> {
-    run_count(&ONE)
+#[cli_test]
+fn two_stdin_outfile_count(cx: &TestContext) -> Result<()> {
+    run_outfile_stdin_count(cx, TWO)
 }
 
-#[test]
-fn one_stdin() -> Result<()> {
-    run_stdin(&ONE)
+#[cli_test]
+fn three_outfile(cx: &TestContext) -> Result<()> {
+    run_outfile(cx, THREE)
 }
 
-#[test]
-fn one_stdin_count() -> Result<()> {
-    run_stdin_count(&ONE)
+#[cli_test]
+fn three_outfile_count(cx: &TestContext) -> Result<()> {
+    run_outfile_count(cx, THREE)
 }
 
-#[test]
-fn one_outfile() -> Result<()> {
-    run_outfile(&ONE)
+#[cli_test]
+fn three_stdin_outfile_count(cx: &TestContext) -> Result<()> {
+    run_outfile_stdin_count(cx, THREE)
 }
 
-#[test]
-fn one_outfile_count() -> Result<()> {
-    run_outfile_count(&ONE)
+#[cli_test]
+fn skip_outfile(cx: &TestContext) -> Result<()> {
+    run_outfile(cx, SKIP)
 }
 
-#[test]
-fn one_stdin_outfile_count() -> Result<()> {
-    run_outfile_stdin_count(&ONE)
+#[cli_test]
+fn skip_outfile_count(cx: &TestContext) -> Result<()> {
+    run_outfile_count(cx, SKIP)
 }
 
-#[test]
-fn two() -> Result<()> {
-    run(&TWO)
+#[cli_test]
+fn skip_stdin_outfile_count(cx: &TestContext) -> Result<()> {
+    run_outfile_stdin_count(cx, SKIP)
 }
 
-#[test]
-fn two_count() -> Result<()> {
-    run_count(&TWO)
+#[cli_test]
+fn t1_outfile(cx: &TestContext) -> Result<()> {
+    run_outfile(cx, T1)
 }
 
-#[test]
-fn two_stdin() -> Result<()> {
-    run_stdin(&TWO)
+#[cli_test]
+fn t1_outfile_count(cx: &TestContext) -> Result<()> {
+    run_outfile_count(cx, T1)
 }
 
-#[test]
-fn two_stdin_count() -> Result<()> {
-    run_stdin_count(&TWO)
+#[cli_test]
+fn t1_stdin_outfile_count(cx: &TestContext) -> Result<()> {
+    run_outfile_stdin_count(cx, T1)
 }
 
-#[test]
-fn two_outfile() -> Result<()> {
-    run_outfile(&TWO)
+#[cli_test]
+fn t2_outfile(cx: &TestContext) -> Result<()> {
+    run_outfile(cx, T2)
 }
 
-#[test]
-fn two_outfile_count() -> Result<()> {
-    run_outfile_count(&TWO)
+#[cli_test]
+fn t2_outfile_count(cx: &TestContext) -> Result<()> {
+    run_outfile_count(cx, T2)
 }
 
-#[test]
-fn two_stdin_outfile_count() -> Result<()> {
-    run_outfile_stdin_count(&TWO)
+#[cli_test]
+fn t2_stdin_outfile_count(cx: &TestContext) -> Result<()> {
+    run_outfile_stdin_count(cx, T2)
 }
 
-#[test]
-fn three() -> Result<()> {
-    run(&THREE)
+#[cli_test]
+fn t3_outfile(cx: &TestContext) -> Result<()> {
+    run_outfile(cx, T3)
 }
 
-#[test]
-fn three_count() -> Result<()> {
-    run_count(&THREE)
+#[cli_test]
+fn t3_outfile_count(cx: &TestContext) -> Result<()> {
+    run_outfile_count(cx, T3)
 }
 
-#[test]
-fn three_stdin() -> Result<()> {
-    run_stdin(&THREE)
+#[cli_test]
+fn t3_stdin_outfile_count(cx: &TestContext) -> Result<()> {
+    run_outfile_stdin_count(cx, T3)
 }
 
-#[test]
-fn three_stdin_count() -> Result<()> {
-    run_stdin_count(&THREE)
+#[cli_test]
+fn t4_outfile(cx: &TestContext) -> Result<()> {
+    run_outfile(cx, T4)
 }
 
-#[test]
-fn three_outfile() -> Result<()> {
-    run_outfile(&THREE)
+#[cli_test]
+fn t4_outfile_count(cx: &TestContext) -> Result<()> {
+    run_outfile_count(cx, T4)
 }
 
-#[test]
-fn three_outfile_count() -> Result<()> {
-    run_outfile_count(&THREE)
+#[cli_test]
+fn t4_stdin_outfile_count(cx: &TestContext) -> Result<()> {
+    run_outfile_stdin_count(cx, T4)
 }
 
-#[test]
-fn three_stdin_outfile_count() -> Result<()> {
-    run_outfile_stdin_count(&THREE)
+#[cli_test]
+fn t5_outfile(cx: &TestContext) -> Result<()> {
+    run_outfile(cx, T5)
 }
 
-#[test]
-fn skip() -> Result<()> {
-    run(&SKIP)
+#[cli_test]
+fn t5_outfile_count(cx: &TestContext) -> Result<()> {
+    run_outfile_count(cx, T5)
 }
 
-#[test]
-fn skip_count() -> Result<()> {
-    run_count(&SKIP)
+#[cli_test]
+fn t5_stdin_outfile_count(cx: &TestContext) -> Result<()> {
+    run_outfile_stdin_count(cx, T5)
 }
 
-#[test]
-fn skip_stdin() -> Result<()> {
-    run_stdin(&SKIP)
+#[cli_test]
+fn t6_outfile(cx: &TestContext) -> Result<()> {
+    run_outfile(cx, T6)
 }
 
-#[test]
-fn skip_stdin_count() -> Result<()> {
-    run_stdin_count(&SKIP)
+#[cli_test]
+fn t6_outfile_count(cx: &TestContext) -> Result<()> {
+    run_outfile_count(cx, T6)
 }
 
-#[test]
-fn skip_outfile() -> Result<()> {
-    run_outfile(&SKIP)
+#[cli_test]
+fn t6_stdin_outfile_count(cx: &TestContext) -> Result<()> {
+    run_outfile_stdin_count(cx, T6)
 }
 
-#[test]
-fn skip_outfile_count() -> Result<()> {
-    run_outfile_count(&SKIP)
-}
-
-#[test]
-fn skip_stdin_outfile_count() -> Result<()> {
-    run_outfile_stdin_count(&SKIP)
-}
-
-#[test]
-fn t1() -> Result<()> {
-    run(&T1)
-}
-
-#[test]
-fn t1_count() -> Result<()> {
-    run_count(&T1)
-}
-
-#[test]
-fn t1_stdin() -> Result<()> {
-    run_stdin(&T1)
-}
-
-#[test]
-fn t1_stdin_count() -> Result<()> {
-    run_stdin_count(&T1)
-}
-
-#[test]
-fn t1_outfile() -> Result<()> {
-    run_outfile(&T1)
-}
-
-#[test]
-fn t1_outfile_count() -> Result<()> {
-    run_outfile_count(&T1)
-}
-
-#[test]
-fn t1_stdin_outfile_count() -> Result<()> {
-    run_outfile_stdin_count(&T1)
-}
-
-#[test]
-fn t2() -> Result<()> {
-    run(&T2)
-}
-
-#[test]
-fn t2_count() -> Result<()> {
-    run_count(&T2)
-}
-
-#[test]
-fn t2_stdin() -> Result<()> {
-    run_stdin(&T2)
-}
-
-#[test]
-fn t2_stdin_count() -> Result<()> {
-    run_stdin_count(&T2)
-}
-
-#[test]
-fn t2_outfile() -> Result<()> {
-    run_outfile(&T2)
-}
-
-#[test]
-fn t2_outfile_count() -> Result<()> {
-    run_outfile_count(&T2)
-}
-
-#[test]
-fn t2_stdin_outfile_count() -> Result<()> {
-    run_outfile_stdin_count(&T2)
-}
-
-#[test]
-fn t3() -> Result<()> {
-    run(&T3)
-}
-
-#[test]
-fn t3_count() -> Result<()> {
-    run_count(&T3)
-}
-
-#[test]
-fn t3_stdin() -> Result<()> {
-    run_stdin(&T3)
-}
-
-#[test]
-fn t3_stdin_count() -> Result<()> {
-    run_stdin_count(&T3)
-}
-
-#[test]
-fn t3_outfile() -> Result<()> {
-    run_outfile(&T3)
-}
-
-#[test]
-fn t3_outfile_count() -> Result<()> {
-    run_outfile_count(&T3)
-}
-
-#[test]
-fn t3_stdin_outfile_count() -> Result<()> {
-    run_outfile_stdin_count(&T3)
-}
-
-#[test]
-fn t4() -> Result<()> {
-    run(&T4)
-}
-
-#[test]
-fn t4_count() -> Result<()> {
-    run_count(&T4)
-}
-
-#[test]
-fn t4_stdin() -> Result<()> {
-    run_stdin(&T4)
-}
-
-#[test]
-fn t4_stdin_count() -> Result<()> {
-    run_stdin_count(&T4)
-}
-
-#[test]
-fn t4_outfile() -> Result<()> {
-    run_outfile(&T4)
-}
-
-#[test]
-fn t4_outfile_count() -> Result<()> {
-    run_outfile_count(&T4)
-}
-
-#[test]
-fn t4_stdin_outfile_count() -> Result<()> {
-    run_outfile_stdin_count(&T4)
-}
-
-#[test]
-fn t5() -> Result<()> {
-    run(&T5)
-}
-
-#[test]
-fn t5_count() -> Result<()> {
-    run_count(&T5)
-}
-
-#[test]
-fn t5_stdin() -> Result<()> {
-    run_stdin(&T5)
-}
-
-#[test]
-fn t5_stdin_count() -> Result<()> {
-    run_stdin_count(&T5)
-}
-
-#[test]
-fn t5_outfile() -> Result<()> {
-    run_outfile(&T5)
-}
-
-#[test]
-fn t5_outfile_count() -> Result<()> {
-    run_outfile_count(&T5)
-}
-
-#[test]
-fn t5_stdin_outfile_count() -> Result<()> {
-    run_outfile_stdin_count(&T5)
-}
-
-#[test]
-fn t6() -> Result<()> {
-    run(&T6)
-}
-
-#[test]
-fn t6_count() -> Result<()> {
-    run_count(&T6)
-}
-
-#[test]
-fn t6_stdin() -> Result<()> {
-    run_stdin(&T6)
-}
-
-#[test]
-fn t6_stdin_count() -> Result<()> {
-    run_stdin_count(&T6)
-}
-
-#[test]
-fn t6_outfile() -> Result<()> {
-    run_outfile(&T6)
-}
-
-#[test]
-fn t6_outfile_count() -> Result<()> {
-    run_outfile_count(&T6)
-}
-
-#[test]
-fn t6_stdin_outfile_count() -> Result<()> {
-    run_outfile_stdin_count(&T6)
-}
-
-#[test]
+#[cli_test]
 #[allow(
     clippy::panic_in_result_fn,
     reason = "Assertions verify observable CLI behavior; Result propagates fixture errors."
 )]
-fn rejects_output_aliases_without_truncating() -> Result<()> {
+fn rejects_output_aliases_without_truncating(cx: &TestContext) -> Result<()> {
     let dir = assert_fs::TempDir::new()?;
     let input = dir.path().join("input");
     let alias = dir.path().join("alias");
@@ -662,7 +330,7 @@ fn rejects_output_aliases_without_truncating() -> Result<()> {
     let symlink = dir.path().join("symlink");
     std::os::unix::fs::symlink(&input, &symlink)?;
     for output in [&input, &alias, &symlink] {
-        cli_testing::cargo_bin_cmd!()
+        cx.cmd()
             .arg(&input)
             .arg(output)
             .assert()
@@ -674,9 +342,9 @@ fn rejects_output_aliases_without_truncating() -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn writes_to_non_regular_outputs() {
-    cli_testing::cargo_bin_cmd!()
+#[cli_test]
+fn writes_to_non_regular_outputs(cx: &TestContext) {
+    cx.cmd()
         .args(["-", "/dev/null"])
         .write_stdin("a\na\nb\n")
         .assert()
@@ -685,12 +353,12 @@ fn writes_to_non_regular_outputs() {
         .stderr("");
 }
 
-#[test]
+#[cli_test]
 #[allow(
     clippy::panic_in_result_fn,
     reason = "Assertions verify observable CLI behavior."
 )]
-fn writes_to_fifo() -> Result<()> {
+fn writes_to_fifo(cx: &TestContext) -> Result<()> {
     use std::io::Read;
     let dir = assert_fs::TempDir::new()?;
     let path = dir.path().join("output.fifo");
@@ -701,7 +369,7 @@ fn writes_to_fifo() -> Result<()> {
         .read(true)
         .write(true)
         .open(&path)?;
-    cli_testing::cargo_bin_cmd!()
+    cx.cmd()
         .arg("-")
         .arg(&path)
         .write_stdin("a\na\nb\n")

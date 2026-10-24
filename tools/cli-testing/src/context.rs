@@ -33,7 +33,7 @@ impl TestContext {
     }
 
     #[must_use]
-    pub fn command(&self) -> assert_cmd::Command {
+    pub fn cmd(&self) -> assert_cmd::Command {
         crate::command(&self.binary, &self.package_dir)
     }
 
@@ -93,7 +93,7 @@ impl Workspace {
     }
 
     #[must_use]
-    pub fn command(&self) -> assert_cmd::Command {
+    pub fn cmd(&self) -> assert_cmd::Command {
         crate::command(&self.context.binary, self.path())
     }
 

@@ -12,6 +12,19 @@ use portable_pty::{Child, CommandBuilder, MasterPty, PtySize, native_pty_system}
 
 type WriteRequest = (Vec<u8>, SyncSender<std::io::Result<()>>);
 
+#[test]
+fn constructor_preserves_terminal_dimensions() -> anyhow::Result<()> {
+    let home = assert_fs::TempDir::new()?;
+    let mut terminal = Pty::new(home.path(), &["-c", "stty size"], &[])?;
+    let (rows, cols) = terminal.terminal.screen().size();
+    anyhow::ensure!(
+        (rows.get(), cols.get()) == (30, 120),
+        "renderer dimensions must match the 30x120 PTY"
+    );
+    terminal.expect_screen_line("30 120")?;
+    terminal.finish(0)
+}
+
 pub struct Pty {
     child: Box<dyn Child + Send + Sync>,
     _master: Box<dyn MasterPty + Send>,

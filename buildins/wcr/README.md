@@ -32,4 +32,19 @@ locale supported by the reference when regenerating `-m` character counts;
 `LC_ALL=C` changes those counts. GNU `wc` formatting is not interchangeable
 with these fixtures.
 
+## CLI test recipes
+
+Native tests use `#[cli_test]` to receive shared helpers as `cx: &TestContext`.
+
+Stable invocations and every retained expectation are connected in
+[the catalog](tests/cases.toml). Boundary, error, and process scenarios remain in Rust.
+The catalog replaces the Nushell generator; references use explicit macOS system
+executables. Expected bytes are unchanged.
+
+Run `cargo nextest run -p wcr --profile ci` from the repository root.
+Inspect recipes with `cli-testing --suite buildins/wcr/tests/cases.toml explain NAME`.
+Use the [fixture workflow](../../tools/cli-testing/README.md) to record independent
+references and review changes before applying them. Ordinary tests only read
+committed expectations.
+
 [All commands](../../README.md)

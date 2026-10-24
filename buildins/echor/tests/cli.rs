@@ -1,18 +1,18 @@
-use cli_testing::cargo_bin_cmd;
+use cli_testing::{TestContext, cli_test};
 use predicates::prelude::*;
 
-#[test]
-fn dies_no_args() {
-    let mut cmd = cargo_bin_cmd!();
+#[cli_test]
+fn dies_no_args(cx: &TestContext) {
+    let mut cmd = cx.cmd();
     cmd.assert()
         .failure()
         .stdout("")
         .stderr(predicate::str::contains("Usage"));
 }
 
-#[test]
-fn runs() {
-    let mut cmd = cargo_bin_cmd!();
+#[cli_test]
+fn runs(cx: &TestContext) {
+    let mut cmd = cx.cmd();
     cmd.arg("Hello")
         .assert()
         .success()
@@ -20,21 +20,10 @@ fn runs() {
         .stderr("");
 }
 
-fn run(args: &[&str], expected_file: &str) -> Result<(), std::io::Error> {
-    let expected = cli_testing::fixtures!().read_expected(expected_file)?;
-    cargo_bin_cmd!()
-        .args(args)
-        .assert()
-        .code(0)
-        .stdout(expected)
-        .stderr("");
-    Ok(())
-}
-
-#[test]
-fn usage() {
+#[cli_test]
+fn usage(cx: &TestContext) {
     for flag in ["-h", "--help"] {
-        cargo_bin_cmd!()
+        cx.cmd()
             .arg(flag)
             .assert()
             .success()
@@ -43,9 +32,9 @@ fn usage() {
     }
 }
 
-#[test]
-fn rejects_unknown_flag() {
-    cargo_bin_cmd!()
+#[cli_test]
+fn rejects_unknown_flag(cx: &TestContext) {
+    cx.cmd()
         .arg("--unknown")
         .assert()
         .failure()
@@ -53,14 +42,14 @@ fn rejects_unknown_flag() {
         .stderr(predicate::str::contains("--unknown"));
 }
 
-#[test]
-fn empty_arguments_keep_separators() {
+#[cli_test]
+fn empty_arguments_keep_separators(cx: &TestContext) {
     for (args, expected) in [
         (vec![""], "\n"),
         (vec!["-n", ""], ""),
         (vec!["", "é", ""], " é \n"),
     ] {
-        cargo_bin_cmd!()
+        cx.cmd()
             .args(args)
             .assert()
             .success()
@@ -69,9 +58,9 @@ fn empty_arguments_keep_separators() {
     }
 }
 
-#[test]
-fn end_of_options_preserves_flag_like_text() {
-    cargo_bin_cmd!()
+#[cli_test]
+fn end_of_options_preserves_flag_like_text(cx: &TestContext) {
+    cx.cmd()
         .args(["--", "-n", "--help"])
         .assert()
         .success()
@@ -79,32 +68,12 @@ fn end_of_options_preserves_flag_like_text() {
         .stderr("");
 }
 
-#[test]
-fn unicode_and_backslashes_are_literal() {
-    cargo_bin_cmd!()
+#[cli_test]
+fn unicode_and_backslashes_are_literal(cx: &TestContext) {
+    cx.cmd()
         .args(["-n", "世界", r"\n\t"])
         .assert()
         .success()
         .stdout("世界 \\n\\t")
         .stderr("");
-}
-
-#[test]
-fn hello1() -> Result<(), std::io::Error> {
-    run(&["Hello there"], "hello1.txt")
-}
-
-#[test]
-fn hello2() -> Result<(), std::io::Error> {
-    run(&["Hello", "there"], "hello2.txt")
-}
-
-#[test]
-fn hello1n() -> Result<(), std::io::Error> {
-    run(&["-n", "Hello there"], "hello1.n.txt")
-}
-
-#[test]
-fn hello2n() -> Result<(), std::io::Error> {
-    run(&["-n", "Hello", "there"], "hello2.n.txt")
 }

@@ -38,14 +38,14 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: 🐍 Set up uv and Python
-        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa # v10.3.1
         with:
           version: '0.13.0'
           enable-cache: true
           cache-dependency-glob: uv.lock
           cache-suffix: ${{ github.job }}
       - name: ♻️ Cache Rust dependencies and build artifacts
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           cache-bin: false
       - name: 🏗️ Build affected Linux CLI executables
