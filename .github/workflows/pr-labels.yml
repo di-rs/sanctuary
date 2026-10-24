@@ -1,38 +1,25 @@
 name: 🏷️ PR classification
 
-# Metadata-only: never check out or execute PR code with this token.
+# Metadata-only action: reads trusted base-branch config; never checks out PR code.
 on: # zizmor: ignore[dangerous-triggers]
   pull_request_target:
-    types: [opened, edited, synchronize, reopened, ready_for_review, converted_to_draft, labeled, unlabeled]
-  workflow_dispatch:
-    inputs:
-      pr:
-        description: Open PR number to reconcile
-        required: true
-        type: number
+    types: [opened, edited, synchronize, reopened, ready_for_review, labeled, unlabeled]
 
 permissions:
   contents: read
   pull-requests: write
 
+concurrency:
+  group: pr-classification-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   labels:
-    name: Reconcile classification labels
+    name: Apply classification labels
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - name: Check out trusted label policy
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Match template choices and changed paths
+        uses: fuxingloh/multi-labeler@bcd50af464202999e57f556b4aefcf05a34abf85 # v5.0.0
         with:
-          ref: ${{ github.event.repository.default_branch }}
-          persist-credentials: false
-      - name: Reconcile labels from current PR metadata
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ inputs.pr }}
-        run: |
-          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
-            python3 tools/pr-labels/pr_labels.py reconcile --pr "$PR_NUMBER" --apply
-          else
-            python3 tools/pr-labels/pr_labels.py reconcile --event "$GITHUB_EVENT_PATH" --apply
-          fi
+          config-path: .github/labeler.yml

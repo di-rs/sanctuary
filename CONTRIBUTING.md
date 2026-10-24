@@ -13,8 +13,9 @@ and verification. Run affected packages' tests and linters; CI runs the full che
 Choose exactly one primary type and one risk level. Select all relevant impacts,
 or select `impact:none` alone. Keep the checkbox markers and label names intact.
 The automation reads only these groups, not labels mentioned elsewhere in prose.
-Missing or conflicting selections appear in the PR classification workflow summary;
-they do not block merging or cause the bot to guess a risk level.
+Missing or conflicting choices leave that family unlabelled. Correct the
+checkboxes and save the description to update the labels. Classification does not
+block merging or infer a risk level.
 
 ### Primary type
 
@@ -60,9 +61,9 @@ work that needs review; they do not certify that verification has passed.
 
 ### Affected areas
 
-The bot applies every matching area from changed paths, including old paths for
-renames and deleted files. These identify directly changed components, not every
-transitive consumer. Describe consumer effects and validation in the PR body.
+The bot applies every matching area from changed paths, including deleted files.
+Renames match their new path. These identify directly changed components, not
+every transitive consumer. Describe consumer effects and validation in the PR body.
 
 | Labels | Paths |
 | --- | --- |
@@ -79,7 +80,7 @@ transitive consumer. Describe consumer effects and validation in the PR body.
 
 A Boxie deployment guide receives `area:boxie`, `area:infrastructure`, and
 `area:docs`. Name individual builtins in the PR description. The exact mappings
-live in [the label catalog](.github/labels.yml).
+live in [the label rules](.github/labeler.yml).
 
 ## Examples
 
@@ -104,34 +105,29 @@ depends on changed Rust source/build files, not labels.
 
 ## Maintain the label system
 
-[The catalog](.github/labels.yml) owns names, descriptions, colors, ownership, and
-path mappings. It uses JSON syntax, which is also valid YAML, so the controller
-needs only Python's standard library. Author-owned labels come from the template;
-path-owned labels come from the diff. Edit the PR description to correct an
-author-owned label: manual changes are overwritten at the next reconciliation.
+[Multi Labeler](https://github.com/fuxingloh/multi-labeler) applies
+[the YAML rules](.github/labeler.yml) through a pinned GitHub Action. There are no
+repository scripts, installed tools, or local commands to run. Labels with
+`sync: true` are removed when their rule no longer matches; labels outside the
+configuration, including `run-ci`, are preserved.
 
-The controller reads all changed-file pages and refuses a partial classification
-if GitHub's file count does not match. It retries when metadata changes during
-inspection. Rerun the classification workflow after an API failure. Existing issue
-labels, ecosystem labels, `run-ci`, and unrelated custom labels are preserved.
+Create new labels with descriptions and colors in GitHub's Labels settings, then
+add their rules and template choices in a PR. Type and risk rules require exactly
+one checked choice inside their template group. Impact rules allow multiple
+choices, with `impact:none` selected alone. Dependabot's author rule supplies only
+`type:dependencies`; its risk still needs reviewer assessment.
 
-From the repository root, use Python 3.11 or newer and an authenticated `gh`
-installation. These commands default to dry runs and print JSON:
+The workflow uses `pull_request_target`, so configuration comes from the trusted
+base revision, including for fork PRs. It does not check out or run PR code, post
+comments, or add merge checks. It starts working after merge into the default
+branch. Dependency updates to the pinned action require normal review.
 
-```sh
-GH_TOKEN="$(gh auth token)" python3 tools/pr-labels/pr_labels.py sync --repo di-rs/sanctuary
-GH_TOKEN="$(gh auth token)" python3 tools/pr-labels/pr_labels.py reconcile --repo di-rs/sanctuary --pr 123
-```
+The action uses the event's PR description and GitHub's changed-file API, which
+returns at most 3,000 files. For larger PRs, area labels may be incomplete. It
+matches renamed files at their new path; describe effects on the old component in
+the PR body. If labels look stale after rapid edits or an API failure, save the
+current description again to trigger a fresh event. Inspect the action logs for
+failures; removal errors can require a manual label correction.
 
-Add `--apply` to write the reviewed changes. Catalog synchronization creates or
-updates declared labels and never deletes unrelated labels. Run it before enabling
-the workflow or adding new labels to the template. It needs repository label-write
-permission; routine PR reconciliation only needs contents-read and PR-write access.
-
-There is no bulk migration of existing PR labels. Reconciliation handles one PR
-at a time, on workflow events or an explicit maintainer invocation.
-
-The metadata workflow runs trusted default-branch code and never installs or
-executes PR code. It operates on forks and stacked PRs without changing their
-branches. It becomes active after its workflow and controller reach the default
-branch. Changes to this controller require review of that trust boundary.
+There is no bulk migration of existing PR labels or scheduled processing of old
+PRs. The workflow handles only the PR that triggered its event.
