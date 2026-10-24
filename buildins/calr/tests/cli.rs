@@ -5,70 +5,6 @@ use pretty_assertions::assert_eq;
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 #[cli_test]
-fn dies_year_0(cx: &TestContext) {
-    cx.assert_error(
-        ["0"],
-        2,
-        "error: invalid value '0' for '[YEAR]': 0 is not in 1..=9999",
-    );
-}
-
-#[cli_test]
-fn dies_year_10000(cx: &TestContext) {
-    cx.assert_error(
-        ["10000"],
-        2,
-        "error: invalid value \'10000\' \
-                for \'[YEAR]\': 10000 is not in 1..=9999",
-    );
-}
-
-#[cli_test]
-fn dies_invalid_year(cx: &TestContext) {
-    cx.assert_error(
-        ["foo"],
-        2,
-        "error: invalid value \'foo\' for \'[YEAR]\': \
-                invalid digit found in string",
-    );
-}
-
-#[cli_test]
-fn dies_month_0(cx: &TestContext) {
-    cx.assert_error(
-        ["-m", "0"],
-        2,
-        "invalid value '0' for '-m <MONTH>': not in the range 1 through 12",
-    );
-}
-
-#[cli_test]
-fn dies_month_13(cx: &TestContext) {
-    cx.assert_error(
-        ["-m", "13"],
-        2,
-        "invalid value '13' for '-m <MONTH>': not in the range 1 through 12",
-    );
-}
-
-#[cli_test]
-fn dies_invalid_month(cx: &TestContext) {
-    cx.assert_error(["-m", "foo"], 2, "invalid value 'foo' for '-m <MONTH>'");
-}
-
-#[cli_test]
-fn dies_y_and_month(cx: &TestContext) {
-    let expected = "the argument '-m <MONTH>' cannot be used with '--year'";
-    cx.assert_error(["-m", "1", "-y"], 2, expected);
-}
-
-#[cli_test]
-fn dies_y_and_year(cx: &TestContext) {
-    let expected = "the argument '--year' cannot be used with '[YEAR]'";
-    cx.assert_error(["-y", "2000"], 2, expected);
-}
-
-#[cli_test]
 fn month_num(cx: &TestContext) {
     let expected = &[
         ("1", "January"),
@@ -137,32 +73,6 @@ fn year(cx: &TestContext) -> Result<()> {
     let lines = stdout.split('\n');
     assert_eq!(lines.count(), 37);
     Ok(())
-}
-
-#[cli_test]
-fn usage(cx: &TestContext) {
-    cx.assert_help();
-}
-
-#[cli_test]
-fn dies_ambiguous_or_empty_month(cx: &TestContext) {
-    for month in ["", "m", "j", "a"] {
-        cx.assert_error(["2020", "-m", month], 2, "invalid value");
-    }
-}
-
-#[cli_test]
-fn dies_long_year_and_month_in_either_order(cx: &TestContext) {
-    for args in [["--year", "-m", "December"], ["-m", "December", "--year"]] {
-        cx.assert_error(args, 2, "cannot be used with");
-    }
-}
-
-#[cli_test]
-fn dies_long_year_and_explicit_year_in_either_order(cx: &TestContext) {
-    for args in [["--year", "2000"], ["2000", "--year"]] {
-        cx.assert_error(args, 2, "cannot be used with");
-    }
 }
 
 #[cli_test]

@@ -1,5 +1,6 @@
 schema = 1
 binary = "wcr"
+checks = ["help"]
 reference = "wc"
 
 [fixtures]
@@ -237,3 +238,23 @@ expect = { exit = 0 }
 name = "reference_fox_txt_wm"
 args = ["-wm", { fixture = "fox" }]
 expect = { exit = 0 }
+
+[[cases]]
+name = "rejects_unknown_flag"
+args = ["--unknown"]
+origin = { manual = "Only declared options are accepted; unknown flags are argument errors." }
+
+[cases.expect]
+exit = 2
+stdout = ""
+stderr_contains = "unexpected argument '--unknown'"
+
+[[cases]]
+name = "rejects_chars_with_bytes"
+args = ["-m", "-c"]
+origin = { manual = "Character and byte counting flags are mutually exclusive." }
+
+[cases.expect]
+exit = 2
+stdout = ""
+stderr_contains = "cannot be used with"

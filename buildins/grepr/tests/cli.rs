@@ -10,23 +10,8 @@ const INPUTS_DIR: &str = "tests/inputs";
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-#[cli_test]
-fn usage(cx: &TestContext) {
-    cx.assert_help();
-}
-
 fn gen_bad_file() -> String {
     "tests/file/doesnt/exist".to_owned()
-}
-
-#[cli_test]
-fn dies_no_args(cx: &TestContext) {
-    cx.assert_error(std::iter::empty::<&str>(), 2, "Usage");
-}
-
-#[cli_test]
-fn dies_bad_pattern(cx: &TestContext) {
-    cx.assert_error(["*foo", FOX], 65, "invalid pattern passed `*foo`");
 }
 
 #[cli_test]

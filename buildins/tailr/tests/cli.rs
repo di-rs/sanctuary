@@ -7,40 +7,8 @@ const TWO: &str = "tests/inputs/two.txt";
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-#[cli_test]
-fn usage(cx: &TestContext) {
-    cx.assert_help();
-}
-
 fn gen_bad_file() -> String {
     "tests/file/doesnt/exist".to_owned()
-}
-
-#[cli_test]
-fn dies_no_args(cx: &TestContext) {
-    cx.assert_error(std::iter::empty::<&str>(), 2, "Usage");
-}
-
-#[cli_test]
-fn dies_bad_bytes(cx: &TestContext) {
-    let bad = gen_bad_file();
-    let expected = "invalid digit found in string";
-    cx.assert_error(["-c", &bad, EMPTY], 2, expected);
-}
-
-#[cli_test]
-fn dies_bad_lines(cx: &TestContext) {
-    let bad = gen_bad_file();
-    let expected = "invalid digit found in string";
-    cx.assert_error(["-n", &bad, EMPTY], 2, expected);
-}
-
-#[cli_test]
-fn dies_bytes_and_lines(cx: &TestContext) {
-    let msg = "the argument '--lines <LINES>' cannot be used \
-               with '--bytes <BYTES>'";
-
-    cx.assert_error(["-n", "1", "-c", "2"], 2, msg);
 }
 
 #[cli_test]
@@ -53,11 +21,6 @@ fn skips_bad_file(cx: &TestContext) -> Result<()> {
         .code(1)
         .stderr(predicate::str::is_match(expected)?);
     Ok(())
-}
-
-#[cli_test]
-fn rejects_unknown_flag(cx: &TestContext) {
-    cx.assert_error(["--unknown", EMPTY], 2, "--unknown");
 }
 
 #[cli_test]

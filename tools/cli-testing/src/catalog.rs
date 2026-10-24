@@ -15,6 +15,7 @@ use std::{
 /// A validated package-owned catalog with resolved paths relative to `tests/`.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
+#[serde(bound(deserialize = "A: Deserialize<'de>"))]
 pub struct Suite<A = String> {
     pub schema: u32,
     pub binary: String,
@@ -23,7 +24,10 @@ pub struct Suite<A = String> {
     #[serde(default)]
     pub references: BTreeMap<String, Reference>,
     pub reference: Option<String>,
+    #[serde(default)]
     pub cases: Vec<Case<A>>,
+    #[serde(default)]
+    pub checks: Vec<Check>,
     #[serde(default)]
     pub fixtures: BTreeMap<String, PathBuf>,
     #[serde(default)]
@@ -32,6 +36,47 @@ pub struct Suite<A = String> {
     pub(crate) package_dir: PathBuf,
     #[serde(skip)]
     pub(crate) source: String,
+}
+
+/// Shared interface contracts expanded into ordinary named catalog cases.
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum Check {
+    Help,
+}
+
+impl Check {
+    pub(super) fn cases(self) -> Vec<Case> {
+        match self {
+            Self::Help => [("help_short", "-h"), ("help_long", "--help")]
+                .into_iter()
+                .map(|(name, flag)| Case {
+                    name: name.into(),
+                    execution: Execution::Toml,
+                    args: vec![flag.into()],
+                    inputs: Vec::new(),
+                    stdin: None,
+                    env: BTreeMap::new(),
+                    origin: Origin {
+                        manual: Some(
+                            "The help contract prints usage successfully without stderr.".into(),
+                        ),
+                        ..Origin::default()
+                    },
+                    expect: Expected {
+                        exit: 0,
+                        stdout: None,
+                        stdout_file: None,
+                        stdout_contains: Some("Usage".into()),
+                        stderr: Some(String::new()),
+                        stderr_file: None,
+                        stderr_contains: None,
+                    },
+                    adapt: None,
+                })
+                .collect(),
+        }
+    }
 }
 
 /// An explicitly selected independent executable; no PATH fallback is performed.
@@ -125,8 +170,10 @@ pub struct Expected {
     pub exit: i32,
     pub stdout: Option<String>,
     pub stdout_file: Option<PathBuf>,
+    pub stdout_contains: Option<String>,
     pub stderr: Option<String>,
     pub stderr_file: Option<PathBuf>,
+    pub stderr_contains: Option<String>,
 }
 
 /// A narrow, explained transformation of reference bytes, never candidate output.
@@ -308,7 +355,14 @@ impl Suite {
 
 impl Case {
     fn validate(&self, suite: &Suite) -> Result {
-        self.expect.bytes(suite)?;
+        self.expect.streams(suite)?;
+        if (self.expect.stdout_contains.is_some() || self.expect.stderr_contains.is_some())
+            && self.origin.manual.is_none()
+        {
+            return Err(Error::new(
+                "contains expectations require a manual origin; reference cases remain byte-exact",
+            ));
+        }
         if !(0..=255).contains(&self.expect.exit)
             || self
                 .origin
@@ -384,18 +438,25 @@ impl Expected {
     }
 
     pub(crate) fn bytes(&self, suite: &Suite) -> Result<(Vec<u8>, Vec<u8>)> {
+        let (stdout, stderr) = self.streams(suite)?;
+        Ok((stdout.exact()?, stderr.exact()?))
+    }
+
+    pub(crate) fn streams(&self, suite: &Suite) -> Result<(StreamExpectation, StreamExpectation)> {
         Ok((
             stream(
                 suite,
                 "stdout",
                 self.stdout.as_deref(),
                 self.stdout_file.as_deref(),
+                self.stdout_contains.as_deref(),
             )?,
             stream(
                 suite,
                 "stderr",
                 self.stderr.as_deref(),
                 self.stderr_file.as_deref(),
+                self.stderr_contains.as_deref(),
             )?,
         ))
     }
@@ -430,12 +491,56 @@ impl Input {
     }
 }
 
-fn stream(suite: &Suite, name: &str, text: Option<&str>, path: Option<&Path>) -> Result<Vec<u8>> {
-    match (text, path) {
-        (Some(text), None) => Ok(text.as_bytes().to_vec()),
-        (None, Some(path)) if path.starts_with(&suite.paths.expected) => suite.read(path),
+pub(crate) enum StreamExpectation {
+    Exact(Vec<u8>),
+    Contains(String),
+}
+
+impl StreamExpectation {
+    pub(crate) fn exact(self) -> Result<Vec<u8>> {
+        match self {
+            Self::Exact(bytes) => Ok(bytes),
+            Self::Contains(_) => Err(Error::new("contains expectations are not exact bytes")),
+        }
+    }
+
+    pub(crate) fn check(&self, name: &str, stream: &str, actual: &[u8]) -> Result {
+        match self {
+            Self::Exact(expected) => crate::context::check_bytes(name, stream, actual, expected),
+            Self::Contains(text) => {
+                if actual
+                    .windows(text.len())
+                    .any(|window| window == text.as_bytes())
+                {
+                    Ok(())
+                } else {
+                    Err(Error::new(format!(
+                        "case {name:?}: expected {stream} to contain {text:?}; actual: {:?}",
+                        String::from_utf8_lossy(actual)
+                    )))
+                }
+            }
+        }
+    }
+}
+
+fn stream(
+    suite: &Suite,
+    name: &str,
+    text: Option<&str>,
+    path: Option<&Path>,
+    contains: Option<&str>,
+) -> Result<StreamExpectation> {
+    match (text, path, contains) {
+        (Some(text), None, None) => Ok(StreamExpectation::Exact(text.as_bytes().to_vec())),
+        (None, Some(path), None) if path.starts_with(&suite.paths.expected) => {
+            Ok(StreamExpectation::Exact(suite.read(path)?))
+        }
+        (None, None, Some(text)) if !text.is_empty() => {
+            Ok(StreamExpectation::Contains(text.into()))
+        }
         _ => Err(Error::new(format!(
-            "expect requires exactly one of {name} or {name}_file in the expected directory"
+            "expect requires exactly one of {name}, {name}_file in the expected directory, or nonempty {name}_contains"
         ))),
     }
 }

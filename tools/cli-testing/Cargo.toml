@@ -15,7 +15,6 @@ assert_fs.workspace = true
 clap = { workspace = true, features = ["derive"] }
 cli-testing-macros = { version = "0.1.0", path = "macros" }
 libtest-mimic = "0.8.2"
-predicates.workspace = true
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json.workspace = true
 sha2 = "0.11.1"

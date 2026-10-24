@@ -31,11 +31,6 @@ fn fixture_tree(cx: &TestContext) -> Result<Workspace> {
     Ok(dir)
 }
 
-#[cli_test]
-fn usage(cx: &TestContext) {
-    cx.assert_help();
-}
-
 fn gen_bad_file() -> String {
     "tests/file/doesnt/exist".to_owned()
 }

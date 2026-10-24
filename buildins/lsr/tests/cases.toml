@@ -1,5 +1,6 @@
 schema = 1
 binary = "lsr"
+checks = ["help"]
 reference = "ls"
 
 [fixtures]

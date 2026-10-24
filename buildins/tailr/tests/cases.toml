@@ -1,5 +1,6 @@
 schema = 1
 binary = "tailr"
+checks = ["help"]
 reference = "tail"
 
 [fixtures]
@@ -755,3 +756,53 @@ expect = { exit = 0 }
 name = "reference_all_n3_q"
 args = ["-n", "3", "-q", { fixtures = ["twelve", "empty", "one", "three", "two"] }]
 expect = { exit = 0 }
+
+[[cases]]
+name = "rejects_unknown_flag"
+args = ["--unknown", { fixture = "empty" }]
+origin = { manual = "Only declared options are accepted; unknown flags are argument errors." }
+
+[cases.expect]
+exit = 2
+stdout = ""
+stderr_contains = "unexpected argument '--unknown'"
+
+[[cases]]
+name = "requires_operands"
+args = []
+origin = { manual = "Tail requires at least one file operand." }
+
+[cases.expect]
+exit = 2
+stdout = ""
+stderr_contains = "required arguments were not provided"
+
+[[cases]]
+name = "rejects_nonnumeric_bytes"
+args = ["-c", "invalid", { fixture = "empty" }]
+origin = { manual = "The bytes count must be numeric." }
+
+[cases.expect]
+exit = 2
+stdout = ""
+stderr_contains = "invalid digit found in string"
+
+[[cases]]
+name = "rejects_nonnumeric_lines"
+args = ["-n", "invalid", { fixture = "empty" }]
+origin = { manual = "The lines count must be numeric." }
+
+[cases.expect]
+exit = 2
+stdout = ""
+stderr_contains = "invalid digit found in string"
+
+[[cases]]
+name = "rejects_lines_with_bytes"
+args = ["-n", "1", "-c", "2"]
+origin = { manual = "Line and byte limits are mutually exclusive." }
+
+[cases.expect]
+exit = 2
+stdout = ""
+stderr_contains = "cannot be used with"

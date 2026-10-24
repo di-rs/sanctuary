@@ -1,5 +1,6 @@
 schema = 1
 binary = "uniqr"
+checks = ["help"]
 reference = "uniq"
 
 [fixtures]
@@ -260,3 +261,13 @@ name = "t6_stdin_count"
 args = ["-c"]
 stdin = { mode = "pipe", files = ["t6"] }
 expect = { exit = 0 }
+
+[[cases]]
+name = "rejects_unknown_flag"
+args = ["--unknown"]
+origin = { manual = "Only declared options are accepted; unknown flags are argument errors." }
+
+[cases.expect]
+exit = 2
+stdout = ""
+stderr_contains = "unexpected argument '--unknown'"

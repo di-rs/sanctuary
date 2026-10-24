@@ -28,11 +28,6 @@ const T5: &str = "t5";
 
 const T6: &str = "t6";
 
-#[cli_test]
-fn usage(cx: &TestContext) {
-    cx.assert_help();
-}
-
 fn gen_bad_file() -> Result<NamedTempFile> {
     let file = NamedTempFile::new()?;
     fs::set_permissions(file.path(), PermissionsExt::from_mode(0o000))?;
@@ -83,11 +78,6 @@ fn run_outfile_count(cx: &TestContext, name: &str) -> Result<()> {
 
 fn run_outfile_stdin_count(cx: &TestContext, name: &str) -> Result<()> {
     run_outfile_case(cx, &format!("{name}_stdin_count"))
-}
-
-#[cli_test]
-fn rejects_unknown_flag(cx: &TestContext) {
-    cx.assert_error(["--unknown"], 2, "--unknown");
 }
 
 #[cli_test]

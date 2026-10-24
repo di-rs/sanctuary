@@ -1,0 +1,37 @@
+schema = 1
+binary = "findr"
+checks = ["help"]
+
+# Unordered traversal fixtures remain native-owned in tests/expected/.
+[paths]
+expected = "contract-expected"
+
+[[cases]]
+name = "rejects_glob_as_regex"
+args = ["--name", "*.csv"]
+origin = { manual = "Name filters are regular expressions; a leading repetition operator has no preceding expression." }
+
+[cases.expect]
+exit = 2
+stdout = ""
+stderr_contains = "invalid value '*.csv'"
+
+[[cases]]
+name = "rejects_unknown_file_type"
+args = ["--type", "x"]
+origin = { manual = "Entry types are limited to directory (d), file (f), and symlink (l)." }
+
+[cases.expect]
+exit = 2
+stdout = ""
+stderr_contains = "invalid value 'x'"
+
+[[cases]]
+name = "rejects_invalid_regex_among_valid_names"
+args = ["-n", "valid", "-n", "["]
+origin = { manual = "Every name regex must parse, even when another name filter is valid." }
+
+[cases.expect]
+exit = 2
+stdout = ""
+stderr_contains = "invalid value '['"

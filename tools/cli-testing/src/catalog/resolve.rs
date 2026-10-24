@@ -71,6 +71,7 @@ impl Suite<Argument> {
                 .map_err(|error| Error::caused_by(format!("invalid case {name:?}"), error))?;
             cases.push(resolved);
         }
+        cases.extend(self.checks.iter().flat_map(|check| check.cases()));
         Ok(Suite {
             schema: self.schema,
             binary: self.binary,
@@ -78,6 +79,7 @@ impl Suite<Argument> {
             references: self.references,
             reference: self.reference,
             cases,
+            checks: self.checks,
             fixtures,
             paths: self.paths,
             package_dir: self.package_dir,
@@ -173,13 +175,13 @@ fn arguments(
 }
 
 fn expected(expect: &mut Expected, name: &str, paths: &FixturePaths) -> Result {
-    if expect.stdout.is_none() && expect.stdout_file.is_none() {
+    if expect.stdout.is_none() && expect.stdout_file.is_none() && expect.stdout_contains.is_none() {
         if !identifier(name) {
             return Err(Error::new(format!("invalid case name {name:?}")));
         }
         expect.stdout_file = Some(format!("{name}.out").into());
     }
-    if expect.stderr.is_none() && expect.stderr_file.is_none() {
+    if expect.stderr.is_none() && expect.stderr_file.is_none() && expect.stderr_contains.is_none() {
         expect.stderr = Some(String::new());
     }
     for path in [&mut expect.stdout_file, &mut expect.stderr_file]

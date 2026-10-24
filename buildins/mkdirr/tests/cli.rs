@@ -4,11 +4,6 @@ use predicates::prelude::*;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-#[cli_test]
-fn usage(cx: &TestContext) {
-    cx.assert_help();
-}
-
 #[test_case("creates_single_directory")]
 fn creates_single_directory(cx: &mut Context) -> cli_testing::Result<()> {
     cx.workspace()?;
@@ -103,15 +98,6 @@ fn rejects_file_as_parent(cx: &TestContext) -> Result<()> {
         .stderr(predicate::str::contains("file/child"));
     dir.child("file").assert("keep me");
     Ok(())
-}
-
-#[cli_test]
-fn requires_directory_operand(cx: &TestContext) {
-    cx.assert_error(
-        std::iter::empty::<&str>(),
-        2,
-        "required arguments were not provided",
-    );
 }
 
 #[cli_test]

@@ -4,22 +4,6 @@ use std::{borrow::Cow, fs};
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-#[cli_test]
-fn usage(cx: &TestContext) {
-    cx.assert_help();
-}
-
-#[cli_test]
-fn dies_bad_name(cx: &TestContext) {
-    cx.assert_error(["--name", "*.csv"], 2, "error: invalid value '*.csv'");
-}
-
-#[cli_test]
-fn dies_bad_type(cx: &TestContext) {
-    let expected = "error: invalid value 'x' for '--type [<TYPE>...]'";
-    cx.assert_error(["--type", "x"], 2, expected);
-}
-
 #[cfg(windows)]
 fn format_file_name(expected_file: &str) -> Cow<str> {
     // Equivalent to: Cow::Owned(format!("{}.windows", expected_file))
@@ -318,11 +302,6 @@ fn multiple_roots_apply_the_same_filter(cx: &TestContext) -> Result<()> {
         &["alpha.txt", "reports.txt", "-t", "f", "-n", "[.]csv$"],
         &["reports.txt/inside.csv"],
     )
-}
-
-#[cli_test]
-fn invalid_regex_among_valid_names_is_rejected(cx: &TestContext) {
-    cx.assert_error(["-n", "valid", "-n", "["], 2, "invalid value '['");
 }
 
 #[cli_test]

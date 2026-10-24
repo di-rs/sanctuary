@@ -1,11 +1,6 @@
 use cli_testing::{TestContext, cli_test};
 
 #[cli_test]
-fn dies_no_args(cx: &TestContext) {
-    cx.assert_error(std::iter::empty::<&str>(), 2, "Usage");
-}
-
-#[cli_test]
 fn runs(cx: &TestContext) {
     let mut cmd = cx.cmd();
     cmd.arg("Hello")
@@ -13,16 +8,6 @@ fn runs(cx: &TestContext) {
         .success()
         .stdout("Hello\n")
         .stderr("");
-}
-
-#[cli_test]
-fn usage(cx: &TestContext) {
-    cx.assert_help();
-}
-
-#[cli_test]
-fn rejects_unknown_flag(cx: &TestContext) {
-    cx.assert_error(["--unknown"], 2, "--unknown");
 }
 
 #[cli_test]

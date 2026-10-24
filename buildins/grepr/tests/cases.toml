@@ -1,5 +1,6 @@
 schema = 1
 binary = "grepr"
+checks = ["help"]
 reference = "grep"
 
 [fixtures]
@@ -145,3 +146,23 @@ args = ["--count", ""]
 stdin = { mode = "pipe", text = "" }
 origin = { exit = 1, reason = "BSD grep returns 1 for no matches; grepr returns 0 after a successful search." }
 expect = { exit = 0, stdout = "0\n" }
+
+[[cases]]
+name = "requires_operands"
+args = []
+origin = { manual = "Searching requires a pattern operand." }
+
+[cases.expect]
+exit = 2
+stdout = ""
+stderr_contains = "required arguments were not provided"
+
+[[cases]]
+name = "rejects_invalid_pattern"
+args = ["*foo", { fixture = "fox" }]
+origin = { manual = "Search patterns must be valid regular expressions; a leading repetition operator is invalid." }
+
+[cases.expect]
+exit = 65
+stdout = ""
+stderr_contains = "invalid pattern passed `*foo`"

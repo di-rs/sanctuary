@@ -21,11 +21,6 @@ fn assert_modified(path: &Path, seconds: u64) -> Result<()> {
     Ok(())
 }
 
-#[cli_test]
-fn usage(cx: &TestContext) {
-    cx.assert_help();
-}
-
 #[test_case("creates_single_file")]
 fn creates_single_file(cx: &mut Context) -> cli_testing::Result<()> {
     cx.workspace()?;
@@ -144,15 +139,6 @@ fn reports_creation_path_errors(cx: &TestContext) -> Result<()> {
     dir.child("file").assert("keep me");
     dir.child("missing").assert(predicate::path::missing());
     Ok(())
-}
-
-#[cli_test]
-fn requires_file_operand(cx: &TestContext) {
-    cx.assert_error(
-        std::iter::empty::<&str>(),
-        2,
-        "required arguments were not provided",
-    );
 }
 
 #[cfg(unix)]

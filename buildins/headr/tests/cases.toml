@@ -1,5 +1,6 @@
 schema = 1
 binary = "headr"
+checks = ["help"]
 reference = "head"
 
 [fixtures]
@@ -327,3 +328,63 @@ expect = { exit = 0 }
 name = "reference_two_txt_c1"
 args = ["-c", "1", { fixture = "two" }]
 expect = { exit = 0 }
+
+[[cases]]
+name = "rejects_unknown_flag"
+args = ["--unknown", "1"]
+origin = { manual = "Only declared options are accepted; unknown flags are argument errors." }
+
+[cases.expect]
+exit = 2
+stdout = ""
+stderr_contains = "unexpected argument '--unknown'"
+
+[[cases]]
+name = "rejects_nonnumeric_bytes"
+args = ["-c", "invalid", { fixture = "empty" }]
+origin = { manual = "The bytes count must be numeric." }
+
+[cases.expect]
+exit = 2
+stdout = ""
+stderr_contains = "invalid digit found in string"
+
+[[cases]]
+name = "rejects_nonnumeric_lines"
+args = ["-n", "invalid", { fixture = "empty" }]
+origin = { manual = "The lines count must be numeric." }
+
+[cases.expect]
+exit = 2
+stdout = ""
+stderr_contains = "invalid digit found in string"
+
+[[cases]]
+name = "rejects_lines_with_bytes"
+args = ["-n", "1", "-c", "2"]
+origin = { manual = "Line and byte limits are mutually exclusive." }
+
+[cases.expect]
+exit = 2
+stdout = ""
+stderr_contains = "cannot be used with"
+
+[[cases]]
+name = "rejects_zero_bytes"
+args = ["-c", "0"]
+origin = { manual = "The bytes count must be positive." }
+
+[cases.expect]
+exit = 2
+stdout = ""
+stderr_contains = "invalid value '0'"
+
+[[cases]]
+name = "rejects_zero_lines"
+args = ["-n", "0"]
+origin = { manual = "The lines count must be positive." }
+
+[cases.expect]
+exit = 2
+stdout = ""
+stderr_contains = "invalid value '0'"

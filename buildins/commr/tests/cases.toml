@@ -1,5 +1,6 @@
 schema = 1
 binary = "commr"
+checks = ["help"]
 reference = "comm"
 
 [fixtures]
@@ -195,3 +196,33 @@ expect = { exit = 0 }
 name = "reference_file1_blank"
 args = [{ fixtures = ["file1", "blank"] }]
 expect = { exit = 0 }
+
+[[cases]]
+name = "rejects_unknown_flag"
+args = ["--unknown", { fixture = "empty" }, { fixture = "empty" }]
+origin = { manual = "Only declared options are accepted; unknown flags are argument errors." }
+
+[cases.expect]
+exit = 2
+stdout = ""
+stderr_contains = "unexpected argument '--unknown'"
+
+[[cases]]
+name = "requires_operands"
+args = []
+origin = { manual = "Comparison requires two file operands." }
+
+[cases.expect]
+exit = 2
+stdout = ""
+stderr_contains = "required arguments were not provided"
+
+[[cases]]
+name = "rejects_stdin_on_both_sides"
+args = ["-", "-"]
+origin = { manual = "Comparison cannot read two independent inputs from the same stdin stream." }
+
+[cases.expect]
+exit = 65
+stdout = ""
+stderr_contains = "both input files cannot be STDIN"

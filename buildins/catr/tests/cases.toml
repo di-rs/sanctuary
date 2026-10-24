@@ -1,5 +1,6 @@
 schema = 1
 binary = "catr"
+checks = ["help"]
 reference = "cat"
 
 [fixtures]
@@ -130,3 +131,23 @@ expect = { exit = 0 }
 name = "bustle_u"
 args = ["-u", { fixture = "bustle" }]
 expect = { exit = 0, stdout_file = "bustle.out" }
+
+[[cases]]
+name = "rejects_unknown_flag"
+args = ["--unknown"]
+origin = { manual = "Only declared options are accepted; unknown flags are argument errors." }
+
+[cases.expect]
+exit = 2
+stdout = ""
+stderr_contains = "unexpected argument '--unknown'"
+
+[[cases]]
+name = "rejects_conflicting_numbering_modes"
+args = ["-n", "-b"]
+origin = { manual = "Number-all and number-nonblank modes are mutually exclusive." }
+
+[cases.expect]
+exit = 2
+stdout = ""
+stderr_contains = "cannot be used with"
