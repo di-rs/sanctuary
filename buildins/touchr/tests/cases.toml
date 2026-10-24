@@ -1,0 +1,9 @@
+schema = 1
+binary = "touchr"
+
+[[cases]]
+name = "creates_single_file"
+execution = "rust"
+args = ["new"]
+origin = { manual = "POSIX touch creates the requested file silently; the native body verifies the filesystem result." }
+expect = { exit = 0, stdout = "" }
