@@ -21,6 +21,8 @@ At least one directory path is required.
 
 ## CLI test recipes
 
+Native tests use `#[cli_test]` to receive shared helpers as `cx: &TestContext`.
+
 The basic creation contract is a Rust-owned [catalog case](tests/cases.toml)
 connected with `#[test_case]`. Its body creates an isolated workspace, runs once,
 and verifies the filesystem result; the wrapper checks status and both streams.

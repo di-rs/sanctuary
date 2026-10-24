@@ -1,14 +1,13 @@
 use assert_fs::prelude::*;
-use cli_testing::{Context, context, test_case};
+use cli_testing::{Context, TestContext, cli_test, test_case};
 use predicates::prelude::*;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-#[test]
-fn usage() {
+#[cli_test]
+fn usage(cx: &TestContext) {
     for flag in ["-h", "--help"] {
-        context!()
-            .command()
+        cx.command()
             .arg(flag)
             .assert()
             .success()
@@ -27,9 +26,9 @@ fn creates_single_directory(cx: &mut Context) -> cli_testing::Result<()> {
     Ok(())
 }
 
-#[test]
-fn creates_multiple_directories() -> Result<()> {
-    let dir = context!().workspace()?;
+#[cli_test]
+fn creates_multiple_directories(cx: &TestContext) -> Result<()> {
+    let dir = cx.workspace()?;
     dir.command()
         .args(["one", "two", "three"])
         .assert()
@@ -42,10 +41,10 @@ fn creates_multiple_directories() -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn creates_nested_directories_by_default() -> Result<()> {
+#[cli_test]
+fn creates_nested_directories_by_default(cx: &TestContext) -> Result<()> {
     // mkdirr currently defaults parent creation to true, unlike standard mkdir.
-    let dir = context!().workspace()?;
+    let dir = cx.workspace()?;
     dir.command()
         .arg("one/two/three")
         .assert()
@@ -56,9 +55,9 @@ fn creates_nested_directories_by_default() -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn creates_nested_directories_with_p() -> Result<()> {
-    let dir = context!().workspace()?;
+#[cli_test]
+fn creates_nested_directories_with_p(cx: &TestContext) -> Result<()> {
+    let dir = cx.workspace()?;
     dir.command()
         .args(["-p", "one/two/three"])
         .assert()
@@ -69,10 +68,10 @@ fn creates_nested_directories_with_p() -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn p_accepts_existing_directory() -> Result<()> {
+#[cli_test]
+fn p_accepts_existing_directory(cx: &TestContext) -> Result<()> {
     // Regression: parent creation should tolerate a directory already present.
-    let dir = context!().workspace()?;
+    let dir = cx.workspace()?;
     dir.child("existing").create_dir_all()?;
     dir.child("existing/contents").write_str("keep me")?;
     dir.command()
@@ -85,9 +84,9 @@ fn p_accepts_existing_directory() -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn rejects_existing_file() -> Result<()> {
-    let dir = context!().workspace()?;
+#[cli_test]
+fn rejects_existing_file(cx: &TestContext) -> Result<()> {
+    let dir = cx.workspace()?;
     dir.child("existing").write_str("keep me")?;
     dir.command()
         .arg("existing")
@@ -99,9 +98,9 @@ fn rejects_existing_file() -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn rejects_file_as_parent() -> Result<()> {
-    let dir = context!().workspace()?;
+#[cli_test]
+fn rejects_file_as_parent(cx: &TestContext) -> Result<()> {
+    let dir = cx.workspace()?;
     dir.child("file").write_str("keep me")?;
     dir.command()
         .arg("file/child")
@@ -113,9 +112,9 @@ fn rejects_file_as_parent() -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn requires_directory_operand() -> Result<()> {
-    let dir = context!().workspace()?;
+#[cli_test]
+fn requires_directory_operand(cx: &TestContext) -> Result<()> {
+    let dir = cx.workspace()?;
     dir.command()
         .assert()
         .failure()
@@ -124,10 +123,10 @@ fn requires_directory_operand() -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn rich_error_is_persisted_with_failing_completion() -> Result<()> {
-    let dir = context!().workspace()?;
-    let logs = context!().workspace()?;
+#[cli_test]
+fn rich_error_is_persisted_with_failing_completion(cx: &TestContext) -> Result<()> {
+    let dir = cx.workspace()?;
+    let logs = cx.workspace()?;
     dir.child("parent-file").write_str("keep me")?;
     dir.command()
         .env("SANCTUARY_LOG_DIR", logs.path())
