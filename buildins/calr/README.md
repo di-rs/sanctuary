@@ -29,4 +29,17 @@ depend on the current local date, and terminal output can include today's highli
 Keep those assertions date-aware; use explicit months and years for stable
 calendar fixtures.
 
+## CLI test recipes
+
+Stable invocations and every retained expectation are connected in
+[the catalog](tests/cases.toml). Current-date and terminal checks remain in Rust.
+The catalog replaces the Nushell generator; references use explicit macOS system
+executables. Expected bytes are unchanged.
+
+Run `cargo nextest run -p calr --profile ci` from the repository root.
+Inspect recipes with `cli-testing --suite buildins/calr/tests/cases.toml explain NAME`.
+Use the [fixture workflow](../../tools/cli-testing/README.md) to record independent
+references and review changes before applying them. Ordinary tests only read
+committed expectations.
+
 [All commands](../../README.md)

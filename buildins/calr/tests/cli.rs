@@ -143,17 +143,6 @@ fn partial_month() {
     }
 }
 
-fn run(args: &[&str], expected_file: &str) -> Result<()> {
-    let expected = cli_testing::fixtures!().read_expected(expected_file)?;
-    cargo_bin_cmd!()
-        .args(args)
-        .assert()
-        .code(0)
-        .stdout(expected)
-        .stderr("");
-    Ok(())
-}
-
 #[test]
 fn default_one_month() -> Result<()> {
     let cmd = cargo_bin_cmd!().assert().success();
@@ -163,26 +152,6 @@ fn default_one_month() -> Result<()> {
     assert_eq!(lines.len(), 9);
     assert_eq!(lines.first().map(|line| line.len()), Some(22));
     Ok(())
-}
-
-#[test]
-fn test_2_2020_leap_year() -> Result<()> {
-    run(&["-m", "2", "2020"], "2-2020.txt")
-}
-
-#[test]
-fn test_4_2020() -> Result<()> {
-    run(&["-m", "4", "2020"], "4-2020.txt")
-}
-
-#[test]
-fn test_april_2020() -> Result<()> {
-    run(&["2020", "-m", "april"], "4-2020.txt")
-}
-
-#[test]
-fn test_2020() -> Result<()> {
-    run(&["2020"], "2020.txt")
 }
 
 #[test]
@@ -203,36 +172,6 @@ fn usage() {
             .success()
             .stdout(predicate::str::contains("Usage"));
     }
-}
-
-#[test]
-fn minimum_year_january() -> Result<()> {
-    run(&["1", "-m", "1"], "1-1.txt")
-}
-
-#[test]
-fn maximum_year_december() -> Result<()> {
-    run(&["9999", "-m", "12"], "12-9999.txt")
-}
-
-#[test]
-fn century_1900_is_not_leap_year() -> Result<()> {
-    run(&["1900", "-m", "2"], "2-1900.txt")
-}
-
-#[test]
-fn century_2000_is_leap_year() -> Result<()> {
-    run(&["2000", "-m", "2"], "2-2000.txt")
-}
-
-#[test]
-fn century_2100_is_not_leap_year() -> Result<()> {
-    run(&["2100", "-m", "2"], "2-2100.txt")
-}
-
-#[test]
-fn mixed_case_month_name() -> Result<()> {
-    run(&["2020", "-m", "aPrIl"], "4-2020.txt")
 }
 
 #[test]

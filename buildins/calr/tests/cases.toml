@@ -1,0 +1,72 @@
+schema = 1
+binary = "calr"
+reference = "cal"
+
+[references.cal]
+program = "/usr/bin/cal"
+platform = "macos"
+
+[[cases]]
+name = "test_2_2020_leap_year"
+args = ["-m", "2", "2020"]
+origin = { args = ["2", "2020"], reason = "cal takes a numeric month positional argument; calr uses -m and accepts month names." }
+expect = { exit = 0 }
+
+[[cases]]
+name = "test_4_2020"
+args = ["-m", "4", "2020"]
+origin = { args = ["4", "2020"], reason = "cal takes a numeric month positional argument; calr uses -m and accepts month names." }
+expect = { exit = 0 }
+
+[[cases]]
+name = "test_april_2020"
+args = ["2020", "-m", "april"]
+origin = { args = ["4", "2020"], reason = "cal takes a numeric month positional argument; calr uses -m and accepts month names." }
+expect = { exit = 0, stdout_file = "test_4_2020.out" }
+
+[[cases]]
+name = "test_2020"
+args = ["2020"]
+expect = { exit = 0 }
+
+[[cases]]
+name = "minimum_year_january"
+args = ["1", "-m", "1"]
+origin = { manual = "Independently worked proleptic Gregorian calendar: leap years are divisible by 4 except centuries not divisible by 400; Sunday-first fixed-width layout." }
+expect = { exit = 0 }
+
+[[cases]]
+name = "maximum_year_december"
+args = ["9999", "-m", "12"]
+origin = { manual = "Independently worked proleptic Gregorian calendar: leap years are divisible by 4 except centuries not divisible by 400; Sunday-first fixed-width layout." }
+expect = { exit = 0 }
+
+[[cases]]
+name = "century_1900_is_not_leap_year"
+args = ["1900", "-m", "2"]
+origin = { manual = "Independently worked proleptic Gregorian calendar: leap years are divisible by 4 except centuries not divisible by 400; Sunday-first fixed-width layout." }
+expect = { exit = 0 }
+
+[[cases]]
+name = "century_2000_is_leap_year"
+args = ["2000", "-m", "2"]
+origin = { manual = "Independently worked proleptic Gregorian calendar: leap years are divisible by 4 except centuries not divisible by 400; Sunday-first fixed-width layout." }
+expect = { exit = 0 }
+
+[[cases]]
+name = "century_2100_is_not_leap_year"
+args = ["2100", "-m", "2"]
+origin = { manual = "Independently worked proleptic Gregorian calendar: leap years are divisible by 4 except centuries not divisible by 400; Sunday-first fixed-width layout." }
+expect = { exit = 0 }
+
+[[cases]]
+name = "mixed_case_month_name"
+args = ["2020", "-m", "aPrIl"]
+origin = { args = ["4", "2020"], reason = "cal takes a numeric month positional argument; calr uses -m and accepts month names." }
+expect = { exit = 0, stdout_file = "test_4_2020.out" }
+
+[[cases]]
+name = "reference_5_2020"
+args = ["-m", "5", "2020"]
+origin = { args = ["5", "2020"], reason = "cal takes a numeric month positional argument; calr uses -m and accepts month names." }
+expect = { exit = 0 }
