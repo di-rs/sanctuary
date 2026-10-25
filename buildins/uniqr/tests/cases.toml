@@ -1,5 +1,6 @@
 schema = 1
 binary = "uniqr"
+checks = ["help"]
 reference = "uniq"
 
 [fixtures]
@@ -22,241 +23,203 @@ platform = "macos"
 [[cases]]
 name = "empty"
 args = [{ fixture = "empty" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "empty_count"
 args = ["-c", { fixture = "empty" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "empty_stdin"
 args = []
 stdin = { mode = "pipe", files = ["empty"] }
-expect = { exit = 0 }
 
 [[cases]]
 name = "empty_stdin_count"
 args = ["-c"]
 stdin = { mode = "pipe", files = ["empty"] }
-expect = { exit = 0 }
 
 [[cases]]
 name = "one"
 args = [{ fixture = "one" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "one_count"
 args = ["-c", { fixture = "one" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "one_stdin"
 args = []
 stdin = { mode = "pipe", files = ["one"] }
-expect = { exit = 0 }
 
 [[cases]]
 name = "one_stdin_count"
 args = ["-c"]
 stdin = { mode = "pipe", files = ["one"] }
-expect = { exit = 0 }
 
 [[cases]]
 name = "two"
 args = [{ fixture = "two" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "two_count"
 args = ["-c", { fixture = "two" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "two_stdin"
 args = []
 stdin = { mode = "pipe", files = ["two"] }
-expect = { exit = 0 }
 
 [[cases]]
 name = "two_stdin_count"
 args = ["-c"]
 stdin = { mode = "pipe", files = ["two"] }
-expect = { exit = 0 }
 
 [[cases]]
 name = "three"
 args = [{ fixture = "three" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "three_count"
 args = ["-c", { fixture = "three" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "three_stdin"
 args = []
 stdin = { mode = "pipe", files = ["three"] }
-expect = { exit = 0 }
 
 [[cases]]
 name = "three_stdin_count"
 args = ["-c"]
 stdin = { mode = "pipe", files = ["three"] }
-expect = { exit = 0 }
 
 [[cases]]
 name = "skip"
 args = [{ fixture = "skip" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "skip_count"
 args = ["-c", { fixture = "skip" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "skip_stdin"
 args = []
 stdin = { mode = "pipe", files = ["skip"] }
-expect = { exit = 0 }
 
 [[cases]]
 name = "skip_stdin_count"
 args = ["-c"]
 stdin = { mode = "pipe", files = ["skip"] }
-expect = { exit = 0 }
 
 [[cases]]
 name = "t1"
 args = [{ fixture = "t1" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "t1_count"
 args = ["-c", { fixture = "t1" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "t1_stdin"
 args = []
 stdin = { mode = "pipe", files = ["t1"] }
-expect = { exit = 0 }
 
 [[cases]]
 name = "t1_stdin_count"
 args = ["-c"]
 stdin = { mode = "pipe", files = ["t1"] }
-expect = { exit = 0 }
 
 [[cases]]
 name = "t2"
 args = [{ fixture = "t2" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "t2_count"
 args = ["-c", { fixture = "t2" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "t2_stdin"
 args = []
 stdin = { mode = "pipe", files = ["t2"] }
-expect = { exit = 0 }
 
 [[cases]]
 name = "t2_stdin_count"
 args = ["-c"]
 stdin = { mode = "pipe", files = ["t2"] }
-expect = { exit = 0 }
 
 [[cases]]
 name = "t3"
 args = [{ fixture = "t3" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "t3_count"
 args = ["-c", { fixture = "t3" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "t3_stdin"
 args = []
 stdin = { mode = "pipe", files = ["t3"] }
-expect = { exit = 0 }
 
 [[cases]]
 name = "t3_stdin_count"
 args = ["-c"]
 stdin = { mode = "pipe", files = ["t3"] }
-expect = { exit = 0 }
 
 [[cases]]
 name = "t4"
 args = [{ fixture = "t4" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "t4_count"
 args = ["-c", { fixture = "t4" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "t4_stdin"
 args = []
 stdin = { mode = "pipe", files = ["t4"] }
-expect = { exit = 0 }
 
 [[cases]]
 name = "t4_stdin_count"
 args = ["-c"]
 stdin = { mode = "pipe", files = ["t4"] }
-expect = { exit = 0 }
 
 [[cases]]
 name = "t5"
 args = [{ fixture = "t5" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "t5_count"
 args = ["-c", { fixture = "t5" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "t5_stdin"
 args = []
 stdin = { mode = "pipe", files = ["t5"] }
-expect = { exit = 0 }
 
 [[cases]]
 name = "t5_stdin_count"
 args = ["-c"]
 stdin = { mode = "pipe", files = ["t5"] }
-expect = { exit = 0 }
 
 [[cases]]
 name = "t6"
 args = [{ fixture = "t6" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "t6_count"
 args = ["-c", { fixture = "t6" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "t6_stdin"
 args = []
 stdin = { mode = "pipe", files = ["t6"] }
-expect = { exit = 0 }
 
 [[cases]]
 name = "t6_stdin_count"
 args = ["-c"]
 stdin = { mode = "pipe", files = ["t6"] }
-expect = { exit = 0 }
+
+[[cases]]
+name = "rejects_unknown_flag"
+args = ["--unknown"]
+origin = { manual = "Only declared options are accepted; unknown flags are argument errors." }
+expect = { exit = 2, stdout = "", stderr_contains = "unexpected argument '--unknown'" }

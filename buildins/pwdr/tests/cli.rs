@@ -19,18 +19,6 @@ fn assert_path(cmd: &mut Command, expected: &Path) {
 }
 
 #[cli_test]
-fn usage(cx: &TestContext) {
-    for flag in ["-h", "--help"] {
-        cx.cmd()
-            .arg(flag)
-            .assert()
-            .success()
-            .stdout(predicate::str::contains("Usage"))
-            .stderr("");
-    }
-}
-
-#[cli_test]
 fn prints_current_directory_in_each_mode(cx: &TestContext) -> Result<()> {
     let dir = cx.workspace()?;
     let physical = dir.path().canonicalize()?;

@@ -21,18 +21,6 @@ fn assert_modified(path: &Path, seconds: u64) -> Result<()> {
     Ok(())
 }
 
-#[cli_test]
-fn usage(cx: &TestContext) {
-    for flag in ["-h", "--help"] {
-        cx.cmd()
-            .arg(flag)
-            .assert()
-            .success()
-            .stdout(predicate::str::contains("Usage"))
-            .stderr("");
-    }
-}
-
 #[test_case("creates_single_file")]
 fn creates_single_file(cx: &mut Context) -> cli_testing::Result<()> {
     cx.workspace()?;
@@ -150,17 +138,6 @@ fn reports_creation_path_errors(cx: &TestContext) -> Result<()> {
     }
     dir.child("file").assert("keep me");
     dir.child("missing").assert(predicate::path::missing());
-    Ok(())
-}
-
-#[cli_test]
-fn requires_file_operand(cx: &TestContext) -> Result<()> {
-    let dir = cx.workspace()?;
-    dir.cmd()
-        .assert()
-        .failure()
-        .stdout("")
-        .stderr(predicate::str::is_empty().not());
     Ok(())
 }
 

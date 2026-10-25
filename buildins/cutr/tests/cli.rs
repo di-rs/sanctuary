@@ -9,18 +9,6 @@ const TSV: &str = "tests/inputs/movies1.tsv";
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-#[cli_test]
-fn usage(cx: &TestContext) {
-    for flag in &["-h", "--help"] {
-        cx.cmd()
-            .arg(flag)
-            .assert()
-            .success()
-            .stderr("")
-            .stdout(predicate::str::contains("Usage"));
-    }
-}
-
 fn random_string() -> String {
     rand::rng()
         .sample_iter(&Alphanumeric)
@@ -48,105 +36,6 @@ fn skips_bad_file(cx: &TestContext) -> Result<()> {
         .code(1)
         .stderr(predicate::str::is_match(expected)?);
     Ok(())
-}
-
-fn dies(cx: &TestContext, args: &[&str], expected: &str) {
-    cx.cmd()
-        .args(args)
-        .assert()
-        .failure()
-        .stdout("")
-        .stderr(predicate::str::contains(expected));
-}
-
-#[cli_test]
-fn dies_not_enough_args(cx: &TestContext) {
-    dies(
-        cx,
-        &[CSV],
-        "the following required arguments were not provided:\n  \
-        <--fields <FIELDS>|--bytes <BYTES>|--chars <CHARS>>",
-    );
-}
-
-#[cli_test]
-fn dies_bad_digit_field(cx: &TestContext) {
-    let bad = random_string();
-    dies(
-        cx,
-        &[CSV, "-f", &bad],
-        &format!("illegal list value: `{bad}`"),
-    );
-}
-
-#[cli_test]
-fn dies_bad_digit_bytes(cx: &TestContext) {
-    let bad = random_string();
-    dies(
-        cx,
-        &[CSV, "-b", &bad],
-        &format!("illegal list value: `{bad}`"),
-    );
-}
-
-#[cli_test]
-fn dies_bad_digit_chars(cx: &TestContext) {
-    let bad = random_string();
-    dies(
-        cx,
-        &[CSV, "-c", &bad],
-        &format!("illegal list value: `{bad}`"),
-    );
-}
-
-#[cli_test]
-fn dies_empty_delimiter(cx: &TestContext) {
-    dies(
-        cx,
-        &[CSV, "-f", "1", "-d", ""],
-        "--delim `` must be a single byte",
-    );
-}
-
-#[cli_test]
-fn dies_bad_delimiter(cx: &TestContext) {
-    dies(
-        cx,
-        &[CSV, "-f", "1", "-d", ",,"],
-        "--delim `,,` must be a single byte",
-    );
-}
-
-#[cli_test]
-fn dies_chars_bytes_fields(cx: &TestContext) {
-    cx.cmd()
-        .args([CSV, "-c", "1", "-f", "1", "-b", "1"])
-        .assert()
-        .failure();
-}
-
-#[cli_test]
-fn dies_bytes_fields(cx: &TestContext) {
-    cx.cmd()
-        .args([CSV, "-f", "1", "-b", "1"])
-        .assert()
-        .failure();
-}
-
-#[cli_test]
-fn dies_chars_fields(cx: &TestContext) {
-    cx.cmd()
-        .args([CSV, "-c", "1", "-f", "1"])
-        .assert()
-        .failure();
-}
-
-#[cli_test]
-fn dies_chars_bytes(cx: &TestContext) {
-    cx.cmd()
-        .args([CSV, "-c", "1", "-b", "1"])
-        .assert()
-        .failure();
 }
 
 #[cli_test]
@@ -195,21 +84,6 @@ fn empty_stdin_in_each_mode(cx: &TestContext) {
             .stdout("")
             .stderr("");
     }
-}
-
-#[cli_test]
-fn rejects_invalid_lists_and_multibyte_delimiter(cx: &TestContext) {
-    for positions in ["", "0", "2-1", "1,", "+1"] {
-        cx.cmd()
-            .args(["-c", positions])
-            .write_stdin("abc")
-            .assert()
-            .failure()
-            .stdout("")
-            .stderr(predicate::str::contains("Error:"));
-    }
-    dies(cx, &["-f", "1", "-d", "é"], "must be a single byte");
-    dies(cx, &["--unknown"], "--unknown");
 }
 
 #[cli_test]

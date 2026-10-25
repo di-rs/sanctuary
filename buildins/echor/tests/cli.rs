@@ -1,14 +1,4 @@
 use cli_testing::{TestContext, cli_test};
-use predicates::prelude::*;
-
-#[cli_test]
-fn dies_no_args(cx: &TestContext) {
-    let mut cmd = cx.cmd();
-    cmd.assert()
-        .failure()
-        .stdout("")
-        .stderr(predicate::str::contains("Usage"));
-}
 
 #[cli_test]
 fn runs(cx: &TestContext) {
@@ -18,28 +8,6 @@ fn runs(cx: &TestContext) {
         .success()
         .stdout("Hello\n")
         .stderr("");
-}
-
-#[cli_test]
-fn usage(cx: &TestContext) {
-    for flag in ["-h", "--help"] {
-        cx.cmd()
-            .arg(flag)
-            .assert()
-            .success()
-            .stdout(predicate::str::contains("Usage"))
-            .stderr("");
-    }
-}
-
-#[cli_test]
-fn rejects_unknown_flag(cx: &TestContext) {
-    cx.cmd()
-        .arg("--unknown")
-        .assert()
-        .failure()
-        .stdout("")
-        .stderr(predicate::str::contains("--unknown"));
 }
 
 #[cli_test]

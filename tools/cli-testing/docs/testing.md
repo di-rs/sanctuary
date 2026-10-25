@@ -3,7 +3,8 @@
 `cli-testing` connects a CLI invocation, its inputs, expected bytes, and independent
 reference recipe in one named test case. Use TOML for straightforward cases,
 `#[test_case]` for a case with Rust customization, and ordinary Rust tests for
-multiple commands, signals, or custom pipes. The pilot packages are
+multiple commands, signals, or custom pipes. These conventions apply to every CLI
+in the repository. Representative catalogs are
 [catr](../../../buildins/catr/tests/cases.toml),
 [cutr](../../../buildins/cutr/tests/cases.toml), and
 [grepr](../../../buildins/grepr/tests/cases.toml).
@@ -64,11 +65,10 @@ platform = "macos"
 [[cases]]
 name = "fox"
 args = [{ fixture = "fox" }]
-expect = { exit = 0 }
 ```
 
 This reads `tests/inputs/fox.txt`, compares stdout with `tests/expected/fox.out`,
-and expects empty stderr. Renaming the input changes only its `[fixtures]`
+and expects exit `0` and empty stderr. Renaming the input changes only its `[fixtures]`
 declaration and the file itself. Expectations use stable case names, so input
 renames do not require output renames. If the CLI prints filenames, review and
 regenerate the affected expected bytes after an input rename. Renaming a case requires renaming its default
@@ -102,8 +102,13 @@ regular-file stdin. Both forms refer to declared fixture IDs. Omitted stdin is c
 
 Override stdout with inline `stdout = "..."` or `stdout_file = "shared.out"`.
 Override stderr with inline `stderr = "..."` or `stderr_file = "error.err"`.
+For manual interface contracts, [substring expectations](#describe-interface-contracts-in-toml)
+can check a diagnostic without fixing its surrounding formatting.
 File overrides are relative to the expected directory, without an `expected/`
-prefix. Exit codes remain explicit. Bytes are compared without trimming, sorting,
+prefix. Omit `expect` when the defaults apply: exit `0`, stdout from
+`<case-name>.out`, and empty stderr. Use an inline object for overrides, such as
+`expect = { stdout_file = "shared.out" }`; omitted `exit` still means `0`.
+Nonzero exit codes must be explicit. Bytes are compared without trimming, sorting,
 newline conversion, or decoding. All default and explicit fixture files must exist.
 
 For an exceptional layout, declare directories once, relative to `tests/`:
@@ -154,6 +159,7 @@ automatic execution. It does not undo an earlier explicit `run()`.
 | Context method | Use |
 | --- | --- |
 | `args`, `env`, `current_dir`, `write_stdin` | Customize the invocation before running. `args` appends. |
+| `checks` | Optional list of shared contracts; currently only `"help"`, expanding into `help_short` and `help_long`. |
 | `fixtures` | Access package input and expected byte files. |
 | `workspace` | Create an owned temporary cwd; subsequent calls reuse it. An existing workspace remains accessible after running. |
 | `map_expected_stdout`, `expect_stderr`, `expect_exit` | Customize the contract before running. Actual output stays unchanged. |
@@ -205,29 +211,91 @@ The existing `context!()`, `cargo_bin_cmd!()`, `fixtures!()`, `Fixtures`, and
 `command(binary, package_dir)` APIs remain available. Read expected fixtures before
 starting a manually orchestrated process.
 
+## Describe interface contracts in TOML
+
+Keep straightforward argument checks beside the CLI's other cases. Give each case
+a name that identifies the behavior, and explain the rule in `origin.manual`:
+
+```toml
+[[cases]]
+name = "rejects_year_zero"
+args = ["0"]
+origin = { manual = "Calendar years must be in 1..=9999; year zero is invalid." }
+expect = { exit = 2, stdout = "", stderr_contains = "0 is not in 1..=9999" }
+```
+
+This checks the exact status, empty stdout, and a diagnostic substring. It does not
+require a Rust wrapper or an output fixture. Use deterministic inputs, one named
+case per invocation, and a diagnostic that identifies the intended failure.
+Choose the status from the CLI's contract: parser errors commonly use 2, while
+runtime validation may use 65. Name related boundary cases consistently so their
+inputs and expectations are easy to compare in a diff.
+
+`stdout_contains` and `stderr_contains` match nonempty UTF-8 text as a contiguous
+byte sequence. They do not decode, trim, normalize, or interpret captured output
+as a regular expression. Each stream accepts exactly one matching mode: inline
+exact bytes, an exact fixture, or a substring. Substring checks require a manual
+origin and cannot use reference overrides or adaptations. Reference-recorded
+cases remain byte-exact; `record` and `apply` never generate substring expectations.
+
+Enable the shared help contract once at the top level of the catalog:
+
+```toml
+schema = 1
+binary = "calr"
+checks = ["help"]
+```
+
+This expands into `help_short` (`-h`) and `help_long` (`--help`). Both require exit
+0, empty stderr, and stdout containing `Usage`. They use the usual command defaults
+and suite environment overrides, have manual origins, and do not inherit a suite
+reference. A catalog may contain only shared checks. Unknown checks, repeated
+checks, and collisions with explicit case names are rejected. Commands such as
+`true` and `false` keep their silent-status contracts instead of opting into help.
+
+Expanded checks and explicit cases are individually discoverable and filterable:
+
+```sh
+cargo nextest run -p calr --profile ci -E 'test(=help_long) | test(=rejects_year_zero)'
+cli-testing --suite buildins/calr/tests/cases.toml explain rejects_year_zero
+```
+
+`list` and `explain` show the effective invocation, matching modes, and rationale,
+including expanded help checks. Failed assertions include the case name, failed
+expectation, and manual rationale. `compare` runs manual cases against the candidate
+without launching a reference. Existing catalogs retain exact matching and fixture
+defaults unless they explicitly select a substring mode.
+
+Use Rust for filesystem effects, variable metadata, logging, timing, signals, and
+multi-command scenarios. For a catalog case that mutates files, use `#[test_case]`
+and `cx.workspace()`; assert filesystem effects in the body and let the wrapper
+verify status and streams. Findr's unordered traversal fixtures remain native-owned
+in `tests/expected/`; its interface catalog reserves `tests/contract-expected/`
+through `[paths]`, so catalog ownership checks do not claim the legacy fixtures.
+
 ## Schema 1 reference
 
 Unknown fields, duplicate or invalid names, missing files, absolute fixture paths,
 parent traversal, and symlink fixture paths are rejected. Names use ASCII letters,
 digits, `_`, and `-`. `binary` must match the owning Cargo package. Catalogs must
-contain at least one case. Input fixtures default to `inputs/`, expected fixtures
+contain at least one explicit or expanded case. Input fixtures default to `inputs/`, expected fixtures
 to `expected/`; `[paths]` overrides these directories.
 
 | Table | Fields |
 | --- | --- |
-| Root | `schema = 1`, `binary`, `cases`; optional `reference`, `fixtures`, `paths`, `env`, and `references`. |
+| Root | `schema = 1`, `binary`; `cases` and/or `checks`; optional `reference`, `fixtures`, `paths`, `env`, and `references`. |
 | `fixtures` | Map of stable IDs to names relative to the inputs directory. `"."` names that entire directory. |
 | `paths` | Optional `inputs` and `expected` directory names, defaulting to `inputs` and `expected`, relative to `tests/`. |
 | `references.NAME` | Absolute `program`, exact Rust OS `platform` such as `macos` or `linux`; optional `env` string map and `version_args` argument array for version identity. |
-| Case | `name`, `args`, `expect`; optional `origin`; optional `execution` (`toml` by default, or `rust`), `inputs`, `stdin`, `env`, `adapt`. |
+| Case | `name`, `args`; optional `expect`, `origin`; optional `execution` (`toml` by default, or `rust`), `inputs`, `stdin`, `env`, `adapt`. |
 | `stdin` | `mode = "pipe"` with either `text` (including empty) or nonempty `files`; or `mode = "file"` with `path`. |
-| `expect` | `exit` in 0–255; one of `stdout` / `stdout_file`, and one of `stderr` / `stderr_file`. Omitted stdout defaults to `<case-name>.out`; omitted stderr defaults to empty. |
+| `expect` | Optional inline object. `exit` in 0–255 defaults to `0`, including when `expect` is omitted; one of `stdout` / `stdout_file` / `stdout_contains`, and one of `stderr` / `stderr_file` / `stderr_contains`. Contains modes require nonempty text and a manual origin. Omitted stdout defaults to `<case-name>.out`; omitted stderr defaults to empty. |
 | `origin` | A known `reference` (inherited from the suite if omitted) or nonempty `manual` explanation. Reference recipes may override `args`, `exit`, `stderr` (inline text), and `env`. Overrides require `reason`, except an exit identical to the candidate's. |
 | `adapt` | `expected_stdout = "utf8-lossy"` and nonempty `reason`. Applies only to expected stdout; requires a reference origin. No other named adaptations are supported. |
 
 Reference status and stderr default to the candidate's declared contract.
-For grepr's no-match behavior, declare `expect.exit = 0`, `origin.exit = 1`, and
-explain the difference. For a manual expectation, record its independent
+For grepr's no-match behavior, retain the default candidate exit `0`, declare
+`origin.exit = 1`, and explain the difference. For a manual expectation, record its independent
 specification or worked example; reference overrides and adaptations are invalid.
 
 The TOML UTF-8 adaptation in [cutr's catalog](../../../buildins/cutr/tests/cases.toml)
@@ -252,7 +320,11 @@ files but are not host sandboxes. Catalogs and their reference commands are trus
 repository code. The legacy `Fixtures` API checks relative names but permits
 symlinks; catalog fixture paths are stricter.
 
-Use [cli-testing CLI](../README.md) to list, explain, validate,
+From the repository root, run `cargo nextest run -p PACKAGE --profile ci`.
+Inspect a builtin recipe with
+`cli-testing --suite buildins/PACKAGE/tests/cases.toml explain NAME`.
+
+Use the [fixture workflow](../README.md) to list, explain, validate,
 compare, and stage independent reference output. `apply` explicitly promotes a
 reviewed recording after checking its inputs, catalog, executable identity, and
 artifacts for staleness or conflicts. See the

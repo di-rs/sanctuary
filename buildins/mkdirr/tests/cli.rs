@@ -4,18 +4,6 @@ use predicates::prelude::*;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-#[cli_test]
-fn usage(cx: &TestContext) {
-    for flag in ["-h", "--help"] {
-        cx.cmd()
-            .arg(flag)
-            .assert()
-            .success()
-            .stdout(predicate::str::contains("Usage"))
-            .stderr("");
-    }
-}
-
 #[test_case("creates_single_directory")]
 fn creates_single_directory(cx: &mut Context) -> cli_testing::Result<()> {
     cx.workspace()?;
@@ -109,17 +97,6 @@ fn rejects_file_as_parent(cx: &TestContext) -> Result<()> {
         .stdout("")
         .stderr(predicate::str::contains("file/child"));
     dir.child("file").assert("keep me");
-    Ok(())
-}
-
-#[cli_test]
-fn requires_directory_operand(cx: &TestContext) -> Result<()> {
-    let dir = cx.workspace()?;
-    dir.cmd()
-        .assert()
-        .failure()
-        .stdout("")
-        .stderr(predicate::str::is_empty().not());
     Ok(())
 }
 

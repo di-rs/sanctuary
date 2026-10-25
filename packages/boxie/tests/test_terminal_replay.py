@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from boxie.bootstrap.config import SupervisorConfig
 from boxie.domain.errors import BoxieError
 from boxie.domain.models import SandboxState
 from lifecycle_support import settled, setup
@@ -299,7 +300,7 @@ def test_failed_resize_releases_output_order_without_recording_unapplied_geometr
     tmp_path: Path, failure: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     async def exercise() -> None:
-        supervisor, request, daemon, _, _ = await setup(tmp_path, docker_timeout=0.02)
+        supervisor, request, daemon, _, _ = await setup(tmp_path)
         try:
             await settled(supervisor, request.ref, SandboxState.READY)
             epoch = await supervisor.attach(request.ref, attachment_order=1)
@@ -311,8 +312,17 @@ def test_failed_resize_releases_output_order_without_recording_unapplied_geometr
                 await asyncio.Event().wait()
 
             monkeypatch.setattr(stream, "resize", resize)
-            with pytest.raises((TimeoutError, OSError)):
-                await supervisor.resize(request.ref, epoch, 100, 30)
+            # Only the deliberately blocked resize needs a short timeout.
+            # Provisioning and cleanup retain their normal I/O budget.
+            assert isinstance(supervisor.config, SupervisorConfig)
+            with monkeypatch.context() as patch:
+                patch.setattr(
+                    supervisor,
+                    "config",
+                    supervisor.config.model_copy(update={"docker_timeout": 0.02}),
+                )
+                with pytest.raises((TimeoutError, OSError)):
+                    await supervisor.resize(request.ref, epoch, 100, 30)
             stream.queue.put_nowait(b"after")
             terminal = supervisor.executions[request.ref.id].pty
             await asyncio.wait_for(terminal.replay.changed.wait(), 0.2)

@@ -39,11 +39,13 @@ pub(super) fn describe(suite: &Suite, case: &Case) -> String {
         case.expect.exit,
         stream_description(
             case.expect.stdout.as_deref(),
-            case.expect.stdout_file.as_deref()
+            case.expect.stdout_file.as_deref(),
+            case.expect.stdout_contains.as_deref()
         ),
         stream_description(
             case.expect.stderr.as_deref(),
-            case.expect.stderr_file.as_deref()
+            case.expect.stderr_file.as_deref(),
+            case.expect.stderr_contains.as_deref()
         )
     );
     if let Some(name) = &case.origin.reference
@@ -86,7 +88,14 @@ pub(super) fn describe(suite: &Suite, case: &Case) -> String {
     description
 }
 
-fn stream_description(text: Option<&str>, file: Option<&std::path::Path>) -> String {
+fn stream_description(
+    text: Option<&str>,
+    file: Option<&std::path::Path>,
+    contains: Option<&str>,
+) -> String {
+    if let Some(text) = contains {
+        return format!("contains {text:?}");
+    }
     file.map_or_else(
         || format!("text {:?}", text.unwrap_or_default()),
         |file| format!("file {}", file.display()),

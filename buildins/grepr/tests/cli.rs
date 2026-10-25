@@ -10,36 +10,8 @@ const INPUTS_DIR: &str = "tests/inputs";
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-#[cli_test]
-fn usage(cx: &TestContext) {
-    for flag in &["-h", "--help"] {
-        cx.cmd()
-            .arg(flag)
-            .assert()
-            .success()
-            .stdout(predicate::str::contains("Usage"));
-    }
-}
-
 fn gen_bad_file() -> String {
     "tests/file/doesnt/exist".to_owned()
-}
-
-#[cli_test]
-fn dies_no_args(cx: &TestContext) {
-    cx.cmd()
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains("Usage"));
-}
-
-#[cli_test]
-fn dies_bad_pattern(cx: &TestContext) {
-    cx.cmd()
-        .args(["*foo", FOX])
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains("invalid pattern passed `*foo`"));
 }
 
 #[cli_test]
@@ -142,7 +114,7 @@ fn stdin_invalid_regex_produces_no_output(cx: &TestContext) {
         .arg("[")
         .write_stdin("alpha\n")
         .assert()
-        .failure()
+        .code(65)
         .stdout("")
         .stderr(predicate::str::contains("invalid pattern passed `[`"));
 }

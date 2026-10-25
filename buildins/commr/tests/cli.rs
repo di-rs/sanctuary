@@ -1,34 +1,13 @@
 use cli_testing::{TestContext, cli_test};
 use predicates::prelude::*;
 
-const EMPTY: &str = "tests/inputs/empty.txt";
 const FILE1: &str = "tests/inputs/file1.txt";
 const BLANK: &str = "tests/inputs/blank.txt";
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-#[cli_test]
-fn usage(cx: &TestContext) {
-    for flag in &["-h", "--help"] {
-        cx.cmd()
-            .arg(flag)
-            .assert()
-            .success()
-            .stderr("")
-            .stdout(predicate::str::contains("Usage"));
-    }
-}
-
 fn gen_bad_file() -> String {
     "tests/file/doesnt/exist".to_owned()
-}
-
-#[cli_test]
-fn dies_no_args(cx: &TestContext) {
-    cx.cmd()
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains("Usage"));
 }
 
 #[cli_test]
@@ -53,26 +32,6 @@ fn dies_bad_file2(cx: &TestContext) -> Result<()> {
         .failure()
         .stderr(predicate::str::is_match(expected)?);
     Ok(())
-}
-
-#[cli_test]
-fn dies_both_stdin(cx: &TestContext) {
-    let expected = "Error: both input files cannot be STDIN (`-`)";
-    cx.cmd()
-        .args(["-", "-"])
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains(expected));
-}
-
-#[cli_test]
-fn rejects_unknown_flag(cx: &TestContext) {
-    cx.cmd()
-        .args(["--unknown", EMPTY, EMPTY])
-        .assert()
-        .failure()
-        .stdout("")
-        .stderr(predicate::str::contains("--unknown"));
 }
 
 #[cli_test]

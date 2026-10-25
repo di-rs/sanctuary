@@ -1,5 +1,6 @@
 schema = 1
 binary = "grepr"
+checks = ["help"]
 reference = "grep"
 
 [fixtures]
@@ -17,131 +18,123 @@ platform = "macos"
 name = "empty_file"
 args = ["foo", { fixture = "empty" }]
 origin = { exit = 1, reason = "BSD grep returns 1 for no matches; grepr returns 0 after a successful search." }
-expect = { exit = 0 }
 
 [[cases]]
 name = "empty_regex"
 args = ["", { fixture = "fox" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "bustle_capitalized"
 args = ["The", { fixture = "bustle" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "bustle_lowercase"
 args = ["the", { fixture = "bustle" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "bustle_insensitive"
 args = ["--insensitive", "the", { fixture = "bustle" }]
 origin = { args = ["-i", "the", { fixture = "bustle" }], reason = "BSD grep uses -i for grepr's --insensitive option." }
-expect = { exit = 0 }
 
 [[cases]]
 name = "nobody"
 args = ["nobody", { fixture = "nobody" }]
 origin = { exit = 1, reason = "BSD grep returns 1 for no matches; grepr returns 0 after a successful search." }
-expect = { exit = 0 }
 
 [[cases]]
 name = "nobody_insensitive"
 args = ["-i", "nobody", { fixture = "nobody" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "multiple_files"
 args = ["The", { fixtures = ["bustle", "empty", "fox", "nobody"] }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "multiple_files_insensitive"
 args = ["-i", "the", { fixtures = ["bustle", "empty", "fox", "nobody"] }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "recursive"
 args = ["--recursive", "dog", { fixture = "all" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "recursive_insensitive"
 args = ["-ri", "then", { fixture = "all" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "sensitive_count_capital"
 args = ["--count", "The", { fixture = "bustle" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "sensitive_count_lower"
 args = ["--count", "the", { fixture = "bustle" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "insensitive_count"
 args = ["-ci", "the", { fixture = "bustle" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "nobody_count"
 args = ["-c", "nobody", { fixture = "nobody" }]
 origin = { exit = 1, reason = "BSD grep returns 1 for no matches; grepr returns 0 after a successful search." }
-expect = { exit = 0 }
 
 [[cases]]
 name = "nobody_count_insensitive"
 args = ["-ci", "nobody", { fixture = "nobody" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "sensitive_count_multiple"
 args = ["-c", "The", { fixtures = ["bustle", "empty", "fox", "nobody"] }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "insensitive_count_multiple"
 args = ["-ic", "the", { fixtures = ["bustle", "empty", "fox", "nobody"] }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "stdin"
 args = ["The"]
 stdin = { mode = "pipe", files = ["bustle"] }
-expect = { exit = 0, stdout_file = "bustle_capitalized.out" }
+expect = { stdout_file = "bustle_capitalized.out" }
 
 [[cases]]
 name = "stdin_insensitive_count"
 args = ["-ci", "the", "-"]
 stdin = { mode = "pipe", files = ["bustle", "empty", "fox", "nobody"] }
-expect = { exit = 0 }
 
 [[cases]]
 name = "recursive_insensitive_count"
 args = ["-ric", "the", { fixtures = ["empty", "nobody", "bustle", "fox"] }]
 origin = { reason = "Explicit operand order preserves the historical fixture from recursive enumeration. Directory traversal has separate Rust coverage." }
-expect = { exit = 0 }
 
 [[cases]]
 name = "stdin_no_match"
 args = ["absent"]
 stdin = { mode = "pipe", text = "alpha\nbeta\n" }
 origin = { exit = 1, reason = "BSD grep returns 1 for no matches; grepr returns 0 after a successful search." }
-expect = { exit = 0, stdout = "" }
+expect = { stdout = "" }
 
 [[cases]]
 name = "stdin_no_match_count"
 args = ["-c", "absent", "-"]
 stdin = { mode = "pipe", text = "alpha\nbeta\n" }
 origin = { exit = 1, reason = "BSD grep returns 1 for no matches; grepr returns 0 after a successful search." }
-expect = { exit = 0, stdout = "0\n" }
+expect = { stdout = "0\n" }
 
 [[cases]]
 name = "empty_stdin_empty_regex_count"
 args = ["--count", ""]
 stdin = { mode = "pipe", text = "" }
 origin = { exit = 1, reason = "BSD grep returns 1 for no matches; grepr returns 0 after a successful search." }
-expect = { exit = 0, stdout = "0\n" }
+expect = { stdout = "0\n" }
+
+[[cases]]
+name = "requires_operands"
+args = []
+origin = { manual = "Searching requires a pattern operand." }
+expect = { exit = 2, stdout = "", stderr_contains = "required arguments were not provided" }
+
+[[cases]]
+name = "rejects_invalid_pattern"
+args = ["*foo", { fixture = "fox" }]
+origin = { manual = "Search patterns must be valid regular expressions; a leading repetition operator is invalid." }
+expect = { exit = 65, stdout = "", stderr_contains = "invalid pattern passed `*foo`" }

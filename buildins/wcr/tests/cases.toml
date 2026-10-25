@@ -1,5 +1,6 @@
 schema = 1
 binary = "wcr"
+checks = ["help"]
 reference = "wc"
 
 [fixtures]
@@ -15,225 +16,192 @@ env = { LC_ALL = "en_US.UTF-8" }
 [[cases]]
 name = "empty"
 args = [{ fixture = "empty" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "fox"
 args = [{ fixture = "fox" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "fox_bytes"
 args = ["-c", { fixture = "fox" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "fox_chars"
 args = ["-m", { fixture = "fox" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "fox_words"
 args = ["-w", { fixture = "fox" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "fox_lines"
 args = ["-l", { fixture = "fox" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "fox_words_bytes"
 args = ["-w", "-c", { fixture = "fox" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "fox_words_lines"
 args = ["-w", "-l", { fixture = "fox" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "fox_bytes_lines"
 args = ["-l", "-c", { fixture = "fox" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "atlamal"
 args = [{ fixture = "atlamal" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "atlamal_bytes"
 args = ["-c", { fixture = "atlamal" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "atlamal_words"
 args = ["-w", { fixture = "atlamal" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "atlamal_lines"
 args = ["-l", { fixture = "atlamal" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "atlamal_words_bytes"
 args = ["-w", "-c", { fixture = "atlamal" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "atlamal_words_lines"
 args = ["-w", "-l", { fixture = "atlamal" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "atlamal_bytes_lines"
 args = ["-l", "-c", { fixture = "atlamal" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "test_all"
 args = [{ fixtures = ["empty", "fox", "atlamal"] }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "test_all_lines"
 args = ["-l", { fixtures = ["empty", "fox", "atlamal"] }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "test_all_words"
 args = ["-w", { fixtures = ["empty", "fox", "atlamal"] }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "test_all_bytes"
 args = ["-c", { fixtures = ["empty", "fox", "atlamal"] }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "test_all_words_bytes"
 args = ["-cw", { fixtures = ["empty", "fox", "atlamal"] }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "test_all_words_lines"
 args = ["-wl", { fixtures = ["empty", "fox", "atlamal"] }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "test_all_bytes_lines"
 args = ["-cl", { fixtures = ["empty", "fox", "atlamal"] }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "atlamal_stdin"
 args = []
 stdin = { mode = "pipe", files = ["atlamal"] }
-expect = { exit = 0 }
 
 [[cases]]
 name = "reference_all_lwm"
 args = ["-lwm", { fixtures = ["empty", "fox", "atlamal"] }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "reference_all_m"
 args = ["-m", { fixtures = ["empty", "fox", "atlamal"] }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "reference_all_ml"
 args = ["-ml", { fixtures = ["empty", "fox", "atlamal"] }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "reference_all_wm"
 args = ["-wm", { fixtures = ["empty", "fox", "atlamal"] }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "reference_atlamal_txt_lwm"
 args = ["-lwm", { fixture = "atlamal" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "reference_atlamal_txt_m"
 args = ["-m", { fixture = "atlamal" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "reference_atlamal_txt_ml"
 args = ["-ml", { fixture = "atlamal" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "reference_atlamal_txt_wm"
 args = ["-wm", { fixture = "atlamal" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "reference_empty_txt_c"
 args = ["-c", { fixture = "empty" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "reference_empty_txt_cl"
 args = ["-cl", { fixture = "empty" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "reference_empty_txt_l"
 args = ["-l", { fixture = "empty" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "reference_empty_txt_lwm"
 args = ["-lwm", { fixture = "empty" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "reference_empty_txt_m"
 args = ["-m", { fixture = "empty" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "reference_empty_txt_ml"
 args = ["-ml", { fixture = "empty" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "reference_empty_txt_w"
 args = ["-w", { fixture = "empty" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "reference_empty_txt_wc"
 args = ["-wc", { fixture = "empty" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "reference_empty_txt_wl"
 args = ["-wl", { fixture = "empty" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "reference_empty_txt_wm"
 args = ["-wm", { fixture = "empty" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "reference_fox_txt_lwm"
 args = ["-lwm", { fixture = "fox" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "reference_fox_txt_ml"
 args = ["-ml", { fixture = "fox" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "reference_fox_txt_wm"
 args = ["-wm", { fixture = "fox" }]
-expect = { exit = 0 }
+
+[[cases]]
+name = "rejects_unknown_flag"
+args = ["--unknown"]
+origin = { manual = "Only declared options are accepted; unknown flags are argument errors." }
+expect = { exit = 2, stdout = "", stderr_contains = "unexpected argument '--unknown'" }
+
+[[cases]]
+name = "rejects_chars_with_bytes"
+args = ["-m", "-c"]
+origin = { manual = "Character and byte counting flags are mutually exclusive." }
+expect = { exit = 2, stdout = "", stderr_contains = "cannot be used with" }

@@ -1,5 +1,6 @@
 schema = 1
 binary = "echor"
+checks = ["help"]
 reference = "echo"
 
 [references.echo]
@@ -9,19 +10,27 @@ platform = "macos"
 [[cases]]
 name = "hello1"
 args = ["Hello there"]
-expect = { exit = 0 }
 
 [[cases]]
 name = "hello2"
 args = ["Hello", "there"]
-expect = { exit = 0 }
 
 [[cases]]
 name = "hello1n"
 args = ["-n", "Hello there"]
-expect = { exit = 0 }
 
 [[cases]]
 name = "hello2n"
 args = ["-n", "Hello", "there"]
-expect = { exit = 0 }
+
+[[cases]]
+name = "rejects_unknown_flag"
+args = ["--unknown"]
+origin = { manual = "Only declared options are accepted; unknown flags are argument errors." }
+expect = { exit = 2, stdout = "", stderr_contains = "unexpected argument '--unknown'" }
+
+[[cases]]
+name = "requires_operands"
+args = []
+origin = { manual = "Echo requires at least one text operand." }
+expect = { exit = 2, stdout = "", stderr_contains = "required arguments were not provided" }

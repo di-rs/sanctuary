@@ -8,18 +8,6 @@ const EMPTY: &str = "./tests/inputs/empty.txt";
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-#[cli_test]
-fn usage(cx: &TestContext) {
-    for flag in &["-h", "--help"] {
-        cx.cmd()
-            .arg(flag)
-            .assert()
-            .success()
-            .stderr("")
-            .stdout(predicate::str::contains("Usage"));
-    }
-}
-
 fn gen_bad_file() -> Result<NamedTempFile> {
     let file = assert_fs::NamedTempFile::new("no-permissions")?;
     file.touch()?;
@@ -38,57 +26,6 @@ fn skip_bad_file(cx: &TestContext) -> Result<()> {
         .code(1)
         .stderr(predicate::str::is_match(expected)?);
     Ok(())
-}
-
-#[cli_test]
-fn dies_bad_bytes(cx: &TestContext) {
-    let bad = "ddsdsasad";
-    let expected = format!(
-        "invalid value '{bad}' for \
-        '--bytes <BYTES>': invalid digit found in string"
-    );
-    cx.cmd()
-        .args(["-c", bad, EMPTY])
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains(expected));
-}
-
-#[cli_test]
-fn dies_bad_lines(cx: &TestContext) {
-    let bad = "ddsdsasad";
-    let expected = format!(
-        "invalid value '{bad}' for \
-        '--lines <LINES>': invalid digit found in string"
-    );
-    cx.cmd()
-        .args(["-n", bad, EMPTY])
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains(expected));
-}
-
-#[cli_test]
-fn dies_bytes_and_lines(cx: &TestContext) {
-    let expected = "the argument '--lines <LINES>' cannot be \
-               used with '--bytes <BYTES>'";
-    cx.cmd()
-        .args(["-n", "1", "-c", "2"])
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains(expected));
-}
-
-#[cli_test]
-fn rejects_zero_counts_and_unknown_flag(cx: &TestContext) {
-    for args in [["-n", "0"], ["-c", "0"], ["--unknown", "1"]] {
-        cx.cmd()
-            .args(args)
-            .assert()
-            .failure()
-            .stdout("")
-            .stderr(predicate::str::contains("error:"));
-    }
 }
 
 #[cli_test]

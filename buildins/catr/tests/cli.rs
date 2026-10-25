@@ -6,18 +6,6 @@ use std::{fs, os::unix::fs::PermissionsExt};
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-#[cli_test]
-fn usage(cx: &TestContext) {
-    for flag in &["-h", "--help"] {
-        cx.cmd()
-            .arg(flag)
-            .assert()
-            .success()
-            .stderr("")
-            .stdout(predicate::str::contains("Usage"));
-    }
-}
-
 fn gen_bad_file() -> Result<NamedTempFile> {
     let file = assert_fs::NamedTempFile::new("no-permissions")?;
     file.touch()?;
@@ -35,18 +23,6 @@ fn skip_bad_file(cx: &TestContext) -> Result<()> {
         .code(1)
         .stderr(predicate::str::is_match(expected)?);
     Ok(())
-}
-
-#[cli_test]
-fn rejects_unknown_and_conflicting_flags(cx: &TestContext) {
-    for args in [&["--unknown"][..], &["-n", "-b"]] {
-        cx.cmd()
-            .args(args)
-            .assert()
-            .failure()
-            .stdout("")
-            .stderr(predicate::str::contains("error:"));
-    }
 }
 
 #[cli_test]

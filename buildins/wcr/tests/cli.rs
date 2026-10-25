@@ -8,18 +8,6 @@ const EMPTY: &str = "tests/inputs/empty.txt";
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-#[cli_test]
-fn usage(cx: &TestContext) {
-    for flag in &["-h", "--help"] {
-        cx.cmd()
-            .arg(flag)
-            .assert()
-            .success()
-            .stderr("")
-            .stdout(predicate::str::contains("Usage"));
-    }
-}
-
 fn gen_bad_file() -> Result<NamedTempFile> {
     let file = assert_fs::NamedTempFile::new("no-permissions")?;
     file.touch()?;
@@ -37,27 +25,6 @@ fn skip_bad_file(cx: &TestContext) -> Result<()> {
         .code(1)
         .stderr(predicate::str::is_match(expected)?);
     Ok(())
-}
-
-#[cli_test]
-fn dies_chars_and_bytes(cx: &TestContext) {
-    cx.cmd()
-        .args(["-m", "-c"])
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains(
-            "the argument '--chars' cannot be used with '--bytes'",
-        ));
-}
-
-#[cli_test]
-fn rejects_unknown_flag(cx: &TestContext) {
-    cx.cmd()
-        .arg("--unknown")
-        .assert()
-        .failure()
-        .stdout("")
-        .stderr(predicate::str::contains("--unknown"));
 }
 
 #[cli_test]

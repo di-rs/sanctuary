@@ -1,9 +1,16 @@
 schema = 1
 binary = "touchr"
+checks = ["help"]
 
 [[cases]]
 name = "creates_single_file"
 execution = "rust"
 args = ["new"]
 origin = { manual = "POSIX touch creates the requested file silently; the native body verifies the filesystem result." }
-expect = { exit = 0, stdout = "" }
+expect = { stdout = "" }
+
+[[cases]]
+name = "requires_operands"
+args = []
+origin = { manual = "Timestamp updates require at least one file operand." }
+expect = { exit = 2, stdout = "", stderr_contains = "required arguments were not provided" }

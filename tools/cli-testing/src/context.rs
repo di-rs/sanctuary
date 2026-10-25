@@ -1,6 +1,6 @@
 use crate::{
     Error, Fixtures, Result,
-    catalog::{Case, Execution, FixturePaths, Input, Suite, relative_path},
+    catalog::{Case, Execution, FixturePaths, Input, StreamExpectation, Suite, relative_path},
 };
 use assert_fs::{
     TempDir,
@@ -136,8 +136,9 @@ pub struct Context {
     command: Option<Command>,
     input: PreparedInput,
     expected_exit: i32,
-    expected_stdout: Vec<u8>,
-    expected_stderr: Vec<u8>,
+    expected_stdout: StreamExpectation,
+    expected_stderr: StreamExpectation,
+    purpose: Option<String>,
     output: Option<Output>,
     attempted: bool,
     workspace: Option<Workspace>,
@@ -151,9 +152,9 @@ impl Context {
 
     pub(crate) fn prepare(mut test: TestContext, suite: &Suite, case: &Case) -> Result<Self> {
         test.fixture_paths = suite.paths.clone();
-        let (mut stdout, stderr) = case.expect.bytes(suite)?;
+        let (mut stdout, stderr) = case.expect.streams(suite)?;
         if let Some(adapt) = &case.adapt {
-            stdout = adapt.expected_stdout.apply(&stdout);
+            stdout = StreamExpectation::Exact(adapt.expected_stdout.apply(&stdout.exact()?));
         }
         let mut command = test.std_command();
         command.args(&case.args).envs(&suite.env).envs(&case.env);
@@ -167,6 +168,11 @@ impl Context {
             expected_exit: case.expect.exit,
             expected_stdout: stdout,
             expected_stderr: stderr,
+            purpose: case
+                .origin
+                .manual
+                .clone()
+                .or_else(|| case.origin.reason.clone()),
             output: None,
             attempted: false,
             workspace: None,
@@ -232,7 +238,7 @@ impl Context {
     /// Fails after execution has been attempted.
     pub fn expect_stderr(&mut self, bytes: impl Into<Vec<u8>>) -> Result {
         self.ensure_ready()?;
-        self.expected_stderr = bytes.into();
+        self.expected_stderr = StreamExpectation::Exact(bytes.into());
         Ok(())
     }
 
@@ -247,10 +253,13 @@ impl Context {
 
     /// Explicitly adapt expected stdout without changing captured candidate bytes.
     /// # Errors
-    /// Fails after execution has been attempted.
+    /// Fails after execution has been attempted or when stdout uses a contains expectation.
     pub fn map_expected_stdout(&mut self, map: impl FnOnce(&[u8]) -> Vec<u8>) -> Result {
         self.ensure_ready()?;
-        self.expected_stdout = map(&self.expected_stdout);
+        let StreamExpectation::Exact(bytes) = &self.expected_stdout else {
+            return Err(Error::new("cannot adapt a contains expectation"));
+        };
+        self.expected_stdout = StreamExpectation::Exact(map(bytes));
         Ok(())
     }
 
@@ -302,16 +311,28 @@ impl Context {
 
     /// Execute if necessary and check the declared exit code and both streams.
     /// # Errors
-    /// Returns execution failures or byte/status mismatches with the case name.
+    /// Returns execution failures or status/stream mismatches with the case name and rationale.
     pub fn check(&mut self) -> Result {
+        self.check_output().map_err(|error| {
+            if let Some(purpose) = &self.purpose {
+                Error::caused_by(format!("{error}; contract: {purpose}"), error)
+            } else {
+                error
+            }
+        })
+    }
+
+    fn check_output(&mut self) -> Result {
         self.run()?;
         let output = self
             .output
             .as_ref()
             .ok_or_else(|| Error::new("missing case output"))?;
         check_status(&self.name, output, self.expected_exit)?;
-        check_bytes(&self.name, "stdout", &output.stdout, &self.expected_stdout)?;
-        check_bytes(&self.name, "stderr", &output.stderr, &self.expected_stderr)
+        self.expected_stdout
+            .check(&self.name, "stdout", &output.stdout)?;
+        self.expected_stderr
+            .check(&self.name, "stderr", &output.stderr)
     }
 }
 
