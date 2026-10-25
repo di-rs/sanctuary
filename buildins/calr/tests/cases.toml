@@ -11,223 +11,150 @@ platform = "macos"
 name = "test_2_2020_leap_year"
 args = ["-m", "2", "2020"]
 origin = { args = ["2", "2020"], reason = "cal takes a numeric month positional argument; calr uses -m and accepts month names." }
-expect = { exit = 0 }
 
 [[cases]]
 name = "test_4_2020"
 args = ["-m", "4", "2020"]
 origin = { args = ["4", "2020"], reason = "cal takes a numeric month positional argument; calr uses -m and accepts month names." }
-expect = { exit = 0 }
 
 [[cases]]
 name = "test_april_2020"
 args = ["2020", "-m", "april"]
 origin = { args = ["4", "2020"], reason = "cal takes a numeric month positional argument; calr uses -m and accepts month names." }
-expect = { exit = 0, stdout_file = "test_4_2020.out" }
+expect = { stdout_file = "test_4_2020.out" }
 
 [[cases]]
 name = "test_2020"
 args = ["2020"]
-expect = { exit = 0 }
 
 [[cases]]
 name = "minimum_year_january"
 args = ["1", "-m", "1"]
 origin = { manual = "Independently worked proleptic Gregorian calendar: leap years are divisible by 4 except centuries not divisible by 400; Sunday-first fixed-width layout." }
-expect = { exit = 0 }
 
 [[cases]]
 name = "maximum_year_december"
 args = ["9999", "-m", "12"]
 origin = { manual = "Independently worked proleptic Gregorian calendar: leap years are divisible by 4 except centuries not divisible by 400; Sunday-first fixed-width layout." }
-expect = { exit = 0 }
 
 [[cases]]
 name = "century_1900_is_not_leap_year"
 args = ["1900", "-m", "2"]
 origin = { manual = "Independently worked proleptic Gregorian calendar: leap years are divisible by 4 except centuries not divisible by 400; Sunday-first fixed-width layout." }
-expect = { exit = 0 }
 
 [[cases]]
 name = "century_2000_is_leap_year"
 args = ["2000", "-m", "2"]
 origin = { manual = "Independently worked proleptic Gregorian calendar: leap years are divisible by 4 except centuries not divisible by 400; Sunday-first fixed-width layout." }
-expect = { exit = 0 }
 
 [[cases]]
 name = "century_2100_is_not_leap_year"
 args = ["2100", "-m", "2"]
 origin = { manual = "Independently worked proleptic Gregorian calendar: leap years are divisible by 4 except centuries not divisible by 400; Sunday-first fixed-width layout." }
-expect = { exit = 0 }
 
 [[cases]]
 name = "mixed_case_month_name"
 args = ["2020", "-m", "aPrIl"]
 origin = { args = ["4", "2020"], reason = "cal takes a numeric month positional argument; calr uses -m and accepts month names." }
-expect = { exit = 0, stdout_file = "test_4_2020.out" }
+expect = { stdout_file = "test_4_2020.out" }
 
 [[cases]]
 name = "reference_5_2020"
 args = ["-m", "5", "2020"]
 origin = { args = ["5", "2020"], reason = "cal takes a numeric month positional argument; calr uses -m and accepts month names." }
-expect = { exit = 0 }
 
 [[cases]]
 name = "rejects_year_zero"
 args = ["0"]
 origin = { manual = "Calendar years must be integers in 1..=9999; year zero is invalid." }
-
-[cases.expect]
-exit = 2
-stdout = ""
-stderr_contains = "0 is not in 1..=9999"
+expect = { exit = 2, stdout = "", stderr_contains = "0 is not in 1..=9999" }
 
 [[cases]]
 name = "rejects_year_above_maximum"
 args = ["10000"]
 origin = { manual = "Calendar years must be integers in 1..=9999; year zero is invalid." }
-
-[cases.expect]
-exit = 2
-stdout = ""
-stderr_contains = "10000 is not in 1..=9999"
+expect = { exit = 2, stdout = "", stderr_contains = "10000 is not in 1..=9999" }
 
 [[cases]]
 name = "rejects_year_nonnumeric"
 args = ["foo"]
 origin = { manual = "Calendar years must be integers in 1..=9999; year zero is invalid." }
-
-[cases.expect]
-exit = 2
-stdout = ""
-stderr_contains = "invalid digit found in string"
+expect = { exit = 2, stdout = "", stderr_contains = "invalid digit found in string" }
 
 [[cases]]
 name = "rejects_month_zero"
 args = ["-m", "0"]
 origin = { manual = "Months must be in 1..=12 or an unambiguous prefix of a month name." }
-
-[cases.expect]
-exit = 2
-stdout = ""
-stderr_contains = "invalid value '0' for '-m <MONTH>'"
+expect = { exit = 2, stdout = "", stderr_contains = "invalid value '0' for '-m <MONTH>'" }
 
 [[cases]]
 name = "rejects_month_above_maximum"
 args = ["-m", "13"]
 origin = { manual = "Months must be in 1..=12 or an unambiguous prefix of a month name." }
-
-[cases.expect]
-exit = 2
-stdout = ""
-stderr_contains = "invalid value '13' for '-m <MONTH>'"
+expect = { exit = 2, stdout = "", stderr_contains = "invalid value '13' for '-m <MONTH>'" }
 
 [[cases]]
 name = "rejects_month_unknown_name"
 args = ["-m", "foo"]
 origin = { manual = "Months must be in 1..=12 or an unambiguous prefix of a month name." }
-
-[cases.expect]
-exit = 2
-stdout = ""
-stderr_contains = "invalid value 'foo' for '-m <MONTH>'"
+expect = { exit = 2, stdout = "", stderr_contains = "invalid value 'foo' for '-m <MONTH>'" }
 
 [[cases]]
 name = "rejects_month_empty"
 args = ["2020", "-m", ""]
 origin = { manual = "Months must be in 1..=12 or an unambiguous prefix of a month name." }
-
-[cases.expect]
-exit = 2
-stdout = ""
-stderr_contains = "invalid value '' for '-m <MONTH>'"
+expect = { exit = 2, stdout = "", stderr_contains = "invalid value '' for '-m <MONTH>'" }
 
 [[cases]]
 name = "rejects_month_ambiguous_m"
 args = ["2020", "-m", "m"]
 origin = { manual = "Months must be in 1..=12 or an unambiguous prefix of a month name." }
-
-[cases.expect]
-exit = 2
-stdout = ""
-stderr_contains = "invalid value 'm' for '-m <MONTH>'"
+expect = { exit = 2, stdout = "", stderr_contains = "invalid value 'm' for '-m <MONTH>'" }
 
 [[cases]]
 name = "rejects_month_ambiguous_j"
 args = ["2020", "-m", "j"]
 origin = { manual = "Months must be in 1..=12 or an unambiguous prefix of a month name." }
-
-[cases.expect]
-exit = 2
-stdout = ""
-stderr_contains = "invalid value 'j' for '-m <MONTH>'"
+expect = { exit = 2, stdout = "", stderr_contains = "invalid value 'j' for '-m <MONTH>'" }
 
 [[cases]]
 name = "rejects_month_ambiguous_a"
 args = ["2020", "-m", "a"]
 origin = { manual = "Months must be in 1..=12 or an unambiguous prefix of a month name." }
-
-[cases.expect]
-exit = 2
-stdout = ""
-stderr_contains = "invalid value 'a' for '-m <MONTH>'"
+expect = { exit = 2, stdout = "", stderr_contains = "invalid value 'a' for '-m <MONTH>'" }
 
 [[cases]]
 name = "rejects_short_year_with_month"
 args = ["-m", "1", "-y"]
 origin = { manual = "The current-year flag cannot be combined with an explicit month or year." }
-
-[cases.expect]
-exit = 2
-stdout = ""
-stderr_contains = "cannot be used with"
+expect = { exit = 2, stdout = "", stderr_contains = "cannot be used with" }
 
 [[cases]]
 name = "rejects_short_year_with_explicit_year"
 args = ["-y", "2000"]
 origin = { manual = "The current-year flag cannot be combined with an explicit month or year." }
-
-[cases.expect]
-exit = 2
-stdout = ""
-stderr_contains = "cannot be used with"
+expect = { exit = 2, stdout = "", stderr_contains = "cannot be used with" }
 
 [[cases]]
 name = "rejects_long_year_before_month"
 args = ["--year", "-m", "December"]
 origin = { manual = "The current-year flag cannot be combined with an explicit month or year." }
-
-[cases.expect]
-exit = 2
-stdout = ""
-stderr_contains = "cannot be used with"
+expect = { exit = 2, stdout = "", stderr_contains = "cannot be used with" }
 
 [[cases]]
 name = "rejects_long_year_after_month"
 args = ["-m", "December", "--year"]
 origin = { manual = "The current-year flag cannot be combined with an explicit month or year." }
-
-[cases.expect]
-exit = 2
-stdout = ""
-stderr_contains = "cannot be used with"
+expect = { exit = 2, stdout = "", stderr_contains = "cannot be used with" }
 
 [[cases]]
 name = "rejects_long_year_before_explicit_year"
 args = ["--year", "2000"]
 origin = { manual = "The current-year flag cannot be combined with an explicit month or year." }
-
-[cases.expect]
-exit = 2
-stdout = ""
-stderr_contains = "cannot be used with"
+expect = { exit = 2, stdout = "", stderr_contains = "cannot be used with" }
 
 [[cases]]
 name = "rejects_long_year_after_explicit_year"
 args = ["2000", "--year"]
 origin = { manual = "The current-year flag cannot be combined with an explicit month or year." }
-
-[cases.expect]
-exit = 2
-stdout = ""
-stderr_contains = "cannot be used with"
+expect = { exit = 2, stdout = "", stderr_contains = "cannot be used with" }

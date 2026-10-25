@@ -38,6 +38,44 @@ stderr_contains = "invalid value"
 "#;
 
 #[test]
+fn omitted_expectations_check_success_and_both_streams() -> Result {
+    for expectation in ["", "expect = {}", "expect = { exit = 0 }"] {
+        let recipe = format!(
+            "[[cases]]\nname = 'success'\nargs = []\norigin = {{ manual = 'Print the greeting.' }}\n{expectation}"
+        );
+        for (script, succeeds) in [
+            ("printf 'hello\\n'", true),
+            ("printf 'hello\\n'; exit 2", false),
+            ("printf 'hello\\n'; printf unexpected >&2", false),
+            ("printf wrong", false),
+        ] {
+            let (dir, cx) = package(&recipe, script)?;
+            assert!(cx.suite().is_err(), "the stdout fixture must exist");
+            fs::create_dir(dir.path().join("tests/expected"))?;
+            fs::write(dir.path().join("tests/expected/success.out"), "hello\n")?;
+            assert_eq!(cx.case("success")?.check().is_ok(), succeeds, "{script}");
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn inline_output_overrides_default_to_success() -> Result {
+    let recipe = r#"
+[[cases]]
+name = "success"
+args = []
+origin = { manual = "Print the greeting." }
+expect = { stdout = "hello\n" }
+"#;
+    let (_dir, cx) = package(recipe, "printf 'hello\\n'")?;
+    cx.case("success")?.check()?;
+    let (_dir, cx) = package(recipe, "printf 'hello\\n'; exit 1")?;
+    assert!(cx.case("success")?.check().is_err());
+    Ok(())
+}
+
+#[test]
 fn help_expands_without_reference_inheritance_and_uses_shared_defaults() -> Result {
     let (dir, cx) = package(
         &format!(

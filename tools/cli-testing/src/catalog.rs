@@ -108,6 +108,7 @@ pub struct Case<A = String> {
     pub env: BTreeMap<String, String>,
     #[serde(default)]
     pub origin: Origin<A>,
+    #[serde(default)]
     pub expect: Expected,
     pub adapt: Option<Adaptation>,
 }
@@ -163,10 +164,11 @@ impl<A> Default for Origin<A> {
     }
 }
 
-/// Both streams and an exact numeric exit code are required.
-#[derive(Clone, Debug, Deserialize, Serialize)]
+/// Both streams are checked; the exact exit code defaults to zero.
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Expected {
+    #[serde(default)]
     pub exit: i32,
     pub stdout: Option<String>,
     pub stdout_file: Option<PathBuf>,

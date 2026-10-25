@@ -16,303 +16,210 @@ env = { LC_ALL = "en_US.UTF-8" }
 [[cases]]
 name = "tsv_f1"
 args = ["-f", "1", { fixture = "movies_tsv" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "tsv_f2"
 args = ["-f", "2", { fixture = "movies_tsv" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "tsv_f3"
 args = ["-f", "3", { fixture = "movies_tsv" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "tsv_f1_2"
 args = ["-f", "1-2", { fixture = "movies_tsv" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "tsv_f2_3"
 args = ["-f", "2-3", { fixture = "movies_tsv" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "tsv_f1_3"
 args = ["-f", "1-3", { fixture = "movies_tsv" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "csv_f1"
 args = ["-f", "1", "-d", ",", { fixture = "movies_csv" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "csv_f2"
 args = ["-f", "2", "-d", ",", { fixture = "movies_csv" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "csv_f3"
 args = ["-f", "3", "-d", ",", { fixture = "movies_csv" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "csv_f1_2"
 args = ["-f", "1-2", "-d", ",", { fixture = "movies_csv" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "csv_f2_3"
 args = ["-f", "2-3", "-d", ",", { fixture = "movies_csv" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "csv_f1_3"
 args = ["-f", "1-3", "-d", ",", { fixture = "movies_csv" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "tsv_b1"
 args = ["-b", "1", { fixture = "movies_tsv" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "tsv_b2"
 args = ["-b", "2", { fixture = "movies_tsv" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "tsv_b8"
 args = ["-b", "8", { fixture = "movies_tsv" }]
-expect = { exit = 0 }
 adapt = { expected_stdout = "utf8-lossy", reason = "cutr replaces incomplete UTF-8 sequences; BSD cut emits raw bytes." }
 
 [[cases]]
 name = "tsv_b1_2"
 args = ["-b", "1-2", { fixture = "movies_tsv" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "tsv_b2_3"
 args = ["-b", "2-3", { fixture = "movies_tsv" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "tsv_b1_8"
 execution = "rust"
 args = ["-b", "1-8", { fixture = "movies_tsv" }]
 origin = { reason = "BSD cut emits raw bytes; the Rust test adapts incomplete UTF-8 in the expectation." }
-expect = { exit = 0 }
 
 [[cases]]
 name = "tsv_c1"
 args = ["-c", "1", { fixture = "movies_tsv" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "tsv_c2"
 args = ["-c", "2", { fixture = "movies_tsv" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "tsv_c8"
 args = ["-c", "8", { fixture = "movies_tsv" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "tsv_c1_2"
 args = ["-c", "1-2", { fixture = "movies_tsv" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "tsv_c2_3"
 args = ["-c", "2-3", { fixture = "movies_tsv" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "tsv_c1_8"
 args = ["-c", "1-8", { fixture = "movies_tsv" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "repeated_value"
 args = [{ fixture = "books" }, "-c", "1,1"]
 origin = { manual = "Duplicate positions intentionally repeat characters: AA, ÉÉ, SS, JJ. BSD cut deduplicates selections." }
-expect = { exit = 0 }
 
 [[cases]]
 name = "rejects_unknown_flag"
 args = ["--unknown"]
 origin = { manual = "Only declared options are accepted; unknown flags are argument errors." }
-
-[cases.expect]
-exit = 2
-stdout = ""
-stderr_contains = "unexpected argument '--unknown'"
+expect = { exit = 2, stdout = "", stderr_contains = "unexpected argument '--unknown'" }
 
 [[cases]]
 name = "requires_extraction_mode"
 args = [{ fixture = "movies_csv" }]
 origin = { manual = "Cut requires exactly one of fields, bytes, or chars." }
-
-[cases.expect]
-exit = 2
-stdout = ""
-stderr_contains = "required arguments were not provided"
+expect = { exit = 2, stdout = "", stderr_contains = "required arguments were not provided" }
 
 [[cases]]
 name = "rejects_nonnumeric_fields"
 args = [{ fixture = "movies_csv" }, "-f", "invalid"]
 origin = { manual = "Positions are positive integers or ascending ranges, not arbitrary text." }
-
-[cases.expect]
-exit = 65
-stdout = ""
-stderr_contains = "illegal list value: `invalid`"
+expect = { exit = 65, stdout = "", stderr_contains = "illegal list value: `invalid`" }
 
 [[cases]]
 name = "rejects_nonnumeric_bytes"
 args = [{ fixture = "movies_csv" }, "-b", "invalid"]
 origin = { manual = "Positions are positive integers or ascending ranges, not arbitrary text." }
-
-[cases.expect]
-exit = 65
-stdout = ""
-stderr_contains = "illegal list value: `invalid`"
+expect = { exit = 65, stdout = "", stderr_contains = "illegal list value: `invalid`" }
 
 [[cases]]
 name = "rejects_nonnumeric_chars"
 args = [{ fixture = "movies_csv" }, "-c", "invalid"]
 origin = { manual = "Positions are positive integers or ascending ranges, not arbitrary text." }
-
-[cases.expect]
-exit = 65
-stdout = ""
-stderr_contains = "illegal list value: `invalid`"
+expect = { exit = 65, stdout = "", stderr_contains = "illegal list value: `invalid`" }
 
 [[cases]]
 name = "rejects_delimiter_empty"
 args = [{ fixture = "movies_csv" }, "-f", "1", "-d", ""]
 origin = { manual = "The field delimiter must occupy exactly one byte, not one Unicode character." }
-
-[cases.expect]
-exit = 2
-stdout = ""
-stderr_contains = "must be a single byte"
+expect = { exit = 2, stdout = "", stderr_contains = "must be a single byte" }
 
 [[cases]]
 name = "rejects_delimiter_multiple_bytes"
 args = [{ fixture = "movies_csv" }, "-f", "1", "-d", ",,"]
 origin = { manual = "The field delimiter must occupy exactly one byte, not one Unicode character." }
-
-[cases.expect]
-exit = 2
-stdout = ""
-stderr_contains = "must be a single byte"
+expect = { exit = 2, stdout = "", stderr_contains = "must be a single byte" }
 
 [[cases]]
 name = "rejects_delimiter_multibyte_character"
 args = ["-f", "1", "-d", "é"]
 origin = { manual = "The field delimiter must occupy exactly one byte, not one Unicode character." }
-
-[cases.expect]
-exit = 2
-stdout = ""
-stderr_contains = "must be a single byte"
+expect = { exit = 2, stdout = "", stderr_contains = "must be a single byte" }
 
 [[cases]]
 name = "rejects_chars_bytes_fields"
 args = [{ fixture = "movies_csv" }, "-c", "1", "-f", "1", "-b", "1"]
 origin = { manual = "Fields, bytes, and chars are mutually exclusive extraction modes." }
-
-[cases.expect]
-exit = 2
-stdout = ""
-stderr_contains = "cannot be used with"
+expect = { exit = 2, stdout = "", stderr_contains = "cannot be used with" }
 
 [[cases]]
 name = "rejects_bytes_fields"
 args = [{ fixture = "movies_csv" }, "-f", "1", "-b", "1"]
 origin = { manual = "Fields, bytes, and chars are mutually exclusive extraction modes." }
-
-[cases.expect]
-exit = 2
-stdout = ""
-stderr_contains = "cannot be used with"
+expect = { exit = 2, stdout = "", stderr_contains = "cannot be used with" }
 
 [[cases]]
 name = "rejects_chars_fields"
 args = [{ fixture = "movies_csv" }, "-c", "1", "-f", "1"]
 origin = { manual = "Fields, bytes, and chars are mutually exclusive extraction modes." }
-
-[cases.expect]
-exit = 2
-stdout = ""
-stderr_contains = "cannot be used with"
+expect = { exit = 2, stdout = "", stderr_contains = "cannot be used with" }
 
 [[cases]]
 name = "rejects_chars_bytes"
 args = [{ fixture = "movies_csv" }, "-c", "1", "-b", "1"]
 origin = { manual = "Fields, bytes, and chars are mutually exclusive extraction modes." }
-
-[cases.expect]
-exit = 2
-stdout = ""
-stderr_contains = "cannot be used with"
+expect = { exit = 2, stdout = "", stderr_contains = "cannot be used with" }
 
 [[cases]]
 name = "rejects_positions_empty"
 args = ["-c", ""]
 origin = { manual = "Position lists require positive decimal integers and ascending ranges with no empty elements." }
 stdin = { mode = "pipe", text = "abc" }
-
-[cases.expect]
-exit = 65
-stdout = ""
-stderr_contains = "illegal list value: ``"
+expect = { exit = 65, stdout = "", stderr_contains = "illegal list value: ``" }
 
 [[cases]]
 name = "rejects_positions_zero"
 args = ["-c", "0"]
 origin = { manual = "Position lists require positive decimal integers and ascending ranges with no empty elements." }
 stdin = { mode = "pipe", text = "abc" }
-
-[cases.expect]
-exit = 65
-stdout = ""
-stderr_contains = "illegal list value: `0`"
+expect = { exit = 65, stdout = "", stderr_contains = "illegal list value: `0`" }
 
 [[cases]]
 name = "rejects_positions_descending_range"
 args = ["-c", "2-1"]
 origin = { manual = "Position lists require positive decimal integers and ascending ranges with no empty elements." }
 stdin = { mode = "pipe", text = "abc" }
-
-[cases.expect]
-exit = 65
-stdout = ""
-stderr_contains = "first number in range (2) must be lower than second number (1)"
+expect = { exit = 65, stdout = "", stderr_contains = "first number in range (2) must be lower than second number (1)" }
 
 [[cases]]
 name = "rejects_positions_trailing_comma"
 args = ["-c", "1,"]
 origin = { manual = "Position lists require positive decimal integers and ascending ranges with no empty elements." }
 stdin = { mode = "pipe", text = "abc" }
-
-[cases.expect]
-exit = 65
-stdout = ""
-stderr_contains = "illegal list value: ``"
+expect = { exit = 65, stdout = "", stderr_contains = "illegal list value: ``" }
 
 [[cases]]
 name = "rejects_positions_plus_prefix"
 args = ["-c", "+1"]
 origin = { manual = "Position lists require positive decimal integers and ascending ranges with no empty elements." }
 stdin = { mode = "pipe", text = "abc" }
-
-[cases.expect]
-exit = 65
-stdout = ""
-stderr_contains = "illegal list value: `+1`"
+expect = { exit = 65, stdout = "", stderr_contains = "illegal list value: `+1`" }

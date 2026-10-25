@@ -65,11 +65,10 @@ platform = "macos"
 [[cases]]
 name = "fox"
 args = [{ fixture = "fox" }]
-expect = { exit = 0 }
 ```
 
 This reads `tests/inputs/fox.txt`, compares stdout with `tests/expected/fox.out`,
-and expects empty stderr. Renaming the input changes only its `[fixtures]`
+and expects exit `0` and empty stderr. Renaming the input changes only its `[fixtures]`
 declaration and the file itself. Expectations use stable case names, so input
 renames do not require output renames. If the CLI prints filenames, review and
 regenerate the affected expected bytes after an input rename. Renaming a case requires renaming its default
@@ -106,7 +105,10 @@ Override stderr with inline `stderr = "..."` or `stderr_file = "error.err"`.
 For manual interface contracts, [substring expectations](#describe-interface-contracts-in-toml)
 can check a diagnostic without fixing its surrounding formatting.
 File overrides are relative to the expected directory, without an `expected/`
-prefix. Exit codes remain explicit. Bytes are compared without trimming, sorting,
+prefix. Omit `expect` when the defaults apply: exit `0`, stdout from
+`<case-name>.out`, and empty stderr. Use an inline object for overrides, such as
+`expect = { stdout_file = "shared.out" }`; omitted `exit` still means `0`.
+Nonzero exit codes must be explicit. Bytes are compared without trimming, sorting,
 newline conversion, or decoding. All default and explicit fixture files must exist.
 
 For an exceptional layout, declare directories once, relative to `tests/`:
@@ -219,11 +221,7 @@ a name that identifies the behavior, and explain the rule in `origin.manual`:
 name = "rejects_year_zero"
 args = ["0"]
 origin = { manual = "Calendar years must be in 1..=9999; year zero is invalid." }
-
-[cases.expect]
-exit = 2
-stdout = ""
-stderr_contains = "0 is not in 1..=9999"
+expect = { exit = 2, stdout = "", stderr_contains = "0 is not in 1..=9999" }
 ```
 
 This checks the exact status, empty stdout, and a diagnostic substring. It does not
@@ -289,15 +287,15 @@ to `expected/`; `[paths]` overrides these directories.
 | `fixtures` | Map of stable IDs to names relative to the inputs directory. `"."` names that entire directory. |
 | `paths` | Optional `inputs` and `expected` directory names, defaulting to `inputs` and `expected`, relative to `tests/`. |
 | `references.NAME` | Absolute `program`, exact Rust OS `platform` such as `macos` or `linux`; optional `env` string map and `version_args` argument array for version identity. |
-| Case | `name`, `args`, `expect`; optional `origin`; optional `execution` (`toml` by default, or `rust`), `inputs`, `stdin`, `env`, `adapt`. |
+| Case | `name`, `args`; optional `expect`, `origin`; optional `execution` (`toml` by default, or `rust`), `inputs`, `stdin`, `env`, `adapt`. |
 | `stdin` | `mode = "pipe"` with either `text` (including empty) or nonempty `files`; or `mode = "file"` with `path`. |
-| `expect` | `exit` in 0–255; one of `stdout` / `stdout_file` / `stdout_contains`, and one of `stderr` / `stderr_file` / `stderr_contains`. Contains modes require nonempty text and a manual origin. Omitted stdout defaults to `<case-name>.out`; omitted stderr defaults to empty. |
+| `expect` | Optional inline object. `exit` in 0–255 defaults to `0`, including when `expect` is omitted; one of `stdout` / `stdout_file` / `stdout_contains`, and one of `stderr` / `stderr_file` / `stderr_contains`. Contains modes require nonempty text and a manual origin. Omitted stdout defaults to `<case-name>.out`; omitted stderr defaults to empty. |
 | `origin` | A known `reference` (inherited from the suite if omitted) or nonempty `manual` explanation. Reference recipes may override `args`, `exit`, `stderr` (inline text), and `env`. Overrides require `reason`, except an exit identical to the candidate's. |
 | `adapt` | `expected_stdout = "utf8-lossy"` and nonempty `reason`. Applies only to expected stdout; requires a reference origin. No other named adaptations are supported. |
 
 Reference status and stderr default to the candidate's declared contract.
-For grepr's no-match behavior, declare `expect.exit = 0`, `origin.exit = 1`, and
-explain the difference. For a manual expectation, record its independent
+For grepr's no-match behavior, retain the default candidate exit `0`, declare
+`origin.exit = 1`, and explain the difference. For a manual expectation, record its independent
 specification or worked example; reference overrides and adaptations are invalid.
 
 The TOML UTF-8 adaptation in [cutr's catalog](../../../buildins/cutr/tests/cases.toml)

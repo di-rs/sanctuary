@@ -17,374 +17,314 @@ platform = "macos"
 [[cases]]
 name = "empty"
 args = [{ fixture = "empty" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "empty_n2"
 args = ["-n", "2", { fixture = "empty" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "empty_n4"
 args = ["-n", "4", { fixture = "empty" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "empty_c2"
 args = ["-c", "2", { fixture = "empty" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "empty_c4"
 args = ["-c", "4", { fixture = "empty" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "one"
 args = [{ fixture = "one" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "one_n2"
 args = ["-n", "2", { fixture = "one" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "one_n4"
 args = ["-n", "4", { fixture = "one" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "one_c1"
 args = ["-c", "1", { fixture = "one" }]
-expect = { exit = 0 }
 adapt = { expected_stdout = "utf8-lossy", reason = "headr replaces incomplete UTF-8 sequences; BSD head emits raw bytes." }
 
 [[cases]]
 name = "one_c2"
 args = ["-c", "2", { fixture = "one" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "one_c4"
 args = ["-c", "4", { fixture = "one" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "one_stdin"
 args = []
 stdin = { mode = "pipe", files = ["one"] }
-expect = { exit = 0, stdout_file = "one.out" }
+expect = { stdout_file = "one.out" }
 
 [[cases]]
 name = "one_n2_stdin"
 args = ["-n", "2"]
 stdin = { mode = "pipe", files = ["one"] }
-expect = { exit = 0, stdout_file = "one_n2.out" }
+expect = { stdout_file = "one_n2.out" }
 
 [[cases]]
 name = "one_n4_stdin"
 args = ["-n", "4"]
 stdin = { mode = "pipe", files = ["one"] }
-expect = { exit = 0, stdout_file = "one_n4.out" }
+expect = { stdout_file = "one_n4.out" }
 
 [[cases]]
 name = "one_c1_stdin"
 args = ["-c", "1"]
 stdin = { mode = "pipe", files = ["one"] }
-expect = { exit = 0, stdout_file = "one_c1.out" }
+expect = { stdout_file = "one_c1.out" }
 adapt = { expected_stdout = "utf8-lossy", reason = "headr replaces incomplete UTF-8 sequences; BSD head emits raw bytes." }
 
 [[cases]]
 name = "one_c2_stdin"
 args = ["-c", "2"]
 stdin = { mode = "pipe", files = ["one"] }
-expect = { exit = 0, stdout_file = "one_c2.out" }
+expect = { stdout_file = "one_c2.out" }
 
 [[cases]]
 name = "one_c4_stdin"
 args = ["-c", "4"]
 stdin = { mode = "pipe", files = ["one"] }
-expect = { exit = 0, stdout_file = "one_c4.out" }
+expect = { stdout_file = "one_c4.out" }
 
 [[cases]]
 name = "two"
 args = [{ fixture = "two" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "two_n2"
 args = ["-n", "2", { fixture = "two" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "two_n4"
 args = ["-n", "4", { fixture = "two" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "two_c2"
 args = ["-c", "2", { fixture = "two" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "two_c4"
 args = ["-c", "4", { fixture = "two" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "two_stdin"
 args = []
 stdin = { mode = "pipe", files = ["two"] }
-expect = { exit = 0, stdout_file = "two.out" }
+expect = { stdout_file = "two.out" }
 
 [[cases]]
 name = "two_n2_stdin"
 args = ["-n", "2"]
 stdin = { mode = "pipe", files = ["two"] }
-expect = { exit = 0, stdout_file = "two_n2.out" }
+expect = { stdout_file = "two_n2.out" }
 
 [[cases]]
 name = "two_n4_stdin"
 args = ["-n", "4"]
 stdin = { mode = "pipe", files = ["two"] }
-expect = { exit = 0, stdout_file = "two_n4.out" }
+expect = { stdout_file = "two_n4.out" }
 
 [[cases]]
 name = "two_c2_stdin"
 args = ["-c", "2"]
 stdin = { mode = "pipe", files = ["two"] }
-expect = { exit = 0, stdout_file = "two_c2.out" }
+expect = { stdout_file = "two_c2.out" }
 
 [[cases]]
 name = "two_c4_stdin"
 args = ["-c", "4"]
 stdin = { mode = "pipe", files = ["two"] }
-expect = { exit = 0, stdout_file = "two_c4.out" }
+expect = { stdout_file = "two_c4.out" }
 
 [[cases]]
 name = "three"
 args = [{ fixture = "three" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "three_n2"
 args = ["-n", "2", { fixture = "three" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "three_n4"
 args = ["-n", "4", { fixture = "three" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "three_c2"
 args = ["-c", "2", { fixture = "three" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "three_c4"
 args = ["-c", "4", { fixture = "three" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "three_stdin"
 args = []
 stdin = { mode = "pipe", files = ["three"] }
-expect = { exit = 0, stdout_file = "three.out" }
+expect = { stdout_file = "three.out" }
 
 [[cases]]
 name = "three_n2_stdin"
 args = ["-n", "2"]
 stdin = { mode = "pipe", files = ["three"] }
-expect = { exit = 0, stdout_file = "three_n2.out" }
+expect = { stdout_file = "three_n2.out" }
 
 [[cases]]
 name = "three_n4_stdin"
 args = ["-n", "4"]
 stdin = { mode = "pipe", files = ["three"] }
-expect = { exit = 0, stdout_file = "three_n4.out" }
+expect = { stdout_file = "three_n4.out" }
 
 [[cases]]
 name = "three_c2_stdin"
 args = ["-c", "2"]
 stdin = { mode = "pipe", files = ["three"] }
-expect = { exit = 0, stdout_file = "three_c2.out" }
+expect = { stdout_file = "three_c2.out" }
 
 [[cases]]
 name = "three_c4_stdin"
 args = ["-c", "4"]
 stdin = { mode = "pipe", files = ["three"] }
-expect = { exit = 0, stdout_file = "three_c4.out" }
+expect = { stdout_file = "three_c4.out" }
 
 [[cases]]
 name = "twelve"
 args = [{ fixture = "twelve" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "twelve_n2"
 args = ["-n", "2", { fixture = "twelve" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "twelve_n4"
 args = ["-n", "4", { fixture = "twelve" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "twelve_c2"
 args = ["-c", "2", { fixture = "twelve" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "twelve_c4"
 args = ["-c", "4", { fixture = "twelve" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "twelve_stdin"
 args = []
 stdin = { mode = "pipe", files = ["twelve"] }
-expect = { exit = 0, stdout_file = "twelve.out" }
+expect = { stdout_file = "twelve.out" }
 
 [[cases]]
 name = "twelve_n2_stdin"
 args = ["-n", "2"]
 stdin = { mode = "pipe", files = ["twelve"] }
-expect = { exit = 0, stdout_file = "twelve_n2.out" }
+expect = { stdout_file = "twelve_n2.out" }
 
 [[cases]]
 name = "twelve_n4_stdin"
 args = ["-n", "4"]
 stdin = { mode = "pipe", files = ["twelve"] }
-expect = { exit = 0, stdout_file = "twelve_n4.out" }
+expect = { stdout_file = "twelve_n4.out" }
 
 [[cases]]
 name = "twelve_c2_stdin"
 args = ["-c", "2"]
 stdin = { mode = "pipe", files = ["twelve"] }
-expect = { exit = 0, stdout_file = "twelve_c2.out" }
+expect = { stdout_file = "twelve_c2.out" }
 
 [[cases]]
 name = "twelve_c4_stdin"
 args = ["-c", "4"]
 stdin = { mode = "pipe", files = ["twelve"] }
-expect = { exit = 0, stdout_file = "twelve_c4.out" }
+expect = { stdout_file = "twelve_c4.out" }
 
 [[cases]]
 name = "multiple_files"
 args = ["./tests/inputs/empty.txt", "./tests/inputs/one.txt", "./tests/inputs/two.txt", "./tests/inputs/three.txt", "./tests/inputs/twelve.txt"]
 inputs = ["empty", "one", "two", "three", "twelve"]
-expect = { exit = 0 }
 
 [[cases]]
 name = "multiple_files_n2"
 args = ["-n", "2", "./tests/inputs/empty.txt", "./tests/inputs/one.txt", "./tests/inputs/two.txt", "./tests/inputs/three.txt", "./tests/inputs/twelve.txt"]
 inputs = ["empty", "one", "two", "three", "twelve"]
-expect = { exit = 0 }
 
 [[cases]]
 name = "multiple_files_n4"
 args = ["-n", "4", "./tests/inputs/empty.txt", "./tests/inputs/one.txt", "./tests/inputs/two.txt", "./tests/inputs/three.txt", "./tests/inputs/twelve.txt"]
 inputs = ["empty", "one", "two", "three", "twelve"]
-expect = { exit = 0 }
 
 [[cases]]
 name = "multiple_files_c1"
 args = ["-c", "1", "./tests/inputs/empty.txt", "./tests/inputs/one.txt", "./tests/inputs/two.txt", "./tests/inputs/three.txt", "./tests/inputs/twelve.txt"]
 inputs = ["empty", "one", "two", "three", "twelve"]
-expect = { exit = 0 }
 adapt = { expected_stdout = "utf8-lossy", reason = "headr replaces incomplete UTF-8 sequences; BSD head emits raw bytes." }
 
 [[cases]]
 name = "multiple_files_c2"
 args = ["-c", "2", "./tests/inputs/empty.txt", "./tests/inputs/one.txt", "./tests/inputs/two.txt", "./tests/inputs/three.txt", "./tests/inputs/twelve.txt"]
 inputs = ["empty", "one", "two", "three", "twelve"]
-expect = { exit = 0 }
 
 [[cases]]
 name = "multiple_files_c4"
 args = ["-c", "4", "./tests/inputs/empty.txt", "./tests/inputs/one.txt", "./tests/inputs/two.txt", "./tests/inputs/three.txt", "./tests/inputs/twelve.txt"]
 inputs = ["empty", "one", "two", "three", "twelve"]
-expect = { exit = 0 }
 
 [[cases]]
 name = "reference_empty_txt_c1"
 args = ["-c", "1", { fixture = "empty" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "reference_three_txt_c1"
 args = ["-c", "1", { fixture = "three" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "reference_twelve_txt_c1"
 args = ["-c", "1", { fixture = "twelve" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "reference_two_txt_c1"
 args = ["-c", "1", { fixture = "two" }]
-expect = { exit = 0 }
 
 [[cases]]
 name = "rejects_unknown_flag"
 args = ["--unknown", "1"]
 origin = { manual = "Only declared options are accepted; unknown flags are argument errors." }
-
-[cases.expect]
-exit = 2
-stdout = ""
-stderr_contains = "unexpected argument '--unknown'"
+expect = { exit = 2, stdout = "", stderr_contains = "unexpected argument '--unknown'" }
 
 [[cases]]
 name = "rejects_nonnumeric_bytes"
 args = ["-c", "invalid", { fixture = "empty" }]
 origin = { manual = "The bytes count must be numeric." }
-
-[cases.expect]
-exit = 2
-stdout = ""
-stderr_contains = "invalid digit found in string"
+expect = { exit = 2, stdout = "", stderr_contains = "invalid digit found in string" }
 
 [[cases]]
 name = "rejects_nonnumeric_lines"
 args = ["-n", "invalid", { fixture = "empty" }]
 origin = { manual = "The lines count must be numeric." }
-
-[cases.expect]
-exit = 2
-stdout = ""
-stderr_contains = "invalid digit found in string"
+expect = { exit = 2, stdout = "", stderr_contains = "invalid digit found in string" }
 
 [[cases]]
 name = "rejects_lines_with_bytes"
 args = ["-n", "1", "-c", "2"]
 origin = { manual = "Line and byte limits are mutually exclusive." }
-
-[cases.expect]
-exit = 2
-stdout = ""
-stderr_contains = "cannot be used with"
+expect = { exit = 2, stdout = "", stderr_contains = "cannot be used with" }
 
 [[cases]]
 name = "rejects_zero_bytes"
 args = ["-c", "0"]
 origin = { manual = "The bytes count must be positive." }
-
-[cases.expect]
-exit = 2
-stdout = ""
-stderr_contains = "invalid value '0'"
+expect = { exit = 2, stdout = "", stderr_contains = "invalid value '0'" }
 
 [[cases]]
 name = "rejects_zero_lines"
 args = ["-n", "0"]
 origin = { manual = "The lines count must be positive." }
-
-[cases.expect]
-exit = 2
-stdout = ""
-stderr_contains = "invalid value '0'"
+expect = { exit = 2, stdout = "", stderr_contains = "invalid value '0'" }
