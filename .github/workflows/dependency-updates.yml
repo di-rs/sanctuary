@@ -1,0 +1,38 @@
+name: 📦 Dependency update configuration
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependency-updates-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: 📥 Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: 🟢 Set up validator runtime
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - name: 📦 Install pinned Renovate validator
+        run: |
+          npm ci --prefix tools/dependency-updates --ignore-scripts
+          npm rebuild --prefix tools/dependency-updates re2
+      - name: ✅ Validate configuration and exercise dependency updates
+        run: |
+          npm run --prefix tools/dependency-updates check
+      - name: 🔐 Verify release asset checksums
+        run: npm run --prefix tools/dependency-updates check:assets

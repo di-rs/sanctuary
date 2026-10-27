@@ -1,6 +1,6 @@
 # Vector 0.59 requires journalctl >=258 to resume across host boots.
-FROM docker.io/timberio/vector@sha256:98e7b4dfe50750e61470697bbd2fbeca643d12bea97f351005038ef506eab630 AS vector
-FROM docker.io/library/ubuntu@sha256:f144425ff09be612d6d9ad965196e9cdc23dae1f42110a8a11a3e9a8198759f7
+FROM docker.io/timberio/vector:0.59.0-debian@sha256:98e7b4dfe50750e61470697bbd2fbeca643d12bea97f351005038ef506eab630 AS vector
+FROM docker.io/library/ubuntu:26.04@sha256:f144425ff09be612d6d9ad965196e9cdc23dae1f42110a8a11a3e9a8198759f7
 RUN apt-get update \
     && apt-get install -y --no-install-recommends systemd ca-certificates zlib1g libgcc-s1 \
     && rm -rf /var/lib/apt/lists/* \
