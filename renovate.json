@@ -1,0 +1,275 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    "helpers:pinGitHubActionDigests"
+  ],
+  "dependencyDashboard": true,
+  "dependencyDashboardTitle": "Dependency updates",
+  "timezone": "Europe/Paris",
+  "schedule": [
+    "* 0-6 * * *"
+  ],
+  "prHourlyLimit": 2,
+  "prConcurrentLimit": 10,
+  "automerge": false,
+  "separateMajorMinor": true,
+  "commitMessagePrefix": ":arrow_up: deps",
+  "semanticCommits": "disabled",
+  "branchPrefix": "chore/renovate-",
+  "labels": [
+    "dependencies",
+    "type:dependencies"
+  ],
+  "ignorePaths": [
+    "**/node_modules/**",
+    "**/.venv/**",
+    "**/target/**"
+  ],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": [
+      "* 0-6 * * 1"
+    ]
+  },
+  "dockerfile": {
+    "pinDigests": true
+  },
+  "docker-compose": {
+    "pinDigests": true
+  },
+  "packageRules": [
+    {
+      "description": "Group compatible library updates by ecosystem.",
+      "matchManagers": [
+        "cargo"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
+      "groupName": "Rust dependencies"
+    },
+    {
+      "matchManagers": [
+        "pep621"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
+      "groupName": "Python dependencies"
+    },
+    {
+      "matchManagers": [
+        "npm"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
+      "groupName": "frontend dependencies"
+    },
+    {
+      "description": "Keep Temporal server and schema tools on one release.",
+      "matchPackageNames": [
+        "temporalio/server",
+        "temporalio/admin-tools"
+      ],
+      "groupName": "Temporal server and admin tools"
+    },
+    {
+      "description": "Keep uv build backends, images, and CI installations together.",
+      "matchPackageNames": [
+        "uv",
+        "uv_build",
+        "astral-sh/uv",
+        "ghcr.io/astral-sh/uv",
+        "uv-build"
+      ],
+      "groupName": "uv"
+    },
+    {
+      "matchPackageNames": [
+        "pulumi",
+        "pulumi/pulumi"
+      ],
+      "groupName": "Pulumi"
+    },
+    {
+      "matchPackageNames": [
+        "vite-plus",
+        "@voidzero-dev/vite-plus-core",
+        "ghcr.io/voidzero-dev/vite-plus"
+      ],
+      "groupName": "Vite Plus"
+    },
+    {
+      "description": "Stateful major upgrades need an explicit migration review.",
+      "matchPackageNames": [
+        "postgres",
+        "temporalio/server",
+        "temporalio/admin-tools"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "dependencyDashboardApproval": true
+    },
+    {
+      "matchManagers": [
+        "rust-toolchain"
+      ],
+      "schedule": [
+        "* 0-6 * * 1"
+      ]
+    },
+    {
+      "matchManagers": [
+        "npm"
+      ],
+      "matchFileNames": [
+        "tools/dependency-updates/package.json"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
+      "groupName": "dependency update tooling"
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Image inventories used by deployment tests and installers.",
+      "managerFilePatterns": [
+        "/^packages/boxie/infra/(observability|temporal)/versions\\.json$/"
+      ],
+      "matchStrings": [
+        "\"version\": \"(?<currentValue>[^\"\\s]+)\",\\s+\"(?:image|source_image)\": \"(?<depName>[^\"\\s]+?):[^\"@\\s]+@(?<currentDigest>sha256:[a-f0-9]{64})\""
+      ],
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "Collector base image inventory.",
+      "managerFilePatterns": [
+        "/^packages/boxie/infra/observability/versions\\.json$/"
+      ],
+      "matchStrings": [
+        "\"base\": \"(?<depName>[^\"\\s]+?):(?<currentValue>[^\"@\\s]+)@(?<currentDigest>sha256:[a-f0-9]{64})\""
+      ],
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "Grafana plugin release asset and checksum.",
+      "managerFilePatterns": [
+        "/^packages/boxie/infra/observability/versions\\.json$/"
+      ],
+      "matchStrings": [
+        "\"version\": \"(?<currentValue>v[^\"\\s]+)\",\\s+\"url\": \"https://github.com/(?<depName>VictoriaMetrics/victorialogs-datasource)/releases/download/[^\"\\s]+\",\\s+\"sha256\": \"(?<currentDigest>[a-f0-9]{64})\""
+      ],
+      "datasourceTemplate": "github-release-attachments",
+      "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "description": "Checksum-verified release downloads in workflows.",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/[^/]+\\.yml$/"
+      ],
+      "matchStrings": [
+        "https://github.com/(?<depName>lycheeverse/lychee)/releases/download/(?<currentValue>lychee-v[\\d.]+)/lychee-x86_64-unknown-linux-musl.tar.gz[\\s\\S]*?echo \"(?<currentDigest>[a-f0-9]{64})  "
+      ],
+      "datasourceTemplate": "github-release-attachments",
+      "versioningTemplate": "regex:^lychee-v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)$"
+    },
+    {
+      "customType": "regex",
+      "description": "Actionlint URL, asset filename and checksum.",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/[^/]+\\.yml$/"
+      ],
+      "matchStrings": [
+        "ACTIONLINT_VERSION: '(?<currentValue>v[\\d.]+)'\\s+ACTIONLINT_SHA256: '(?<currentDigest>[a-f0-9]{64})'"
+      ],
+      "datasourceTemplate": "github-release-attachments",
+      "versioningTemplate": "semver",
+      "depNameTemplate": "rhysd/actionlint"
+    },
+    {
+      "customType": "regex",
+      "description": "Pinned Rust tools installed by taiki-e/install-action.",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/[^/]+\\.yml$/"
+      ],
+      "matchStrings": [
+        "(?<depName>prek|cargo-nextest|cargo-hack|cargo-audit|cargo-deny|cargo-machete|cargo-llvm-cov|zizmor|hyperfine)@(?<currentValue>[\\d.]+)"
+      ],
+      "datasourceTemplate": "crate"
+    },
+    {
+      "customType": "regex",
+      "description": "Gitleaks binary selected by its action.",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/[^/]+\\.yml$/"
+      ],
+      "matchStrings": [
+        "GITLEAKS_VERSION: '(?<currentValue>[\\d.]+)'"
+      ],
+      "depNameTemplate": "gitleaks/gitleaks",
+      "datasourceTemplate": "github-releases"
+    },
+    {
+      "customType": "regex",
+      "description": "Minimum hook runner version.",
+      "managerFilePatterns": [
+        "/^prek\\.toml$/"
+      ],
+      "matchStrings": [
+        "minimum_prek_version = \"(?<currentValue>[\\d.]+)\""
+      ],
+      "depNameTemplate": "prek",
+      "datasourceTemplate": "crate"
+    },
+    {
+      "customType": "regex",
+      "description": "Workspace uv requirement.",
+      "managerFilePatterns": [
+        "/^pyproject\\.toml$/"
+      ],
+      "matchStrings": [
+        "required-version = \">=(?<currentValue>[\\d.]+)\""
+      ],
+      "depNameTemplate": "uv",
+      "datasourceTemplate": "pypi"
+    },
+    {
+      "customType": "regex",
+      "description": "Pulumi CLI installed by setup-pulumi.",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/[^/]+\\.yml$/"
+      ],
+      "matchStrings": [
+        "pulumi-version: ['\\\"]?(?<currentValue>[\\d.]+)"
+      ],
+      "depNameTemplate": "pulumi/pulumi",
+      "datasourceTemplate": "github-releases"
+    },
+    {
+      "customType": "regex",
+      "description": "Typos executable is distributed by the typos-cli crate.",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/[^/]+\\.yml$/"
+      ],
+      "matchStrings": [
+        "typos@(?<currentValue>[\\d.]+)"
+      ],
+      "depNameTemplate": "typos-cli",
+      "datasourceTemplate": "crate"
+    }
+  ]
+}

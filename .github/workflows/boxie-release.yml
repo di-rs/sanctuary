@@ -19,7 +19,7 @@ jobs:
       attempt: ${{ steps.revision.outputs.attempt }}
     steps:
       - name: 📥 Check out current master
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: master
           persist-credentials: false
@@ -66,7 +66,7 @@ jobs:
             exit 1
           fi
       - name: 📥 Check out the built source
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.source.outputs.sha }}
           persist-credentials: false
@@ -101,7 +101,7 @@ jobs:
             exit 1
           fi
       - name: 📥 Check out the built source
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.source.outputs.sha }}
           persist-credentials: false

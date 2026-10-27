@@ -19,7 +19,7 @@ jobs:
       attempt: ${{ steps.revision.outputs.attempt }}
     steps:
       - name: 📥 Check out current master
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: master
           persist-credentials: false
@@ -95,19 +95,19 @@ jobs:
           exit 1
         fi
     - name: 📥 Check out reviewed infrastructure source
-      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         ref: ${{ needs.source.outputs.sha }}
         persist-credentials: 'false'
     - name: 🐍 Set up uv and Python
-      uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e
+      uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
       with:
         version: 0.13.0
         enable-cache: 'false'
     - name: 📦 Install locked Python workspace dependencies
       run: uv sync --all-packages
     - name: ☁️ Set up Pulumi infrastructure tooling
-      uses: pulumi/setup-pulumi@b374ceb6168550de27c6eba92e01c1a774040e11
+      uses: pulumi/setup-pulumi@b374ceb6168550de27c6eba92e01c1a774040e11 # v2
       with:
         pulumi-version: 3.268.0
     - name: 📦 Prepare committed installation files

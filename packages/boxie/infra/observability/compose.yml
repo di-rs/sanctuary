@@ -1,7 +1,7 @@
 name: boxie-observability
 services:
   storage-init:
-    image: docker.io/timberio/vector@sha256:98e7b4dfe50750e61470697bbd2fbeca643d12bea97f351005038ef506eab630
+    image: docker.io/timberio/vector:0.59.0-debian@sha256:98e7b4dfe50750e61470697bbd2fbeca643d12bea97f351005038ef506eab630
     user: 0:0
     read_only: true
     cap_drop:
@@ -67,7 +67,7 @@ services:
     build:
       context: ./collector
   victorialogs:
-    image: docker.io/victoriametrics/victoria-logs@sha256:251121fa882af99b95ba0c230a4a2f412ea602d2698c64a96c58dc9842bb755d
+    image: docker.io/victoriametrics/victoria-logs:v1.53.0@sha256:251121fa882af99b95ba0c230a4a2f412ea602d2698c64a96c58dc9842bb755d
     user: 65534:65534
     read_only: true
     cap_drop:
@@ -106,7 +106,7 @@ services:
       storage-init:
         condition: service_completed_successfully
   prometheus:
-    image: docker.io/prom/prometheus@sha256:efd719c99d83b060d9daefdcf00360461adf279f45ef5391f8d111892118753e
+    image: docker.io/prom/prometheus:v3.15.0@sha256:efd719c99d83b060d9daefdcf00360461adf279f45ef5391f8d111892118753e
     user: 65534:65534
     read_only: true
     cap_drop:
@@ -141,7 +141,7 @@ services:
     - ./rules:/etc/prometheus/rules:ro
     - prometheus-data:/prometheus
   grafana:
-    image: docker.io/grafana/grafana@sha256:dbbc38ea21103cefb50396340cd88afec779c7e070b0a7bf5a75b4ce46651d3f
+    image: docker.io/grafana/grafana:13.2.4@sha256:dbbc38ea21103cefb50396340cd88afec779c7e070b0a7bf5a75b4ce46651d3f
     user: '472:0'
     read_only: true
     cap_drop:
@@ -193,7 +193,7 @@ services:
     secrets:
     - grafana-admin
   node-exporter:
-    image: ghcr.io/prometheus/node-exporter@sha256:1b4e4438faca4dd7e001dd445d161a4a2091b0fededa84093b3a8dfeae1f1be0
+    image: ghcr.io/prometheus/node-exporter:v1.12.1@sha256:1b4e4438faca4dd7e001dd445d161a4a2091b0fededa84093b3a8dfeae1f1be0
     user: 65534:65534
     read_only: true
     cap_drop:
