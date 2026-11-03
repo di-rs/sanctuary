@@ -86,7 +86,7 @@ this document does not invent or expose an endpoint.
 | Application checkpoints | Can resume supported long-running programs from durable progress. | Each program needs checkpoint validation and restore semantics. Do not infer support for arbitrary commands or pipelines. |
 | Process/container checkpointing | Could preserve selected process state. | Requires a separate feasibility study for gVisor, kernel/runtime compatibility, open files, sockets, and restored credentials. No current support claim. |
 
-[Temporal replay](https://docs.temporal.io/workflow-execution#replays) reconstructs
+[Temporal replay](https://docs.temporal.io/workflow-execution#replay) reconstructs
 workflow decisions from recorded events. It does not capture a subprocess's
 memory, file descriptors, or shell AST evaluation position. Run external effects
 in activities controlled by the supervisor, with workflows coordinating identifiers

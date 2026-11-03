@@ -32,6 +32,7 @@ pub struct Pty {
     receiver: Receiver<Vec<u8>>,
     terminal: vt100::Parser,
     output: Vec<u8>,
+    system: sysinfo::System,
     known_children: HashMap<sysinfo::Pid, u64>,
 }
 
@@ -46,6 +47,8 @@ impl Pty {
         env: &[(&str, &str)],
         prompt: Option<&str>,
     ) -> anyhow::Result<Self> {
+        // Initialize before spawning so cleanup never needs fallible setup.
+        let system = sysinfo::System::new().context("initialize PTY process tracking")?;
         let pair = native_pty_system().openpty(PtySize {
             rows: 30,
             cols: 120,
@@ -117,6 +120,7 @@ impl Pty {
             receiver,
             terminal: vt100::Parser::new(30.try_into()?, 120.try_into()?, 1000),
             output: Vec::new(),
+            system,
             known_children: HashMap::new(),
         })
     }
@@ -224,7 +228,7 @@ impl Pty {
         let Some(root) = self.child.process_id().map(sysinfo::Pid::from_u32) else {
             return;
         };
-        let mut system = sysinfo::System::new();
+        let system = &mut self.system;
         system.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
         let mut parents = HashSet::from([root]);
         loop {
@@ -256,7 +260,7 @@ impl Pty {
 impl Drop for Pty {
     fn drop(&mut self) {
         self.observe_children();
-        let mut system = sysinfo::System::new();
+        let system = &mut self.system;
         let children: Vec<_> = self.known_children.keys().copied().collect();
         system.refresh_processes(sysinfo::ProcessesToUpdate::Some(&children), true);
         for child in children {
