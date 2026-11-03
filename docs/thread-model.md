@@ -50,6 +50,8 @@ service availability. User files and terminal contents may contain sensitive dat
   A recording's provenance is consistency metadata, not authentication of an
   arbitrary downloaded artifact.
 
+Changed-area labels use GitHub metadata only and never check out PR code.
+
 ## Review priorities
 
 Trace attacker-controlled input to the affected asset; state required credentials,
