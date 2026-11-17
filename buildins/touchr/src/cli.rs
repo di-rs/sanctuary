@@ -7,6 +7,7 @@ use std::path::PathBuf;
 #[command(author, version, about)]
 /// Rust minimal `touch` implementation
 /// Make file(s) in the current directory. If file exists change the timestamp
+#[derive(cli_schema::Schema)]
 pub struct Cli {
     /// Skip file creation if it does not exist
     #[arg(short = 'c')]

@@ -5,8 +5,10 @@ use cli::Cli;
 use touchr::file_proceed;
 
 fn main() -> Result<std::process::ExitCode> {
-    color_eyre::install()?;
-    cli_log::try_run("touchr", |cli| run(&cli))
+    <Cli as cli_schema::Schema>::run(|| {
+        color_eyre::install()?;
+        cli_log::try_run("touchr", |cli| run(&cli))
+    })
 }
 
 fn run(cli: &Cli) -> Result<()> {

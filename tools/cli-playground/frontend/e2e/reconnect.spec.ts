@@ -1,3 +1,4 @@
+import { openSampleFiles } from "./explorer";
 import { Buffer } from "node:buffer";
 import { expect, test, type Page, type APIRequestContext } from "@playwright/test";
 import { observeTerminalResize, resizeTerminalViewport } from "./resize";
@@ -252,6 +253,8 @@ test("shipped xterm marks keyboard, clipboard, example and asynchronous composit
       new ClipboardEvent("paste", { clipboardData, bubbles: true, cancelable: true }),
     );
   });
+  await output(request, first.id, [Buffer.from("\r\n\x1b]133;A\x07$ \x1b]133;B\x07")]);
+  await openSampleFiles(page);
   await page.getByRole("button", { name: "Insert command to read welcome.txt" }).click();
   await expect
     .poll(async () =>

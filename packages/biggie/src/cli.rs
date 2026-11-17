@@ -32,6 +32,7 @@ pub struct EndingArgs {
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, propagate_version = true)]
+#[derive(cli_schema::Schema)]
 pub struct Cli {
     /// Validate and describe generation without opening output files
     #[arg(long, global = true)]

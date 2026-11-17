@@ -21,7 +21,8 @@ libraries. The official Vector Debian image bundles journalctl 257; Vector rejec
 `current_boot_only: false` with versions 250–257, so that image cannot preserve
 cross-boot collection. Ubuntu supplies journalctl 259. Native validation checks the
 actual source under UID/GID 65532; a supplementary host journal group grants read
-access. `packages/boxie/infra/observability/versions.json` records the upstream image and Grafana plugin pins.
+access. The [Compose manifest](../infra/observability/compose.yml) and collector
+Dockerfile own the upstream image pins; integration tests read those manifests.
 
 ## Setup
 
@@ -49,7 +50,8 @@ persistent storage, restart journald, and check `journalctl --disk-usage`.
 ### Configure Grafana
 
 Provision a private Grafana admin password file readable by UID 472. Install the
-VictoriaLogs datasource plugin from the URL in `packages/boxie/infra/observability/versions.json`, verify its SHA256,
+VictoriaLogs datasource plugin from the URL in
+[plugins.json](../infra/observability/plugins.json), verify its SHA256,
 and unpack it to `OBS_GRAFANA_PLUGIN_DIR`, preserving the archive executable bits
 for its backend binaries. Grafana uses only this mounted plugin;
 startup downloads and anonymous access are disabled.

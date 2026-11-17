@@ -1,0 +1,58 @@
+use std::fmt::Display;
+
+use crossterm::cursor::{
+    self,
+    SetCursorStyle::{BlinkingBar, BlinkingBlock},
+};
+
+use crate::editor::document::Direction;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Placement {
+    Start,
+    End,
+    Left,
+    Right,
+}
+
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EditorMode {
+    #[default]
+    View,
+    Edit(Placement),
+    Command,
+    Search,
+}
+
+impl EditorMode {
+    pub const fn get_cursor_style(self) -> cursor::SetCursorStyle {
+        match self {
+            Self::View => BlinkingBlock,
+            Self::Edit(_) | Self::Command | Self::Search => BlinkingBar,
+        }
+    }
+
+    pub const fn change_mode_movement(self, other: Self) -> Option<Direction> {
+        match (self, other) {
+            (Self::View, Self::Edit(Placement::End)) => Some(Direction::EndOfLine),
+            (Self::View, Self::Edit(Placement::Start)) => Some(Direction::StartOfLine),
+            (Self::View, Self::Edit(Placement::Right)) => Some(Direction::Right(1)),
+
+            (Self::Edit(Placement::End | Placement::Right), Self::View) => Some(Direction::Left(1)),
+
+            (_, _) => None,
+        }
+    }
+}
+
+impl Display for EditorMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let name = match self {
+            Self::View => "NAVIGATE",
+            Self::Edit(_) => "EDIT",
+            Self::Command => "COMMAND",
+            Self::Search => "SEARCH",
+        };
+        f.write_str(name)
+    }
+}

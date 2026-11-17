@@ -30,9 +30,12 @@ failures exit with status 1. Normal quit exits with status 0.
 
 | Action | Keys |
 | --- | --- |
-| Move | Arrow keys or vim-like motions in navigation mode |
-| Start editing | `i` |
+| Move | Arrow keys; `u` up, `j` down, `h` left, `k` right in navigation mode |
+| Move within a line | `s` to the first non-whitespace grapheme; `e` to the end |
+| Move within the file | `g` to the first line; `G` to the last; `p`/`P` half-screen up/down |
+| Start editing | `i` at the caret; `a` after it; `I` at the first non-whitespace grapheme; `A` at line end |
 | Return to navigation | Esc or Ctrl-C |
+| Delete | `d` in navigation; Delete or Backspace while editing |
 | Save | Ctrl-S; unnamed buffers prompt for a filename |
 | Enter a command | `:` from navigation, then Enter to run it |
 | Quit | Ctrl-Q; press again consecutively to discard unsaved changes |
@@ -63,10 +66,16 @@ Read-only destinations and existing non-regular files (including FIFOs, sockets,
 and devices) are rejected. On Unix, the parent directory is synced
 after replacement.
 Replacement breaks hard-link identity and does not preserve all extended metadata.
-New files are private to their owner. Saving adds line terminators rather than
-preserving the original line endings.
+New files are private to their owner. Saving preserves UTF-8 bytes, existing LF
+and CRLF endings (including mixed endings), and whether the file ends in a newline.
+Enter inserts the first line-ending convention found in the file, or LF if none
+exists. A trailing newline exposes an empty final line; `G` moves to that line.
+Files containing invalid UTF-8 are rejected without changing their contents.
 
 ## Develop Kara
+
+The screen uses Ratatui with the Crossterm backend. Kara keeps its own modal
+editing and Unicode layout logic; resizing also supports very small terminals.
 
 For editor changes, test navigation, typing, saving, quitting, and terminal
 restoration in a PTY or real terminal. The startup E2E checks help, arguments, and failure when
@@ -89,3 +98,8 @@ repository root after building Kara:
 ```sh
 python3 packages/kara/tests/pty_smoke.py "$PWD/target/debug/kara"
 ```
+
+`/` in navigation mode opens a search prompt. Type a query, use Backspace to
+remove a grapheme, and press Enter or Esc to return to navigation. Typing searches incrementally and moves to the first literal, case-sensitive match.
+Enter accepts the location; Esc restores the original cursor. Matching is
+single-line and non-overlapping; an empty query has no matches. In editing mode, `/` is ordinary text.

@@ -42,13 +42,13 @@ fn records(root: &Path) -> Result<Vec<Value>> {
     }
     Ok(records)
 }
-#[derive(Parser)]
+#[derive(Parser, cli_schema::Schema)]
 struct Cli {
     #[arg(long)]
     count: usize,
 }
 
-#[derive(Parser)]
+#[derive(Parser, cli_schema::Schema)]
 struct RunnerCli {
     #[arg(long = "exact")]
     _exact: bool,
