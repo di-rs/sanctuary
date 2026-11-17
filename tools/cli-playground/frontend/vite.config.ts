@@ -18,6 +18,20 @@ export default defineConfig(({ command }) => ({
       "/ws": { target: "ws://127.0.0.1:8000", ws: true },
     },
   },
-  lint: { options: { typeAware: true, typeCheck: true } },
+  lint: {
+    options: { typeAware: true, typeCheck: true },
+    rules: {
+      "typescript/ban-ts-comment": [
+        "error",
+        {
+          "ts-ignore": "allow-with-description",
+          "ts-expect-error": "allow-with-description",
+          "ts-nocheck": true,
+          "ts-check": false,
+        },
+      ],
+      "unicorn/no-abusive-eslint-disable": "error",
+    },
+  },
   test: { include: ["src/**/*.test.ts", "e2e-native/*.test.ts"] },
 }));

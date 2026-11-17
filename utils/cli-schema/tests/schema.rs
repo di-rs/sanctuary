@@ -1,4 +1,8 @@
-#![allow(clippy::unwrap_used, clippy::indexing_slicing)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::indexing_slicing,
+    reason = "Schema tests assert known JSON shapes and should fail immediately when fields are missing."
+)]
 
 use clap::{Arg, ArgAction, Command};
 

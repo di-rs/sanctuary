@@ -31,6 +31,8 @@ pretty_assertions = "1.4.1"
 unsafe_code = "forbid"
 
 [workspace.lints.clippy]
+allow_attributes_without_reason = "deny"
+ignore_without_reason = "deny"
 pedantic = { level = "deny", priority = -1 }
 nursery = { level = "deny", priority = -1 }
 unwrap_used = "deny"
