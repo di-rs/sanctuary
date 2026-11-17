@@ -82,7 +82,7 @@ fn get_reader(path: &str) -> Result<Box<dyn BufRead>> {
         if stdin().is_terminal() {
             bail!("`-` cannot be provided within tty");
         }
-        Ok(Box::new(BufReader::new(stdin().lock())))
+        Ok(Box::new(stdin().lock()))
     } else {
         Ok(Box::new(BufReader::new(
             File::open(path).with_context(|| format!("cannot open file {path}"))?,
