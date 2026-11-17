@@ -97,7 +97,23 @@ fn is_decimal(word: &str) -> bool {
     if word.starts_with('_') || word.ends_with('_') {
         return false;
     }
+    let (word, requires_integer) = if let Some(start) = word.find(['i', 'u', 'f']) {
+        let Some((digits, suffix)) = word.split_at_checked(start) else {
+            return false;
+        };
+        match suffix {
+            "i8" | "i16" | "i32" | "i64" | "i128" | "isize" | "u8" | "u16" | "u32" | "u64"
+            | "u128" | "usize" => (digits, true),
+            "f32" | "f64" => (digits, false),
+            _ => return false,
+        }
+    } else {
+        (word, false)
+    };
     let clean: String = word.chars().filter(|character| *character != '_').collect();
+    if requires_integer {
+        return is_integer(&clean);
+    }
     let (mantissa, exponent) = clean
         .split_once(['e', 'E'])
         .map_or((clean.as_str(), None), |(base, exponent)| {

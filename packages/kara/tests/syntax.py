@@ -56,7 +56,11 @@ def main() -> None:
         assert b"| Text |" in output
         assert b"| Rust |" not in output
         assert b"Could not save" in output
-        for source, expected_red in [(b"f(1,2)", b"12"), ("界12".encode(), b"")]:
+        for source, expected_red in [
+            (b"f(1,2)", b"12"),
+            ("界12".encode(), b""),
+            (b"42u32 1.25f64 1e-3f32 1_000_isize 10bdh 1.25u32", b"42u321.25f641e-3f321_000_isize"),
+        ]:
             (directory / "original").write_bytes(source)
             output = session(binary, directory, [b":w numeric.rs\r", b"\x11"])
             assert red_text(output) == expected_red, repr(red_text(output))
