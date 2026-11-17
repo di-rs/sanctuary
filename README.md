@@ -79,5 +79,7 @@ example `uv run cli-check -p echor` for repository conventions.
 The [CLI testing skill](.agents/skills/cli-testing/SKILL.md) explains behavioral
 tests and reference fixtures; [AGENTS.md](AGENTS.md) records repository rules.
 Deployment instructions live in the [shared-host guide](infra/README.md).
+See [dependency maintenance](docs/dependency-updates.md) for automated coverage
+and pins that need manual updates.
 
 Licensed under [Apache-2.0](LICENSE). Preserve tutorial credits in package READMEs.

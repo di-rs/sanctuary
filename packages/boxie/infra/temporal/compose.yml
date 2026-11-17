@@ -1,6 +1,5 @@
 name: boxie-temporal
 x-admin:
-  image: temporalio/admin-tools:1.32.0@sha256:a9f84fb9a374b2374fe2e67c8efc0468ff3f1c66c8a0b14597ec86e349e62bca
   profiles: &id001
   - operations
   networks: &id002

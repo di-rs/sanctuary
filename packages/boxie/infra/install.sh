@@ -56,7 +56,7 @@ bash "$owner/deploy.sh" "$revision"
 if [[ ! -d /etc/sanctuary/grafana-plugins ]]; then
     plugin=$(mktemp -d)
     trap 'rm -rf "$plugin"' EXIT
-    mapfile -t pins < <(python3 -c 'import json,sys; p=json.load(open(sys.argv[1]))["plugins"]["victoriametrics-logs-datasource"]; print(p["url"]); print(p["sha256"])' "$owner/observability/versions.json")
+    mapfile -t pins < <(python3 -c 'import json,sys; p=json.load(open(sys.argv[1]))["victoriametrics-logs-datasource"]; print(p["url"]); print(p["sha256"])' "$owner/observability/plugins.json")
     curl --fail --silent --show-error --location --max-time 120 "${pins[0]}" -o "$plugin/plugin.zip"
     printf '%s  %s\n' "${pins[1]}" "$plugin/plugin.zip" | sha256sum --check --status
     mkdir "$plugin/unpacked"
