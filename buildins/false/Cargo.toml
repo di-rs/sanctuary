@@ -4,6 +4,9 @@ name = "false"
 version = "0.1.0"
 edition = "2024"
 
+[lib]
+name = "sanctuary_false"
+
 [dependencies]
 cli-log.workspace = true
 
@@ -11,7 +14,11 @@ cli-log.workspace = true
 cli-testing.workspace = true
 serde_json.workspace = true
 assert_fs.workspace = true
-predicates = { workspace = true }
 
 [lints]
 workspace = true
+
+[[test]]
+name = "catalog"
+path = "tests/catalog.rs"
+harness = false

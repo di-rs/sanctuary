@@ -17,6 +17,8 @@ DirectryWithNonRecursive = "DirectryWithNonRecursive"
 ot = "ot"
 
 [default.extend-words]
+# Incomplete command typed before Tab in the shell completion test.
+fals = "fals"
 # Exact substring expected by a tail byte-offset regression test.
 ater = "ater"
 
