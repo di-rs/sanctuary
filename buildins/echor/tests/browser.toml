@@ -1,0 +1,3 @@
+[[cases]]
+name = "no-newline"
+args = ["-n", "--", "hello", "sanctuary"]

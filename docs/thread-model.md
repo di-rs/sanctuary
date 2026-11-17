@@ -71,9 +71,9 @@ Advisory secret scans must not publish credential values and run without credent
   reporting and release automation. CLI reflection runs only in the unprivileged
   build, with elapsed-time/output limits and without ambient credentials; the
   publisher and gateway validate metadata without executing uploaded code.
-  Browser recipes run in a separate read-only-permission PR job against a disposable
-  local playground. Publish only WebM recordings of synthetic session data.
-  Those capture bounds do not isolate a malicious process from its build runner.
+  Contributors run selected browser demos inside the disposable local playground and
+  publish WebM recordings of synthetic session data. Treat the checkout and its
+  build scripts as trusted local code. PR policy only reads the attachment links.
 - **Local fixture recipes and recordings:** CLI test catalogs and their reference
   commands are trusted repository code, executed with the developer's permissions.
   Temporary test workspaces do not sandbox host access. `cli-testing record`

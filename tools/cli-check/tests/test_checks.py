@@ -54,7 +54,7 @@ def add_cli(
         + test_targets,
     )
     write(root, f"{directory}/src/main.rs", "fn main() {}\n")
-    write(root, f"{directory}/tests/browser.json", '{"cases":[{"args":[]}]}')
+    write(root, f"{directory}/tests/browser.toml", '[[cases]]\nname = "example"\nargs = []\n')
     write(root, f"{directory}/tests/cli.rs", "#[test]\nfn checks_cli() {}\n")
 
 
@@ -79,7 +79,9 @@ def test_helper_cli_uses_its_own_library_without_a_self_dependency(
         '[package]\nname = "cli-testing"\nversion = "0.1.0"\nedition = "2024"\n',
     )
     write(tmp_path, "tools/cli-testing/src/main.rs", "fn main() {}\n")
-    write(tmp_path, "tools/cli-testing/tests/browser.json", '{"cases":[{"args":[]}]}')
+    write(
+        tmp_path, "tools/cli-testing/tests/browser.toml", '[[cases]]\nname = "example"\nargs = []\n'
+    )
     write(tmp_path, "tools/cli-testing/tests/cli.rs", "#[test]\nfn cli_contract() {}\n")
     if library:
         write(tmp_path, "tools/cli-testing/src/lib.rs", "pub fn helper() {}\n")

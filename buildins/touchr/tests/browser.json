@@ -1,6 +1,0 @@
-{
-  "cases": [
-    {"args": ["-c", "absent"], "check": "test ! -e absent"},
-    {"args": ["-t", "202601011200", "stamped"], "check": "test \"$(date -u -r stamped +%Y%m%d%H%M)\" = 202601011200"}
-  ]
-}

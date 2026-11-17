@@ -1,0 +1,7 @@
+[[cases]]
+name = "common-lines"
+args = ["-1", "-2", "--insensitive", "--output-delimiter", ":", "duplicates.txt", "duplicates.txt"]
+
+[[cases]]
+name = "unique-lines"
+args = ["-3", "duplicates.txt", "duplicates.txt"]

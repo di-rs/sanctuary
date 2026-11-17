@@ -1,6 +1,0 @@
-{
-  "cases": [
-    {"args": ["--lines", "1", "welcome.txt"], "contains": "Hello, sandbox."},
-    {"args": ["--bytes", "5", "welcome.txt"], "contains": "Hello"}
-  ]
-}

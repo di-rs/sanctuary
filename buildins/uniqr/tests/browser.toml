@@ -1,0 +1,3 @@
+[[cases]]
+name = "count-repetitions"
+args = ["--count", "duplicates.txt"]

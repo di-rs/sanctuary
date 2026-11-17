@@ -22,8 +22,21 @@
     replaceLine: (value: string) => void;
     retry: () => void;
   } = $props();
-  const context = $derived(commandContext(draft.text, clis, catalog));
-  const editable = $derived(connected && draft.ready);
+  // Keep the last reference while the shell runs. A quick paste and Enter
+  // can span several PTY frames without ever becoming a draft to edit.
+  const promptText = $derived(connected && draft.ready ? draft.text : null);
+  let referenceText = $state("");
+  let waiting = $state(true);
+  $effect(() => {
+    const text = promptText;
+    const timer = setTimeout(() => {
+      waiting = text === null;
+      if (text !== null) referenceText = text;
+    }, 120);
+    return () => clearTimeout(timer);
+  });
+  const context = $derived(commandContext(referenceText, clis, catalog));
+  const editable = $derived(promptText !== null && promptText === referenceText);
   $effect(() => {
     if (context.cli) selectedCli = context.cli;
   });
@@ -52,19 +65,14 @@
 
 <div class="builder-header">
   <span>Command builder</span>
-  {#if context.cli || draft.text}<button
+  {#if context.cli || referenceText}<button
       type="button"
       disabled={!editable}
       onclick={() => apply("")}
       title="Clear the draft and choose another CLI">All CLIs</button
-    >{:else}<span class="cli-total">{clis.length} CLIs</span>{/if}
+    >{:else}<span class="cli-total">{clis.length} {clis.length === 1 ? "CLI" : "CLIs"}</span>{/if}
 </div>
 <div class="explorer-scroll builder">
-  {#if !draft.ready}<p class="builder-note" role="status">
-      {connected
-        ? "Waiting for a shell prompt…"
-        : "Connect to build a command."}
-    </p>{/if}
   {#if context.cli}
     <nav class="builder-path" aria-label="Current command">
       <button
@@ -286,7 +294,9 @@
         >{/each}
     </details>
   </div>
-  <p class="builder-footnote">
-    Clicks edit your command. <kbd>Enter</kbd> runs it.
+  <p class="builder-footnote" role="status">
+    {#if !connected}Connect to build a command.
+    {:else if waiting}Waiting for a shell prompt…
+    {:else}Clicks edit your command. <kbd>Enter</kbd> runs it.{/if}
   </p>
 </div>

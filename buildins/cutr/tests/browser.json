@@ -1,7 +1,0 @@
-{
-  "cases": [
-    {"args": ["--fields", "2", "--delimiter", ",", "people.csv"], "contains": "Rust"},
-    {"args": ["--bytes", "1-4", "people.csv"], "contains": "name"},
-    {"args": ["--chars", "1-4", "people.csv"], "contains": "name"}
-  ]
-}

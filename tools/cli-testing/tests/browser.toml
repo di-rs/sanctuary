@@ -1,0 +1,12 @@
+[[cases]]
+name = "doctor"
+args = ["doctor", "--json"]
+
+[[cases]]
+name = "list"
+setup = """\
+mkdir -p demo/tests/expected demo/tests/inputs && \
+  printf '%s\\n' '[package]' 'name = \"probe\"' > demo/Cargo.toml && \
+  printf '%s\\n' 'schema = 1' 'binary = \"probe\"' 'reference = \"echo\"' '[references.echo]' 'program = \"/bin/echo\"' 'platform = \"linux\"' '[[cases]]' 'name = \"sample\"' 'args = [\"hello\"]' 'expect = { exit = 0 }' 'origin = { reference = \"echo\", args = [\"-n\", \"hello\"], reason = \"printf emits no final newline.\" }' > demo/tests/cases.toml && \
+  printf hello > demo/tests/expected/sample.out"""
+args = ["list", "--suite", "demo/tests/cases.toml", "--limit", "1", "--offset", "0"]

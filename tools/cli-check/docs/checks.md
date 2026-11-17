@@ -36,8 +36,9 @@ completeness, assertion quality or reference correctness. The
 catalog execution and byte fixture loading; the [testing skill](../../../.agents/skills/cli-testing/SKILL.md)
 describes how to write behavioral tests.
 
-Every CLI needs a nonempty `tests/browser.json`. The recorder checks its cases
-against the built binary's schema and runs them through the playground.
+Each CLI has a `tests/browser.toml` containing at least one named demo. The
+policy checks its TOML structure, unique names and interactive input fields.
+Contributors select the example that shows their change using the [CLI development guide](../../../docs/cli-development.md#record-a-visible-change).
 
 The docs group checks a single level-one title and introductory prose in component
 READMEs. Each Cargo CLI uses its own name as the title and a fenced shell example

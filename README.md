@@ -35,7 +35,7 @@ explains sessions, sample files, and switching builds.
 To run the playground and all CLIs locally with Docker Compose:
 
 ```sh
-uv run local-dev up
+uv run --locked sanctuary-dev up
 ```
 
 The [local development guide](docs/local-development.md) covers setup, console
@@ -77,6 +77,7 @@ output, rebuilding, shutdown, and the separate full Boxie service setup.
 
 | Project                                          | Purpose                                                                            |
 | ------------------------------------------------ | ---------------------------------------------------------------------------------- |
+| [sanctuary-dev](tools/local-dev/README.md)       | Check a CLI, record a selected demo, and start the local playground                |
 | [cli-bench](tools/cli-bench/README.md)           | Run per-CLI benchmark suites with Biggie and hyperfine                             |
 | [cli-check](tools/cli-check/README.md)           | Check CLI package boundaries, tests, documentation, and benchmark coverage         |
 | [cli-testing](tools/cli-testing/README.md)       | Author CLI tests and inspect, compare, and record reference fixtures               |

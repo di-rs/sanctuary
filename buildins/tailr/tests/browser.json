@@ -1,6 +1,0 @@
-{
-  "cases": [
-    {"args": ["--quiet", "--lines", "1", "duplicates.txt"], "contains": "pear"},
-    {"args": ["--bytes", "5", "duplicates.txt"], "contains": "pear"}
-  ]
-}

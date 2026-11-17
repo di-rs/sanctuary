@@ -1,0 +1,7 @@
+[[cases]]
+name = "last-line"
+args = ["--quiet", "--lines", "1", "duplicates.txt"]
+
+[[cases]]
+name = "last-bytes"
+args = ["--bytes", "5", "duplicates.txt"]

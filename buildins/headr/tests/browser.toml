@@ -1,0 +1,7 @@
+[[cases]]
+name = "first-line"
+args = ["--lines", "1", "welcome.txt"]
+
+[[cases]]
+name = "first-bytes"
+args = ["--bytes", "5", "welcome.txt"]

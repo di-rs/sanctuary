@@ -1,0 +1,11 @@
+[[cases]]
+name = "fields"
+args = ["--fields", "2", "--delimiter", ",", "people.csv"]
+
+[[cases]]
+name = "bytes"
+args = ["--bytes", "1-4", "people.csv"]
+
+[[cases]]
+name = "characters"
+args = ["--chars", "1-4", "people.csv"]

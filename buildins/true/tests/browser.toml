@@ -1,0 +1,4 @@
+[[cases]]
+name = "exit-status"
+args = []
+after = "echo $?"

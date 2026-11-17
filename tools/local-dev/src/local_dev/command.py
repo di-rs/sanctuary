@@ -1,4 +1,4 @@
-"""An explicit Compose frontend with worktree identity and Docker-assigned ports."""
+"""Check Sanctuary CLIs, record demonstrations and run a worktree playground."""
 
 import argparse
 import hashlib
@@ -13,7 +13,10 @@ from pathlib import Path
 from urllib.request import urlopen
 from uuid import uuid4
 
-from .recording import check_pr_recordings, recording_packages
+from cli_check.browser import Demos
+from cli_check.workspace import discover
+
+from .recording import changed_clis, check_pr_recordings
 
 
 class DevError(Exception):
@@ -68,7 +71,7 @@ class Stack:
         address = self.run("port", "playground", "8765", capture=True).strip()
         match = re.fullmatch(r"127\.0\.0\.1:([0-9]+)", address)
         if not match or not 1 <= int(match[1]) <= 65535:
-            raise DevError("No loopback playground port found. Run local-dev start first.")
+            raise DevError("No loopback playground port found. Run sanctuary-dev start first.")
         return f"http://127.0.0.1:{match[1]}/"
 
     def start(self, *, build: bool, packages: list[str] | None = None) -> None:
@@ -127,41 +130,71 @@ def parser() -> argparse.ArgumentParser:
         ("doctor", "check Docker, context, and Compose configuration"),
     ]:
         sub.add_parser(name, help=help_text)
-    record = sub.add_parser(
-        "record", help="record real CLI examples in a disposable browser terminal"
+    check = sub.add_parser(
+        "check", help="run policy, formatting, Clippy and native tests for a CLI"
     )
-    selection = record.add_mutually_exclusive_group(required=True)
-    selection.add_argument("-p", "--package", action="append", help="select a CLI (repeatable)")
-    selection.add_argument("--all", action="store_true", help="select all workspace CLIs")
-    selection.add_argument("--base", help="select CLI changes since the merge base with --head")
-    record.add_argument("--head", default="HEAD")
-    mode = record.add_mutually_exclusive_group()
-    mode.add_argument(
-        "--list", action="store_true", help="print selected CLI names as JSON and exit"
-    )
-    mode.add_argument("--output", type=Path, help="new directory for the browser videos")
-    mode.add_argument("--check-pr-body", type=Path, help="verify local video links in PR Markdown")
+    check.add_argument("cli")
+    record = sub.add_parser("record", help="film selected demonstrations in the local playground")
+    record.add_argument("cli")
+    record.add_argument("demos", nargs="*", metavar="DEMO", help="demo names in recording order")
+    record.add_argument("--list", action="store_true", help="list the CLI's available demos")
+    record.add_argument("--output", type=Path, help="new directory for the WebM")
+    review = sub.add_parser("check-pr", help="verify the CLI demo links in a PR description")
+    review.add_argument("--base", default="origin/master", help="base revision")
+    review.add_argument("--head", default="HEAD", help="head revision")
+    review.add_argument("--body-file", type=Path, required=True)
     return command
 
 
+def package_dir(root: Path, name: str) -> Path:
+    for package in discover(root):
+        if package.name == name and package.is_cli:
+            return package.directory
+    raise DevError(f"Unknown CLI package: {name}")
+
+
+def check_cli(root: Path, name: str) -> None:
+    package_dir(root, name)
+    for command in (
+        ["uv", "run", "--locked", "cli-check", "-p", name],
+        ["cargo", "fmt", "-p", name, "--", "--check"],
+        [
+            "cargo",
+            "clippy",
+            "--locked",
+            "-p",
+            name,
+            "--all-targets",
+            "--all-features",
+            "--",
+            "-D",
+            "warnings",
+            "-F",
+            "unsafe_code",
+        ],
+        ["cargo", "nextest", "run", "--locked", "-p", name, "--all-features", "--profile", "ci"],
+    ):
+        print(f"+ {shlex.join(command)}", file=sys.stderr, flush=True)
+        subprocess.run(command, cwd=root, check=True)
+
+
 def record(root: Path, args: argparse.Namespace) -> None:
-    packages = recording_packages(root, args.package, args.base, args.head)
+    cases = Demos.read(package_dir(root, args.cli) / "tests/browser.toml")
     if args.list:
-        print(json.dumps(list(packages)))
+        if args.demos:
+            raise DevError("Choose --list or provide the demos to record.")
+        print("\n".join(cases))
         return
-    if args.check_pr_body:
-        check_pr_recordings(packages, args.check_pr_body.read_text(encoding="utf-8"))
-        return
-    if not packages:
-        print("No CLI recordings selected.")
-        return
+    if not args.demos or any(name not in cases for name in args.demos):
+        raise DevError(f"Choose one or more demos for {args.cli} from: {', '.join(cases)}")
+    selected = [cases[name].model_dump(exclude_none=True) for name in args.demos]
     docker_ready(daemon=True)
     run_id = uuid4().hex[:12]
     output = (args.output or root / "target" / "cli-recordings" / run_id).resolve()
     output.mkdir(exist_ok=False, parents=True)
     stack = Stack(root, suffix="-record-" + run_id)
     try:
-        stack.start(build=True, packages=list(packages))
+        stack.start(build=True, packages=[args.cli])
         subprocess.run(
             ["pnpm", "exec", "playwright", "test", "--config", "playwright.record.config.ts"],
             cwd=root / "tools/cli-playground/frontend",
@@ -169,7 +202,7 @@ def record(root: Path, args: argparse.Namespace) -> None:
                 os.environ,
                 CLI_RECORD_URL=stack.url(),
                 CLI_RECORD_OUTPUT=str(output),
-                CLI_RECORD_PACKAGES=json.dumps(packages),
+                CLI_RECORD_PLAN=json.dumps({"cli": args.cli, "cases": selected}),
             ),
             check=True,
         )
@@ -179,19 +212,29 @@ def record(root: Path, args: argparse.Namespace) -> None:
 
 
 def main() -> int:
-    args = parser().parse_args()
+    cli = parser()
+    args = cli.parse_args()
     try:
-        stack = Stack(repository(args.root))
-        if args.action == "record":
-            record(stack.root, args)
+        root = repository(args.root)
+        if args.action == "check":
+            check_cli(root, args.cli)
             return 0
+        if args.action == "check-pr":
+            check_pr_recordings(
+                changed_clis(root, args.base, args.head), args.body_file.read_text(encoding="utf-8")
+            )
+            return 0
+        if args.action == "record":
+            record(root, args)
+            return 0
+        stack = Stack(root)
         docker_ready(daemon=args.action != "config")
         match args.action:
             case "up" | "start":
                 stack.start(build=not args.no_build)
                 if args.action == "up" and not args.detach:
                     print(
-                        "Following logs. Ctrl+C stops viewing; local-dev down stops services.",
+                        "Following logs. Ctrl+C stops viewing; sanctuary-dev down stops services.",
                         flush=True,
                     )
                     stack.run("logs", "--follow", "--tail", "100")
@@ -215,11 +258,10 @@ def main() -> int:
                 print(f"Ready to start {stack.project} from {stack.root}.")
         return 0
     except KeyboardInterrupt:
-        print(
-            "Interrupted. Started services remain running; use local-dev down to stop them.",
-            file=sys.stderr,
-        )
+        print("Interrupted.", file=sys.stderr)
+        if args.action in {"up", "start", "logs"}:
+            print("Use sanctuary-dev down to stop this worktree's stack.", file=sys.stderr)
         return 130
     except (DevError, OSError, ValueError, subprocess.CalledProcessError) as error:
-        print(f"local-dev: {error}", file=sys.stderr)
+        print(f"{cli.prog}: {error}", file=sys.stderr)
         return 1

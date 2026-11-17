@@ -1,0 +1,29 @@
+[[cases]]
+name = "custom-alphabet"
+args = ["--lines", "1", "--words-per-line", "1", "--word-length", "2", "--alphabet-chars", "x", "-"]
+
+[[cases]]
+name = "repeat-records"
+args = ["records", "--record", "hello", "--repeat", "2", "--cycles", "1", "--line-ending", "lf", "--no-final-newline", "-"]
+
+[[cases]]
+name = "records-from-file"
+args = ["records", "--records-file", "duplicates.txt", "-"]
+
+[[cases]]
+name = "delimited-fields"
+args = ["fields", "--format", "delimited", "--delimiter", ",", "--lines", "2", "--fields", "2", "--field-value", "pear", "--empty-every", "2", "--line-ending", "lf", "--no-final-newline", "-"]
+
+[[cases]]
+name = "byte-pattern"
+args = ["bytes", "--bytes", "3", "--pattern-hex", "61", "-"]
+
+[[cases]]
+name = "bytes-to-file"
+args = ["bytes", "--bytes", "3", "--seed", "1", "sample.bin"]
+after = "wc -c sample.bin"
+
+[[cases]]
+name = "sorted-pair"
+args = ["pair", "--left", "left", "--right", "right", "--left-only", "1", "--right-only", "1", "--shared", "1", "--copies", "1", "--seed", "3", "--line-ending", "lf", "--no-final-newline"]
+after = "cat left right"

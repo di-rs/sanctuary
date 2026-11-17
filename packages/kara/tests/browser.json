@@ -1,5 +1,0 @@
-{
-  "cases": [
-    {"args": ["welcome.txt"], "ready": "NAVIGATE", "keys": ["i", "X", "Escape", "Control+s", "Control+q"], "check": "test \"$(head -c 1 welcome.txt)\" = X"}
-  ]
-}

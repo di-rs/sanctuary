@@ -1,6 +1,0 @@
-{
-  "cases": [
-    {"args": ["--insensitive", "--recursive", "--count", "--verbose", "hello", "welcome.txt"], "contains": "1"},
-    {"args": ["--invert-match", "--quiet", "ERROR", "app.log"], "contains": "INFO"}
-  ]
-}

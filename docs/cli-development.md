@@ -7,16 +7,22 @@ status, file handling and stdout usable without the playground or Boxie.
 ## Set up a checkout
 
 Install Git, rustup, uv, prek and cargo-nextest. Cargo selects the toolchain in
-[rust-toolchain.toml](../rust-toolchain.toml). For browser recordings, start Docker
-with Compose and BuildKit and install the frontend's versions of Node and pnpm.
-From the checkout root, prepare the Python tools, Git hooks and browser once:
+[rust-toolchain.toml](../rust-toolchain.toml). Prepare the development command and
+Git hooks from the checkout root.
 
 ```sh
 uv sync --locked --all-packages
 prek install
+. .venv/bin/activate
+```
+
+To record a demo, start Docker with Compose and BuildKit and install the
+frontend's versions of Node and pnpm. Then prepare Chromium.
+
+```sh
 pnpm --dir tools/cli-playground/frontend install --frozen-lockfile
 pnpm --dir tools/cli-playground/frontend exec playwright install chromium
-uv run --locked local-dev doctor
+sanctuary-dev doctor
 ```
 
 On Linux, `playwright install --with-deps chromium` also installs the browser's
@@ -52,15 +58,15 @@ starting a persistent playground and inspecting a worktree's services.
 
 ## Verify a change
 
-For example, verify echor from the repository root:
+From the activated checkout, check the CLI you changed.
 
 ```sh
-make check-cli CLI=echor
+sanctuary-dev check echor
 ```
 
-This runs CLI policy, formatting, Clippy and native tests, then builds the current
-checkout in Docker and runs its browser examples. It prints the directory with
-the WebM recordings. For shared changes, test affected consumers as well. Run
+This runs package policy, formatting, Clippy and native tests on your working
+tree. Without activating the environment, use `uv run --locked sanctuary-dev
+check echor`. For shared changes, test affected consumers as well. Run
 `cargo test --locked -p PACKAGE --all-features --doc` for a library target.
 For a case catalog, run `cargo run --locked -p cli-testing -- --suite
 buildins/catr/tests/cases.toml validate` with the owning catalog path.
@@ -73,50 +79,54 @@ Run `lychee --offline --include-fragments=anchor-only -- FILES` and
 `typos --force-exclude -- FILES` on changed Markdown. A real commit runs the
 configured Git hooks. Linux, macOS and hosted-only checks report on the PR.
 
-## Record the public flags
+## Record a visible change
 
-Keep small examples in the CLI's `tests/browser.json`. Each case contains an
-argument array in invocation order. Use separate option and value tokens and
-put subcommand names first. Give an expected output substring, file assertion or
-exit status for the behavior under test. The default expected exit status is zero.
+Choose the smallest example that shows what a reviewer should notice. A new
+flag, changed output, or a new subcommand usually needs one invocation. A shared
+change can use one representative consumer. An internal refactor needs only
+its native checks and a short explanation in the PR.
 
-```json
-{
-  "cases": [
-    {"args": ["-n", "--", "hello sanctuary"], "contains": "hello sanctuary"}
-  ]
-}
+Keep reusable demos in the CLI's `tests/browser.toml`. Each `[[cases]]` entry
+has a unique name and an argument array, using the same TOML convention as
+native cases. For example, echor can print text without a trailing newline.
+
+```toml
+[[cases]]
+name = "no-newline"
+args = ["-n", "--", "hello", "sanctuary"]
 ```
 
-The recorder reads the schema exported by the built binary, exercises the short,
-long and visible alias spellings, and runs help and version where advertised.
-Give mutually exclusive flags separate examples. A new option or subcommand
-without a behavioral example fails the check. Native tests own byte-for-byte
-comparison, error paths and platform-specific behavior.
-
-Each video uses the real playground, Bash PTY and CLI in a fresh session.
-Examples can supply `stdin`, an expected `exit`, or a shell `check` for file
-effects. For an interactive command, `ready` waits for terminal output before
-`keys` sends Playwright key presses. A recipe can use `setup` to create disposable
-inputs. Use synthetic data suitable for a public PR. See the
-[editor example](../packages/kara/tests/browser.json) and the
-[fixture tool example](../tools/cli-testing/tests/browser.json).
+List the names, then record only the demo you want to show.
 
 ```sh
-uv run --locked local-dev record -p echor -p catr
-uv run --locked local-dev record --base origin/master --head HEAD --list
+sanctuary-dev record echor --list
+sanctuary-dev record echor no-newline
 ```
 
-Named packages include uncommitted edits. Revision selection compares commits
-with their merge base. Use `--all` for the complete inventory. A recording run
-uses its own Compose project and removes its session volume on exit. It writes
-videos under `target/cli-recordings/`; `--output` selects a new directory.
+Pass additional names in the order they should appear in the same video.
+Playwright runs the working-tree binary in a disposable local Bash terminal and
+prints the WebM directory under `target/cli-recordings/`. Use `--output DIR` to
+choose a new directory. Open the video and verify that the change is visible
+and the result legible before uploading.
 
-Open the local WebM and check that the commands and their results are legible.
-Attach one local video per affected CLI to **Testing/Validation** in the PR body.
-Give each video a level-four heading with the package name in backticks, followed
-by a blank line and its video on a separate line. For example, add this to your
-PR body file, using the path to the actual recording:
+A case can provide `stdin`, a shell `setup` before the invocation or an `after`
+command to show its effect. For interactive programs, `ready` waits for text
+before `keys` sends keystrokes. Supply synthetic inputs suitable for a public
+PR. Keep expected output, file assertions, failure cases and alias coverage
+in the native tests. See the [editor demo](../packages/kara/tests/browser.toml).
+
+## Attach a demo to the pull request
+
+In GitHub, edit the PR description. Under **Testing/Validation**, add a level-four
+heading with the CLI name in backticks, as in the example below. Leave a blank
+line and drag the WebM onto the next line. Wait for the attachment URL and save
+the description. The browser upload works independently of your installed
+GitHub CLI version. [GitHub's file attachment guide](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/attaching-files)
+
+For a terminal upload, the following procedure was verified with GitHub CLI
+2.104.0. Look for attachment reference rewriting in `gh pr edit --help`.
+Save the current PR body alongside the recording, then add the following
+snippet under **Testing/Validation**. The file path is relative to the body file.
 
 ```markdown
 #### `echor`
@@ -124,19 +134,21 @@ PR body file, using the path to the actual recording:
 ![](./commands-echor/video.webm)
 ```
 
-With the body file and recording directory beside each other, submit the body
-with `gh pr edit PR_NUMBER --body-file pr.md --attach ./commands-echor/video.webm`
-or supply the same flags to `gh pr create`. Repeat `--attach` for additional
-videos. GitHub replaces each image reference with an inline video player.
-GitHub CLI accepts 50 attachments per edit. For larger changes, start each
-batch with the current body from `gh pr view PR_NUMBER --json body --jq .body`
-and append the next group. This preserves the links already uploaded.
-In the web editor, drop the WebM directly under its heading. Re-record and
-replace videos when the demonstrated behavior changes.
+```sh
+gh pr edit PR_NUMBER --body-file pr.md --attach ./commands-echor/video.webm
+```
 
-The **Local CLI recordings** check verifies the attachment headings and links
-on PR creation, pushes and body edits. You can run it locally on the published
-Markdown with `uv run --locked local-dev record --base origin/master
---check-pr-body pr.md`. CI also repeats the browser checks against the PR head
-in groups of up to eight CLIs with four groups running concurrently. The
-**CLI browser recordings** job summaries link to the videos for 14 days.
+The **Local CLI recordings** check inspects the published PR description on
+creation, pushes and edits. For each CLI with a direct source or build-script
+change, attach its local video or put `Internal change — REASON` on the line
+beneath its heading and explain why the behavior is unchanged. For a visible
+shared-library change, attach a representative consumer demo. CI runs native
+tests and browser UI regressions. Contributors choose and record demos locally.
+
+To run the same description check from the checkout, use the PR's base branch
+and current body.
+
+```sh
+gh pr view PR_NUMBER --json body --jq .body > pr.md
+sanctuary-dev check-pr --base origin/master --body-file pr.md
+```

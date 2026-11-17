@@ -1,8 +1,0 @@
-{
-  "cases": [
-    {"args": ["--posix", "-c", "printf hello"], "contains": "hello"},
-    {"args": ["--bash", "-s"], "contains": "hello", "stdin": "printf hello"},
-    {"args": ["-n", "-c", "touch syntax-only"], "check": "test ! -e syntax-only"},
-    {"args": ["-i", "-c", "case $- in *i*) /usr/bin/printf 'interactive child\\n';; *) exit 3;; esac"], "contains": "interactive child"}
-  ]
-}

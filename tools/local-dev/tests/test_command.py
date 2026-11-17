@@ -4,6 +4,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from local_dev import command
 from local_dev.command import DevError, Stack, project_name, repository
 from local_dev.recording import check_pr_recordings
 
@@ -13,12 +14,47 @@ def test_local_video_evidence_is_per_affected_cli() -> None:
     body = f"#### `catr`\r\n\r\n{url}\r\n"
     check_pr_recordings(["catr"], body)
     check_pr_recordings([], "")
+    check_pr_recordings(["echor"], "#### `echor`\n\nInternal change — Simplify an iterator.")
+    with pytest.raises(ValueError, match="echor"):
+        check_pr_recordings(["echor"], "#### `echor`\n\nInternal change — ")
     with pytest.raises(ValueError, match="echor"):
         check_pr_recordings(["catr", "echor"], body)
     with pytest.raises(ValueError, match="catr"):
         check_pr_recordings(["catr"], body.replace("github.com", "example.org"))
     with pytest.raises(ValueError, match="different"):
         check_pr_recordings(["catr", "echor"], body + f"#### `echor`\n\n{url}\n")
+
+
+def test_record_requires_named_demos(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests/browser.toml").write_text(
+        '[[cases]]\nname = "first"\nargs = []\n[[cases]]\nname = "second"\nargs = ["-n"]\n'
+    )
+    monkeypatch.setattr(command, "package_dir", lambda *_: tmp_path)
+    for args in (["record", "echor"], ["record", "echor", "typo"]):
+        with pytest.raises(DevError, match="first, second"):
+            command.record(tmp_path, command.parser().parse_args(args))
+
+
+def test_native_check_stops_at_first_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[list[str]] = []
+
+    def run(argv: list[str], *, cwd: Path, check: bool) -> None:
+        assert cwd == tmp_path and check
+        calls.append(argv)
+        if argv[:2] == ["cargo", "fmt"]:
+            raise subprocess.CalledProcessError(1, argv)
+
+    monkeypatch.setattr(command, "package_dir", lambda *_: tmp_path)
+    monkeypatch.setattr(subprocess, "run", run)
+    with pytest.raises(subprocess.CalledProcessError):
+        command.check_cli(tmp_path, "echor")
+    assert calls == [
+        ["uv", "run", "--locked", "cli-check", "-p", "echor"],
+        ["cargo", "fmt", "-p", "echor", "--", "--check"],
+    ]
 
 
 def test_worktree_identity(tmp_path: Path) -> None:

@@ -1,6 +1,0 @@
-{
-  "cases": [
-    {"args": ["-L"], "contains": "/"},
-    {"args": ["-P"], "contains": "/"}
-  ]
-}

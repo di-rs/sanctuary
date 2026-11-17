@@ -1,5 +1,0 @@
-{
-  "cases": [
-    {"args": ["--count", "duplicates.txt"], "contains": "banana"}
-  ]
-}

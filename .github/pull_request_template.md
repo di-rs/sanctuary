@@ -72,6 +72,7 @@ Select all applicable impacts, or None alone.
 <!-- Summarize checks and outcomes in one or two short bullets. Mention material
 failures or unverified behavior. For performance claims or hot-path changes, link
 benchmark evidence or state why it is unavailable. For CLI changes, report the local
-check and attach each affected CLI's local WebM under a level-four heading with the
-package name in backticks. See docs/cli-development.md for the upload command.
+check. Show the changed flags, commands or output in a short local WebM under
+a level-four heading with the CLI name in backticks. For a direct internal
+change, put “Internal change — REASON” beneath its heading. See docs/cli-development.md.
 Keep lengthy logs in the CI artifacts. -->

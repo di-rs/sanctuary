@@ -1,0 +1,4 @@
+[[cases]]
+name = "create-parents"
+args = ["-p", "one/two"]
+after = "find one -type d"

@@ -1,0 +1,3 @@
+[[cases]]
+name = "long-list"
+args = ["--long", "--all", "."]
