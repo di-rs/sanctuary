@@ -79,6 +79,9 @@ fn number_is_delimited(text: &str, start: usize, end: usize) -> bool {
 }
 
 fn number_length(remaining: &str, word: &str) -> Option<usize> {
+    if is_radix(word) {
+        return Some(word.len());
+    }
     // Word boundaries separate a signed exponent; include its sign and digits.
     if word.ends_with(['e', 'E']) {
         let suffix = remaining.get(word.len()..)?;
@@ -93,6 +96,29 @@ fn number_length(remaining: &str, word: &str) -> Option<usize> {
     is_decimal(word).then_some(word.len())
 }
 
+fn is_radix(word: &str) -> bool {
+    let base = match word.get(..2) {
+        Some("0b" | "0B") => 2,
+        Some("0o" | "0O") => 8,
+        Some("0x" | "0X") => 16,
+        _ => return false,
+    };
+    let digits = word.get(2..).unwrap_or_default();
+    let digits = match digits
+        .find(['i', 'u'])
+        .and_then(|start| digits.split_at_checked(start))
+    {
+        Some((digits, suffix)) if is_integer_suffix(suffix) => digits,
+        Some(_) => return false,
+        None if digits.ends_with('_') => return false,
+        None => digits,
+    };
+    digits.chars().any(|character| character.is_digit(base))
+        && digits
+            .chars()
+            .all(|character| character == '_' || character.is_digit(base))
+}
+
 fn is_decimal(word: &str) -> bool {
     if word.starts_with('_') || word.ends_with('_') {
         return false;
@@ -102,9 +128,8 @@ fn is_decimal(word: &str) -> bool {
             return false;
         };
         match suffix {
-            "i8" | "i16" | "i32" | "i64" | "i128" | "isize" | "u8" | "u16" | "u32" | "u64"
-            | "u128" | "usize" => (digits, true),
             "f32" | "f64" => (digits, false),
+            _ if is_integer_suffix(suffix) => (digits, true),
             _ => return false,
         }
     } else {
@@ -133,6 +158,23 @@ fn is_decimal(word: &str) -> bool {
 
 fn is_integer(text: &str) -> bool {
     !text.is_empty() && text.bytes().all(|byte| byte.is_ascii_digit())
+}
+
+fn is_integer_suffix(suffix: &str) -> bool {
+    matches!(
+        suffix,
+        "i8" | "i16"
+            | "i32"
+            | "i64"
+            | "i128"
+            | "isize"
+            | "u8"
+            | "u16"
+            | "u32"
+            | "u64"
+            | "u128"
+            | "usize"
+    )
 }
 
 #[cfg(test)]
@@ -198,5 +240,15 @@ mod tests {
         }
         assert_eq!(tokens("let 界\u{301}12 = 3;"), ["3"]);
         assert_eq!(tokens("界,12;34"), ["12", "34"]);
+    }
+    #[test]
+    fn radix_tokens_validate_digits_and_prefixes() {
+        assert_eq!(
+            tokens("0xFF 0XdeAd 0b1010 0B10 0o77 0O17 0xCA_FE"),
+            [
+                "0xFF", "0XdeAd", "0b1010", "0B10", "0o77", "0O17", "0xCA_FE"
+            ]
+        );
+        assert_eq!(tokens("0x 0b2 0o8 0xGG abc0xFF 0x_FF_"), Vec::<&str>::new());
     }
 }

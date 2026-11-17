@@ -60,6 +60,10 @@ def main() -> None:
             (b"f(1,2)", b"12"),
             ("界12".encode(), b""),
             (b"42u32 1.25f64 1e-3f32 1_000_isize 10bdh 1.25u32", b"42u321.25f641e-3f321_000_isize"),
+            (
+                b"0xFFu8 0b1010u32 0o77usize 0xCA_FE 0b2u8 0o8 0xGG 0xFFfoo",
+                b"0xFFu80b1010u320o77usize0xCA_FE",
+            ),
         ]:
             (directory / "original").write_bytes(source)
             output = session(binary, directory, [b":w numeric.rs\r", b"\x11"])
