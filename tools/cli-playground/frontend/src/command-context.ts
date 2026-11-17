@@ -128,7 +128,7 @@ export function commandContext(text: string, names: string[], catalog: Catalog |
       continue;
     }
     const flags = node.args.filter((row) => row.change !== "removed");
-    if (!operands && token.value.startsWith("-")) {
+    if (!endOfOptions && token.value.startsWith("-")) {
       const name = token.value.split("=")[0];
       const flag = flags.find((row) =>
         [

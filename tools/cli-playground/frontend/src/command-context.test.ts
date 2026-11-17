@@ -80,3 +80,18 @@ test("end-of-options stops flag and command suggestions", () => {
   expect(context("biggie text --lines --").endOfOptions).toBe(false);
   expect(context("biggie text --lines=--").flags.length).toBeGreaterThan(0);
 });
+
+test("flags after operands still request values and track used options", () => {
+  const reference = catalog("a".repeat(40), ["headr"]);
+  reference.clis[0].head.command.args.push(
+    argument({ id: "file", short: null, long: null, index: 1 }),
+    argument({ id: "lines", short: "n", long: "lines", num_args: { min: 1, max: 1 } }),
+  );
+  const parse = (text: string) => commandContext(text, ["headr"], reference);
+  expect(parse("headr welcome.txt --lines").kind).toBe("value");
+  expect(parse("headr welcome.txt --lines").pending?.argument.id).toBe("lines");
+  expect(parse("headr welcome.txt --lines 5").used).toEqual(["lines"]);
+  expect(parse("headr welcome.txt --lines=5").used).toEqual(["lines"]);
+  expect(parse("headr welcome.txt --li").choices[0].value).toBe("headr welcome.txt --lines ");
+  expect(parse("headr -- welcome.txt --lines 5").used).toEqual([]);
+});
