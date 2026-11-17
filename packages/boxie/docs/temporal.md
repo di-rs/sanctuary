@@ -4,8 +4,9 @@ Boxie owns this deployment package. It runs the production Temporal server
 as a separate Compose project with explicit schema operations, so ordinary
 Boxie application releases do not restart the server or upgrade its schemas.
 Production never uses a development server.
-[versions.json](../infra/temporal/versions.json) records the verified upstream releases and exact
-multi-platform image identities: server/admin-tools 1.32.0 and UI 2.56.0.
+[compose.yml](../infra/temporal/compose.yml) owns the upstream version tags and
+immutable image digests. Server and admin-tools must use the same release;
+deployment tests check this before schema operations.
 Schema jobs use the unchanged upstream admin-tools image and its schema tool.
 Namespace bootstrap reuses the approved immutable `BOXIE_IMAGE` with
 Boxie's pinned Temporal Python SDK and requires no separate helper image. The

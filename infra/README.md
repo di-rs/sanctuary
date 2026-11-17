@@ -11,6 +11,7 @@ services; GitHub Actions performs setup and releases over pinned SSH.
 | Provision a host and hand credentials to release workflows | [Set up the host](docs/setup.md) |
 | Release services, inspect a failure, or plan maintenance | [Releases and recovery](docs/releases.md) |
 | Follow a request through playground and Boxie logs | [Request tracing](docs/observability.md) |
+| Connect Codex and ChatGPT to production observability | [Production MCP adapters](../packages/boxie/docs/mcp.md) |
 
 Setup can create paid cloud resources. It needs an existing Pulumi state bucket,
 provider credentials, and the GitHub environments described in the setup guide.
