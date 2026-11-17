@@ -40,7 +40,7 @@ invalid UTF-8 file reports an error inside the editor and leaves an unnamed buff
 | Return to navigation | Esc or Ctrl-C |
 | Delete | `d` in navigation; Delete or Backspace while editing |
 | Save | Ctrl-S; unnamed buffers prompt for a filename |
-| Search | `/` forward; `?` backward; `n` repeat; `N` reverse in navigation |
+| Search | `/` forward; `?` backward; `n` previous match; `N` next match in navigation |
 | Enter a command | `:` from navigation, then Enter to run it |
 | Quit | Ctrl-Q; press again consecutively to discard unsaved changes |
 
@@ -57,8 +57,9 @@ Both keys remain ordinary text in editing mode.
 - Enter accepts the query and location. Enter on an empty prompt repeats the
   previously accepted query in the prompt's direction, when one exists.
 - Esc in a prompt restores the previous cursor, exact viewport, and accepted search.
-- `n` repeats the accepted search direction; `N` reverses it. Both start from the
-  current caret and wrap.
+- In navigation mode, `n` finds the previous match toward the start of the file,
+  and `N` finds the next match toward the end. Both start from the current caret
+  and wrap, regardless of which search prompt opened the query.
 - Esc in navigation clears highlights but retains the query; repetition restores them.
 
 Search is literal, case-sensitive, single-line, and non-overlapping. Empty live

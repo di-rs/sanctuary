@@ -90,7 +90,7 @@ impl EditorState {
                 };
                 self.prompt = Some(Prompt::new(label, "", self.terminal_size));
             }
-            EditorCommand::RepeatSearch { reverse } => self.repeat_search(reverse),
+            EditorCommand::RepeatSearch(direction) => self.repeat_search(direction),
             EditorCommand::ClearSearch => self.search.visible = false,
             EditorCommand::Unknown => (),
         }
@@ -193,16 +193,11 @@ impl EditorState {
         }
     }
 
-    fn repeat_search(&mut self, reverse: bool) {
+    fn repeat_search(&mut self, direction: super::search::SearchDirection) {
         if self.search.query.is_empty() {
             return;
         }
         self.search.refresh(&self.buffer);
-        let direction = if reverse {
-            self.search.direction.reversed()
-        } else {
-            self.search.direction
-        };
         self.search
             .select(self.buffer.cursor().position, direction, false);
         self.search.visible = true;

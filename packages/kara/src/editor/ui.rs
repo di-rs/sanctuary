@@ -307,8 +307,9 @@ mod tests {
         terminal.draw(|frame| render(frame, &mut state))?;
         assert_eq!(terminal.backend().buffer()[(1, 0)].bg, Color::Reset);
         assert_eq!(state.search.query, "界");
-        state
-            .handle_command(crate::editor::command::EditorCommand::RepeatSearch { reverse: false });
+        state.handle_command(crate::editor::command::EditorCommand::RepeatSearch(
+            crate::editor::search::SearchDirection::Forward,
+        ));
         terminal.draw(|frame| render(frame, &mut state))?;
         assert_eq!(terminal.backend().buffer()[(1, 0)].bg, Color::Yellow);
         Ok(())
