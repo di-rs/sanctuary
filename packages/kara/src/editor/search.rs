@@ -13,7 +13,9 @@ pub fn find(document: &Document, query: &str) -> Vec<TextPosition> {
         };
         let boundaries: Vec<_> = line.grapheme_indices(true).map(|(byte, _)| byte).collect();
         for (byte, _) in line.match_indices(query) {
-            let grapheme = boundaries.partition_point(|boundary| *boundary < byte);
+            let grapheme = boundaries
+                .partition_point(|boundary| *boundary <= byte)
+                .saturating_sub(1);
             matches.push(TextPosition {
                 line: line_index,
                 grapheme,

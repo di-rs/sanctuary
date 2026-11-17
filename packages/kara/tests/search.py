@@ -15,6 +15,11 @@ def main() -> None:
     output = check(binary, "é hit hit".encode(), [b"/hit\r", b"\x11"], "é hit hit".encode())
     assert b"2 matches; first at 1:3" in output
 
+    source = "e\u0301x 👩‍💻".encode()
+    for query, column in [("\u0301", 1), ("💻", 4)]:
+        output = check(binary, source, [f"/{query}\r".encode(), b"\x11"], source)
+        assert f"1 matches; first at 1:{column}".encode() in output
+
 
 if __name__ == "__main__":
     main()
