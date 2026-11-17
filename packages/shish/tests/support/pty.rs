@@ -12,6 +12,19 @@ use portable_pty::{Child, CommandBuilder, MasterPty, PtySize, native_pty_system}
 
 type WriteRequest = (Vec<u8>, SyncSender<std::io::Result<()>>);
 
+#[test]
+fn constructor_preserves_terminal_dimensions() -> anyhow::Result<()> {
+    let home = assert_fs::TempDir::new()?;
+    let mut terminal = Pty::new(home.path(), &["-c", "stty size"], &[])?;
+    let (rows, cols) = terminal.terminal.screen().size();
+    anyhow::ensure!(
+        (rows.get(), cols.get()) == (30, 120),
+        "renderer dimensions must match the 30x120 PTY"
+    );
+    terminal.expect_screen_line("30 120")?;
+    terminal.finish(0)
+}
+
 pub struct Pty {
     child: Box<dyn Child + Send + Sync>,
     _master: Box<dyn MasterPty + Send>,
@@ -19,6 +32,7 @@ pub struct Pty {
     receiver: Receiver<Vec<u8>>,
     terminal: vt100::Parser,
     output: Vec<u8>,
+    system: sysinfo::System,
     known_children: HashMap<sysinfo::Pid, u64>,
 }
 
@@ -33,6 +47,8 @@ impl Pty {
         env: &[(&str, &str)],
         prompt: Option<&str>,
     ) -> anyhow::Result<Self> {
+        // Initialize before spawning so cleanup never needs fallible setup.
+        let system = sysinfo::System::new().context("initialize PTY process tracking")?;
         let pair = native_pty_system().openpty(PtySize {
             rows: 30,
             cols: 120,
@@ -102,8 +118,9 @@ impl Pty {
             _master: pair.master,
             writer: requests,
             receiver,
-            terminal: vt100::Parser::new(30, 120, 1000),
+            terminal: vt100::Parser::new(30.try_into()?, 120.try_into()?, 1000),
             output: Vec::new(),
+            system,
             known_children: HashMap::new(),
         })
     }
@@ -120,8 +137,31 @@ impl Pty {
     }
 
     pub fn expect(&mut self, text: &str) -> anyhow::Result<()> {
+        self.wait_for(text, |contents| contents.contains(text))
+    }
+
+    /// Wait for the current input line, excluding only terminal padding.
+    pub fn expect_line(&mut self, text: &str) -> anyhow::Result<()> {
+        self.wait_for(text, |contents| {
+            contents
+                .lines()
+                .last()
+                .is_some_and(|line| line.trim_end() == text.trim_end())
+        })
+    }
+
+    /// Match a complete rendered line even when a completion menu follows it.
+    pub fn expect_screen_line(&mut self, text: &str) -> anyhow::Result<()> {
+        self.wait_for(text, |contents| {
+            contents
+                .lines()
+                .any(|line| line.trim_end() == text.trim_end())
+        })
+    }
+
+    fn wait_for(&mut self, text: &str, matches: impl Fn(&str) -> bool) -> anyhow::Result<()> {
         let started = Instant::now();
-        while !self.terminal.screen().contents().contains(text) {
+        while !matches(&self.terminal.screen().contents()) {
             if started.elapsed() >= Duration::from_secs(6) {
                 bail!(
                     "timed out waiting for {text:?}; screen: {:?}",
@@ -146,7 +186,8 @@ impl Pty {
             }
             anyhow::ensure!(
                 started.elapsed() < Duration::from_secs(6),
-                "shell did not exit"
+                "shell did not exit; screen: {:?}",
+                self.terminal.screen().contents()
             );
             self.pump()?;
         }
@@ -187,7 +228,7 @@ impl Pty {
         let Some(root) = self.child.process_id().map(sysinfo::Pid::from_u32) else {
             return;
         };
-        let mut system = sysinfo::System::new();
+        let system = &mut self.system;
         system.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
         let mut parents = HashSet::from([root]);
         loop {
@@ -219,7 +260,7 @@ impl Pty {
 impl Drop for Pty {
     fn drop(&mut self) {
         self.observe_children();
-        let mut system = sysinfo::System::new();
+        let system = &mut self.system;
         let children: Vec<_> = self.known_children.keys().copied().collect();
         system.refresh_processes(sysinfo::ProcessesToUpdate::Some(&children), true);
         for child in children {

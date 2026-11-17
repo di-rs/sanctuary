@@ -143,10 +143,11 @@ no persisted cursor or screen snapshot to restore after a page reload.
 
 ### Change terminal input handling
 
-The `terminal/input-intent.ts` adapter uses the pinned xterm 6.0.0 internal
-`triggerDataEvent` source flag to distinguish user input from terminal-generated
+The `terminal/input-intent.ts` adapter uses xterm's internal `triggerDataEvent`
+source flag to distinguish user input from terminal-generated
 replies. Those replies must keep working during replay without renewing idle time.
-The adapter checks the version and runtime shape and fails on unsupported bundles.
+The xterm dependency is pinned in [package.json](frontend/package.json). The
+adapter checks the version and runtime shape and fails on unsupported bundles.
 
 The sandbox marks prompt boundaries with OSC 133. The browser reads the echoed
 input from xterm's normal buffer after writes, so history and Readline edits

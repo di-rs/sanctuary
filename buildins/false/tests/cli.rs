@@ -1,27 +1,10 @@
-use cli_testing::{Command, cargo_bin_cmd};
-use predicates::prelude::*;
-
-fn assert_silent_status(cmd: &mut Command, status: i32) {
-    cmd.assert()
-        .stdout(predicate::str::is_empty())
-        .stderr(predicate::str::is_empty())
-        .code(status);
-}
-
-#[test]
-fn false_exits_one_silently() {
-    assert_silent_status(&mut cargo_bin_cmd!("false"), 1);
-}
-
-#[test]
-fn false_ignores_arguments() {
-    assert_silent_status(cargo_bin_cmd!("false").args(["--help", "ignored"]), 1);
-}
-
-#[test]
-fn intentional_false_status_is_persisted_without_error() -> Result<(), Box<dyn std::error::Error>> {
+use cli_testing::{TestContext, cli_test};
+#[cli_test]
+fn intentional_false_status_is_persisted_without_error(
+    cx: &TestContext,
+) -> Result<(), Box<dyn std::error::Error>> {
     let logs = assert_fs::TempDir::new()?;
-    cargo_bin_cmd!("false")
+    cx.cmd()
         .env("SANCTUARY_LOG_DIR", logs.path())
         .env("SANCTUARY_LOG_LEVEL", "info")
         .env("SANCTUARY_LOG_STDERR", "off")

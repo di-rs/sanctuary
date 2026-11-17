@@ -1,7 +1,9 @@
 schema = 1
-binary = "true"
 checks = ["schema"]
+binary = "true"
 
-# Byte fixtures remain owned by native tests in expected/.
-[paths]
-expected = "catalog-expected"
+[[cases]]
+name = "true_exits_zero_silently"
+args = []
+origin = { manual = "POSIX true specifies silent exit status 0; independently checked with /usr/bin/true." }
+expect = { stdout = "" }

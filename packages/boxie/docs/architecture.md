@@ -35,9 +35,8 @@ lifecycle contract, limits, and maintenance behavior.
 Temporal survives worker retries, but terminal processes are not durable shell
 workflows. Restarting the supervisor ends PTYs. Today's sandbox runs Bash with
 operator-owned profiles. Shish runs locally but is not yet packaged into Boxie's
-approved profiles. The [integration design](../../shish/docs/durability.md)
-evaluates that step and future durable jobs separately; it changes no runtime
-guarantee. See [platform direction](../../../docs/platform-direction.md) for priorities.
+approved profiles. The [durability plan](../../shish/docs/durability.md) describes
+the proposed integration and durable jobs; neither is implemented.
 
 Database migrations and retention belong to [database operations](database.md).
 Temporal server maintenance is a [separate operating task](temporal.md), independent

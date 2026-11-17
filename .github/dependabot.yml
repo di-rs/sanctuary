@@ -1,7 +1,17 @@
 version: 2
+# Keep shared images (including Vector's Dockerfile and Compose references) together.
+multi-ecosystem-groups:
+  container-images:
+    schedule:
+      interval: weekly
+    labels: ["dependencies", "type:dependencies"]
+    commit-message:
+      prefix: ':arrow_up: deps'
+      include: scope
 updates:
   - package-ecosystem: cargo
     directories: [/]
+    labels: ["dependencies", "type:dependencies", "rust"]
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
@@ -17,6 +27,7 @@ updates:
         update-types: [minor, patch]
   - package-ecosystem: github-actions
     directory: /
+    labels: ["dependencies", "type:dependencies", "github_actions"]
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
@@ -25,6 +36,7 @@ updates:
       include: scope
   - package-ecosystem: uv
     directory: /
+    labels: ["dependencies", "type:dependencies"]
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
@@ -40,6 +52,7 @@ updates:
         update-types: [minor, patch]
   - package-ecosystem: npm
     directory: /tools/cli-playground/frontend
+    labels: ["dependencies", "type:dependencies", "javascript"]
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
@@ -53,3 +66,35 @@ updates:
       frontend-dependencies:
         patterns: ['*']
         update-types: [minor, patch]
+  - package-ecosystem: docker
+    directories:
+      - /packages/boxie/infra
+      - /packages/boxie/infra/observability/collector
+      - /packages/boxie/sandbox
+      - /packages/boxie/tests/integration
+      - /tools/cli-playground
+      - /tools/cli-playground/infra/docker
+    patterns: ['*']
+    multi-ecosystem-group: container-images
+  - package-ecosystem: docker-compose
+    directories:
+      - /packages/boxie/infra/ingress
+      - /packages/boxie/infra/observability
+      - /packages/boxie/infra/postgres
+      - /packages/boxie/infra/temporal
+      - /tools/cli-playground/infra
+    patterns: ['*']
+    multi-ecosystem-group: container-images
+    # Local development defaults are built here, not published upstream dependencies.
+    ignore:
+      - dependency-name: boxie-collector
+      - dependency-name: cli-playground
+  - package-ecosystem: rust-toolchain
+    directory: /
+    labels: ["dependencies", "type:dependencies", "rust"]
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 1
+    commit-message:
+      prefix: ':arrow_up: deps'
+      include: scope

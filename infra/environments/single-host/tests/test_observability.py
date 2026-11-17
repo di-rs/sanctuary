@@ -65,7 +65,7 @@ def test_host_overlay_resolves_installed_consumer_config(tmp_path: Path) -> None
 
 @pytest.mark.integration
 def test_merged_native_vector_validation() -> None:
-    pins = json.loads((BOXIE / "versions.json").read_text())
+    services = yaml.safe_load((BOXIE / "compose.yml").read_text())["services"]
     for args in (["validate", "--no-environment"], ["test"]):
         result = subprocess.run(
             [
@@ -82,7 +82,7 @@ def test_merged_native_vector_validation() -> None:
                 f"{BOXIE}:/boxie:ro",
                 "-v",
                 f"{CONSUMER}:/consumer:ro",
-                pins["collector"]["source_image"],
+                services["storage-init"]["image"],
                 *args,
                 "/boxie/vector.yaml",
                 "/consumer/vector.yaml",
@@ -102,7 +102,7 @@ def test_merged_collector_smoke_after_storage_outage(tmp_path: Path) -> None:
 
     import httpx
 
-    pins = json.loads((BOXIE / "versions.json").read_text())
+    services = yaml.safe_load((BOXIE / "compose.yml").read_text())["services"]
     identifier = str(uuid4())
     name = "correlation-" + uuid4().hex[:12]
     network, storage, collector = name, name + "-logs", name + "-vector"
@@ -169,7 +169,7 @@ def test_merged_collector_smoke_after_storage_outage(tmp_path: Path) -> None:
             network,
             "--publish",
             "127.0.0.1::9428",
-            pins["images"]["victorialogs"]["image"],
+            services["victorialogs"]["image"],
         )
         docker("stop", storage)
         docker(
@@ -189,7 +189,7 @@ def test_merged_collector_smoke_after_storage_outage(tmp_path: Path) -> None:
             "/var/lib/vector",
             "-v",
             f"{tmp_path}:/fixtures:ro",
-            pins["collector"]["source_image"],
+            services["storage-init"]["image"],
             "--config",
             "/fixtures/vector.yaml",
         )

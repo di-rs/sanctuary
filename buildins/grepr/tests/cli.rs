@@ -1,13 +1,11 @@
 use assert_fs::{NamedTempFile, TempDir, prelude::*};
-use cli_testing::cargo_bin_cmd;
+use cli_testing::{TestContext, cli_test};
+
 use predicates::prelude::*;
 use pretty_assertions::assert_eq;
 use std::{fs, path::PathBuf};
 
-const BUSTLE: &str = "tests/inputs/bustle.txt";
-const EMPTY: &str = "tests/inputs/empty.txt";
 const FOX: &str = "tests/inputs/fox.txt";
-const NOBODY: &str = "tests/inputs/nobody.txt";
 const INPUTS_DIR: &str = "tests/inputs";
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
@@ -16,161 +14,22 @@ fn gen_bad_file() -> String {
     "tests/file/doesnt/exist".to_owned()
 }
 
-#[test]
-fn dies_no_args() {
-    cargo_bin_cmd!()
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains("Usage"));
-}
-
-#[test]
-fn dies_bad_pattern() {
-    cargo_bin_cmd!()
-        .args(["*foo", FOX])
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains("invalid pattern passed `*foo`"));
-}
-
-#[test]
-fn warns_bad_file() {
+#[cli_test]
+fn warns_bad_file(cx: &TestContext) {
     let bad = gen_bad_file();
     let expected = format!("{bad} doesn\'t exists");
-    cargo_bin_cmd!()
+    cx.cmd()
         .args(["foo", &bad])
         .assert()
         .code(1)
         .stderr(predicate::str::contains(expected));
 }
 
-fn run(args: &[&str], expected_file: &str) -> Result<()> {
-    let expected = cli_testing::fixtures!().read_expected(expected_file)?;
-    cargo_bin_cmd!()
-        .args(args)
-        .assert()
-        .code(0)
-        .stdout(expected)
-        .stderr("");
-    Ok(())
-}
-
-#[test]
-fn empty_file() -> Result<()> {
-    run(&["foo", EMPTY], "foo.empty.txt")
-}
-
-#[test]
-fn empty_regex() -> Result<()> {
-    run(&["", FOX], "empty_regex.fox.txt")
-}
-
-#[test]
-fn bustle_capitalized() -> Result<()> {
-    run(&["The", BUSTLE], "bustle.txt.the.capitalized")
-}
-
-#[test]
-fn bustle_lowercase() -> Result<()> {
-    run(&["the", BUSTLE], "bustle.txt.the.lowercase")
-}
-
-#[test]
-fn bustle_insensitive() -> Result<()> {
-    run(
-        &["--insensitive", "the", BUSTLE],
-        "bustle.txt.the.lowercase.insensitive",
-    )
-}
-
-#[test]
-fn nobody() -> Result<()> {
-    run(&["nobody", NOBODY], "nobody.txt")
-}
-
-#[test]
-fn nobody_insensitive() -> Result<()> {
-    run(&["-i", "nobody", NOBODY], "nobody.txt.insensitive")
-}
-
-#[test]
-fn multiple_files() -> Result<()> {
-    run(&["The", BUSTLE, EMPTY, FOX, NOBODY], "all.the.capitalized")
-}
-
-#[test]
-fn multiple_files_insensitive() -> Result<()> {
-    run(
-        &["-i", "the", BUSTLE, EMPTY, FOX, NOBODY],
-        "all.the.lowercase.insensitive",
-    )
-}
-
-#[test]
-fn recursive() -> Result<()> {
-    run(&["--recursive", "dog", INPUTS_DIR], "dog.recursive")
-}
-
-#[test]
-fn recursive_insensitive() -> Result<()> {
-    run(&["-ri", "then", INPUTS_DIR], "the.recursive.insensitive")
-}
-
-#[test]
-fn sensitive_count_capital() -> Result<()> {
-    run(
-        &["--count", "The", BUSTLE],
-        "bustle.txt.the.capitalized.count",
-    )
-}
-
-#[test]
-fn sensitive_count_lower() -> Result<()> {
-    run(
-        &["--count", "the", BUSTLE],
-        "bustle.txt.the.lowercase.count",
-    )
-}
-
-#[test]
-fn insensitive_count() -> Result<()> {
-    run(
-        &["-ci", "the", BUSTLE],
-        "bustle.txt.the.lowercase.insensitive.count",
-    )
-}
-
-#[test]
-fn nobody_count() -> Result<()> {
-    run(&["-c", "nobody", NOBODY], "nobody.txt.count")
-}
-
-#[test]
-fn nobody_count_insensitive() -> Result<()> {
-    run(&["-ci", "nobody", NOBODY], "nobody.txt.insensitive.count")
-}
-
-#[test]
-fn sensitive_count_multiple() -> Result<()> {
-    run(
-        &["-c", "The", BUSTLE, EMPTY, FOX, NOBODY],
-        "all.the.capitalized.count",
-    )
-}
-
-#[test]
-fn insensitive_count_multiple() -> Result<()> {
-    run(
-        &["-ic", "the", BUSTLE, EMPTY, FOX, NOBODY],
-        "all.the.lowercase.insensitive.count",
-    )
-}
-
-#[test]
-fn warns_dir_not_recursive() {
+#[cli_test]
+fn warns_dir_not_recursive(cx: &TestContext) {
     let stdout = "tests/inputs/fox.txt:\
         The quick brown fox jumps over the lazy dog.";
-    cargo_bin_cmd!()
+    cx.cmd()
         .args(["fox", INPUTS_DIR, FOX])
         .assert()
         .code(1)
@@ -178,45 +37,12 @@ fn warns_dir_not_recursive() {
         .stdout(predicate::str::contains(stdout));
 }
 
-#[test]
-fn stdin() -> Result<()> {
-    let fixtures = cli_testing::fixtures!();
-    let input = fixtures.read_input("bustle.txt")?;
-    let expected = fixtures.read_expected("bustle.txt.the.capitalized")?;
-    cargo_bin_cmd!()
-        .arg("The")
-        .write_stdin(input)
-        .assert()
-        .code(0)
-        .stdout(expected)
-        .stderr("");
-    Ok(())
-}
-
-#[test]
-fn stdin_insensitive_count() -> Result<()> {
-    let fixtures = cli_testing::fixtures!();
-    let mut input = Vec::new();
-    for name in ["bustle.txt", "empty.txt", "fox.txt", "nobody.txt"] {
-        input.extend(fixtures.read_input(name)?);
-    }
-    let expected = fixtures.read_expected("the.recursive.insensitive.count.stdin")?;
-    cargo_bin_cmd!()
-        .args(["-ci", "the", "-"])
-        .write_stdin(input)
-        .assert()
-        .code(0)
-        .stdout(expected)
-        .stderr("");
-    Ok(())
-}
-
-#[test]
-fn file_content_in_file() -> Result<()> {
+#[cli_test]
+fn file_content_in_file(cx: &TestContext) -> Result<()> {
     let file = NamedTempFile::new("sample.txt")?;
     file.write_str("A test\nActual content\nMore content\nAnother test")?;
 
-    let mut cmd = cargo_bin_cmd!();
+    let mut cmd = cx.cmd();
     cmd.arg("test").arg(file.path());
 
     cmd.assert()
@@ -226,13 +52,13 @@ fn file_content_in_file() -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn empty_pattern_returns_all_file() -> Result<()> {
+#[cli_test]
+fn empty_pattern_returns_all_file(cx: &TestContext) -> Result<()> {
     let file = NamedTempFile::new("sample.txt")?;
     let file_content = "A test\nActual content\nMore content\nAnother test";
     file.write_str(file_content)?;
 
-    let mut cmd = cargo_bin_cmd!();
+    let mut cmd = cx.cmd();
     cmd.arg("").arg(file.path());
 
     cmd.assert()
@@ -242,8 +68,8 @@ fn empty_pattern_returns_all_file() -> Result<()> {
     Ok(())
 }
 
-fn check_stdin(args: &[&str], input: &str, expected: &str) {
-    cargo_bin_cmd!()
+fn check_stdin(cx: &TestContext, args: &[&str], input: &str, expected: &str) {
+    cx.cmd()
         .args(args)
         .write_stdin(input)
         .assert()
@@ -252,66 +78,52 @@ fn check_stdin(args: &[&str], input: &str, expected: &str) {
         .stderr("");
 }
 
-#[test]
-fn stdin_no_match() {
-    check_stdin(&["absent"], "alpha\nbeta\n", "");
+#[cli_test]
+fn empty_regex_counts_blank_and_unterminated_lines(cx: &TestContext) {
+    check_stdin(cx, &["-c", ""], "alpha\n\nomega", "3\n");
 }
 
-#[test]
-fn stdin_no_match_count() {
-    check_stdin(&["-c", "absent", "-"], "alpha\nbeta\n", "0\n");
+#[cli_test]
+fn empty_regex_inverted_selects_nothing(cx: &TestContext) {
+    check_stdin(cx, &["-v", ""], "alpha\n\nomega", "");
 }
 
-#[test]
-fn empty_stdin_empty_regex_count() {
-    check_stdin(&["--count", ""], "", "0\n");
-}
-
-#[test]
-fn empty_regex_counts_blank_and_unterminated_lines() {
-    check_stdin(&["-c", ""], "alpha\n\nomega", "3\n");
-}
-
-#[test]
-fn empty_regex_inverted_selects_nothing() {
-    check_stdin(&["-v", ""], "alpha\n\nomega", "");
-}
-
-#[test]
-fn invert_preserves_blank_lines_and_missing_final_newline() {
+#[cli_test]
+fn invert_preserves_blank_lines_and_missing_final_newline(cx: &TestContext) {
     check_stdin(
+        cx,
         &["--invert-match", "alpha", "-"],
         "alpha\n\nomega",
         "\nomega",
     );
 }
 
-#[test]
-fn insensitive_inverted_count() {
-    check_stdin(&["-ivc", "alpha"], "ALPHA\nalpha\nbeta\n\n", "2\n");
+#[cli_test]
+fn insensitive_inverted_count(cx: &TestContext) {
+    check_stdin(cx, &["-ivc", "alpha"], "ALPHA\nalpha\nbeta\n\n", "2\n");
 }
 
-#[test]
-fn count_counts_matching_lines_not_occurrences() {
-    check_stdin(&["-c", "cat"], "cat cat cat\ndog\ncat", "2\n");
+#[cli_test]
+fn count_counts_matching_lines_not_occurrences(cx: &TestContext) {
+    check_stdin(cx, &["-c", "cat"], "cat cat cat\ndog\ncat", "2\n");
 }
 
-#[test]
-fn stdin_invalid_regex_produces_no_output() {
-    cargo_bin_cmd!()
+#[cli_test]
+fn stdin_invalid_regex_produces_no_output(cx: &TestContext) {
+    cx.cmd()
         .arg("[")
         .write_stdin("alpha\n")
         .assert()
-        .failure()
+        .code(65)
         .stdout("")
         .stderr(predicate::str::contains("invalid pattern passed `[`"));
 }
 
-#[test]
-fn stdin_and_file_are_both_prefixed() -> Result<()> {
+#[cli_test]
+fn stdin_and_file_are_both_prefixed(cx: &TestContext) -> Result<()> {
     let dir = TempDir::new()?;
     dir.child("sample.txt").write_str("skip\nmatch file\n")?;
-    cargo_bin_cmd!()
+    cx.cmd()
         .current_dir(dir.path())
         .args(["match", "-", "sample.txt"])
         .write_stdin("match stdin\nskip\n")
@@ -322,12 +134,12 @@ fn stdin_and_file_are_both_prefixed() -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn multiple_files_inverted_count_includes_zero() -> Result<()> {
+#[cli_test]
+fn multiple_files_inverted_count_includes_zero(cx: &TestContext) -> Result<()> {
     let dir = TempDir::new()?;
     dir.child("first.txt").write_str("cat\ndog\n\n")?;
     dir.child("second.txt").write_str("CAT\n")?;
-    cargo_bin_cmd!()
+    cx.cmd()
         .current_dir(dir.path())
         .args(["-ivc", "cat", "first.txt", "second.txt"])
         .assert()
@@ -337,11 +149,11 @@ fn multiple_files_inverted_count_includes_zero() -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn recursive_search_skips_empty_nested_directories() -> Result<()> {
+#[cli_test]
+fn recursive_search_skips_empty_nested_directories(cx: &TestContext) -> Result<()> {
     let dir = TempDir::new()?;
     dir.child("tree/nested/empty").create_dir_all()?;
-    cargo_bin_cmd!()
+    cx.cmd()
         .current_dir(dir.path())
         .args(["-rc", "match", "tree"])
         .assert()
@@ -351,11 +163,13 @@ fn recursive_search_skips_empty_nested_directories() -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn recursive_search_preserves_explicit_files_and_missing_path_errors() -> Result<()> {
+#[cli_test]
+fn recursive_search_preserves_explicit_files_and_missing_path_errors(
+    cx: &TestContext,
+) -> Result<()> {
     let dir = TempDir::new()?;
     dir.child("sample.txt").write_str("match file\n")?;
-    cargo_bin_cmd!()
+    cx.cmd()
         .current_dir(dir.path())
         .args(["-r", "match", "missing.txt", "sample.txt"])
         .assert()
@@ -365,13 +179,16 @@ fn recursive_search_preserves_explicit_files_and_missing_path_errors() -> Result
     Ok(())
 }
 
-#[test]
-fn recursive_search_visits_nested_files_without_reading_directories() -> Result<()> {
+#[cli_test]
+fn recursive_search_visits_nested_files_without_reading_directories(
+    cx: &TestContext,
+) -> Result<()> {
     let dir = TempDir::new()?;
     dir.child("tree/top.txt").write_str("match top\n")?;
     dir.child("tree/nested/bottom.txt")
         .write_str("match bottom\n")?;
-    let cmd = cargo_bin_cmd!()
+    let cmd = cx
+        .cmd()
         .current_dir(dir.path())
         .args(["-r", "match", "tree"])
         .assert()
@@ -397,11 +214,11 @@ fn recursive_search_visits_nested_files_without_reading_directories() -> Result<
     Ok(())
 }
 
-#[test]
-fn debug_logging_preserves_match_output_without_storing_input() -> Result<()> {
+#[cli_test]
+fn debug_logging_preserves_match_output_without_storing_input(cx: &TestContext) -> Result<()> {
     let logs = TempDir::new()?;
     let secret = "private-match-payload-782541";
-    cargo_bin_cmd!()
+    cx.cmd()
         .env("SANCTUARY_LOG_DIR", logs.path())
         .env("SANCTUARY_LOG_LEVEL", "debug")
         .args(["--verbose", "--verbose", "--verbose", "private-match"])
@@ -432,9 +249,9 @@ fn debug_logging_preserves_match_output_without_storing_input() -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn missing_operand_returns_failure() {
-    cli_testing::cargo_bin_cmd!()
+#[cli_test]
+fn missing_operand_returns_failure(cx: &TestContext) {
+    cx.cmd()
         .args(["x", "/sanctuary-audit-missing/path"])
         .assert()
         .code(1)
@@ -442,19 +259,19 @@ fn missing_operand_returns_failure() {
         .stderr(predicates::str::contains("/sanctuary-audit-missing/path"));
 }
 
-#[test]
+#[cli_test]
 #[cfg(unix)]
 #[allow(
     clippy::panic_in_result_fn,
     reason = "Assertions verify subprocess interruption; Result propagates setup errors."
 )]
-fn sigint_terminates_without_stdout_chatter() -> Result<()> {
+fn sigint_terminates_without_stdout_chatter(cx: &TestContext) -> Result<()> {
     use std::{
         os::unix::process::ExitStatusExt,
         process::{Command, Stdio},
         time::{Duration, Instant},
     };
-    let mut child = Command::new(cargo_bin_cmd!().get_program())
+    let mut child = Command::new(cx.cmd().get_program())
         .args(["x", "-"])
         .env("SANCTUARY_LOG_LEVEL", "off")
         .env("SANCTUARY_LOG_STDERR", "off")

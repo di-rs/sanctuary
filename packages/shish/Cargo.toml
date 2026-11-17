@@ -6,7 +6,7 @@ license.workspace = true
 description = "Sanctuary shell"
 
 [package.metadata.cli-check]
-benchmark-exemption = "Imported shell baseline; runtime replacement precedes a representative benchmark suite"
+benchmark-exemption = "Representative interactive and process-launch workloads are not selected; no performance claim"
 
 [lints]
 workspace = true
@@ -29,8 +29,8 @@ cli-testing.workspace = true
 portable-pty = "0.9"
 predicates.workspace = true
 serde_json.workspace = true
-sysinfo = { version = "0.37", default-features = false, features = ["system"] }
-vt100 = "0.16"
+sysinfo = { version = "0.40", default-features = false, features = ["system"] }
+vt100 = "0.18"
 
 
 [[test]]

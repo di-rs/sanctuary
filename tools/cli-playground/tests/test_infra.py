@@ -85,7 +85,7 @@ class HostMocks(pulumi.runtime.Mocks):
             await registration.resource.urn.future()
 
 
-@pulumi.runtime.test  # type: ignore[untyped-decorator]  # Pulumi's test runner is untyped.
+@pulumi.runtime.test
 async def test_resource_graph_limits_public_exposure_and_protects_host() -> None:
     mocks = HostMocks()
     server = provision(HostConfig(domain="play.example.com", cloudflare_zone_id=ZONE_ID))
@@ -128,7 +128,7 @@ async def test_resource_graph_limits_public_exposure_and_protects_host() -> None
     assert await server.id.future() == "123"
 
 
-@pulumi.runtime.test  # type: ignore[untyped-decorator]  # Pulumi's test runner is untyped.
+@pulumi.runtime.test
 async def test_optional_administrator_access_uses_first_boot_without_server_key_drift() -> None:
     mocks = HostMocks()
     server = provision(
@@ -155,7 +155,7 @@ async def test_optional_administrator_access_uses_first_boot_without_server_key_
     )
 
 
-@pulumi.runtime.test  # type: ignore[untyped-decorator]  # Pulumi's test runner is untyped.
+@pulumi.runtime.test
 async def test_generated_ssh_identity_and_host_key_keep_private_material_secret() -> None:
     mocks = HostMocks()
     server = provision(HostConfig(domain="play.example.com", cloudflare_zone_id=ZONE_ID))

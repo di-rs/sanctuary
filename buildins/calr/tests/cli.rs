@@ -1,99 +1,11 @@
-use cli_testing::cargo_bin_cmd;
+use cli_testing::{TestContext, cli_test};
 use predicates::prelude::*;
 use pretty_assertions::assert_eq;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-#[test]
-fn dies_year_0() {
-    cargo_bin_cmd!()
-        .arg("0")
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains(
-            "error: invalid value '0' for '[YEAR]': 0 is not in 1..=9999",
-        ));
-}
-
-#[test]
-fn dies_year_10000() {
-    cargo_bin_cmd!()
-        .arg("10000")
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains(
-            "error: invalid value \'10000\' \
-                for \'[YEAR]\': 10000 is not in 1..=9999",
-        ));
-}
-
-#[test]
-fn dies_invalid_year() {
-    cargo_bin_cmd!()
-        .arg("foo")
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains(
-            "error: invalid value \'foo\' for \'[YEAR]\': \
-                invalid digit found in string",
-        ));
-}
-
-#[test]
-fn dies_month_0() {
-    cargo_bin_cmd!()
-        .args(["-m", "0"])
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains(
-            "invalid value '0' for '-m <MONTH>': not in the range 1 through 12",
-        ));
-}
-
-#[test]
-fn dies_month_13() {
-    cargo_bin_cmd!()
-        .args(["-m", "13"])
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains(
-            "invalid value '13' for '-m <MONTH>': not in the range 1 through 12",
-        ));
-}
-
-#[test]
-fn dies_invalid_month() {
-    cargo_bin_cmd!()
-        .args(["-m", "foo"])
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains(
-            "invalid value 'foo' for '-m <MONTH>'",
-        ));
-}
-
-#[test]
-fn dies_y_and_month() {
-    let expected = "the argument '-m <MONTH>' cannot be used with '--year'";
-    cargo_bin_cmd!()
-        .args(["-m", "1", "-y"])
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains(expected));
-}
-
-#[test]
-fn dies_y_and_year() {
-    let expected = "the argument '--year' cannot be used with '[YEAR]'";
-    cargo_bin_cmd!()
-        .args(["-y", "2000"])
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains(expected));
-}
-
-#[test]
-fn month_num() {
+#[cli_test]
+fn month_num(cx: &TestContext) {
     let expected = &[
         ("1", "January"),
         ("2", "February"),
@@ -110,7 +22,7 @@ fn month_num() {
     ];
 
     for (num, month) in expected {
-        cargo_bin_cmd!()
+        cx.cmd()
             .args(["-m", num])
             .assert()
             .success()
@@ -118,8 +30,8 @@ fn month_num() {
     }
 }
 
-#[test]
-fn partial_month() {
+#[cli_test]
+fn partial_month(cx: &TestContext) {
     let expected = &[
         ("ja", "January"),
         ("f", "February"),
@@ -135,7 +47,7 @@ fn partial_month() {
     ];
 
     for (arg, month) in expected {
-        cargo_bin_cmd!()
+        cx.cmd()
             .args(["-m", arg])
             .assert()
             .success()
@@ -143,20 +55,9 @@ fn partial_month() {
     }
 }
 
-fn run(args: &[&str], expected_file: &str) -> Result<()> {
-    let expected = cli_testing::fixtures!().read_expected(expected_file)?;
-    cargo_bin_cmd!()
-        .args(args)
-        .assert()
-        .code(0)
-        .stdout(expected)
-        .stderr("");
-    Ok(())
-}
-
-#[test]
-fn default_one_month() -> Result<()> {
-    let cmd = cargo_bin_cmd!().assert().success();
+#[cli_test]
+fn default_one_month(cx: &TestContext) -> Result<()> {
+    let cmd = cx.cmd().assert().success();
     let out = cmd.get_output();
     let stdout = String::from_utf8(out.stdout.clone())?;
     let lines: Vec<_> = stdout.split('\n').collect();
@@ -165,104 +66,18 @@ fn default_one_month() -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn test_2_2020_leap_year() -> Result<()> {
-    run(&["-m", "2", "2020"], "2-2020.txt")
-}
-
-#[test]
-fn test_4_2020() -> Result<()> {
-    run(&["-m", "4", "2020"], "4-2020.txt")
-}
-
-#[test]
-fn test_april_2020() -> Result<()> {
-    run(&["2020", "-m", "april"], "4-2020.txt")
-}
-
-#[test]
-fn test_2020() -> Result<()> {
-    run(&["2020"], "2020.txt")
-}
-
-#[test]
-fn year() -> Result<()> {
-    let cmd = cargo_bin_cmd!().arg("-y").assert().success();
+#[cli_test]
+fn year(cx: &TestContext) -> Result<()> {
+    let cmd = cx.cmd().arg("-y").assert().success();
     let stdout = String::from_utf8(cmd.get_output().stdout.clone())?;
     let lines = stdout.split('\n');
     assert_eq!(lines.count(), 37);
     Ok(())
 }
 
-#[test]
-fn minimum_year_january() -> Result<()> {
-    run(&["1", "-m", "1"], "1-1.txt")
-}
-
-#[test]
-fn maximum_year_december() -> Result<()> {
-    run(&["9999", "-m", "12"], "12-9999.txt")
-}
-
-#[test]
-fn century_1900_is_not_leap_year() -> Result<()> {
-    run(&["1900", "-m", "2"], "2-1900.txt")
-}
-
-#[test]
-fn century_2000_is_leap_year() -> Result<()> {
-    run(&["2000", "-m", "2"], "2-2000.txt")
-}
-
-#[test]
-fn century_2100_is_not_leap_year() -> Result<()> {
-    run(&["2100", "-m", "2"], "2-2100.txt")
-}
-
-#[test]
-fn mixed_case_month_name() -> Result<()> {
-    run(&["2020", "-m", "aPrIl"], "4-2020.txt")
-}
-
-#[test]
-fn dies_ambiguous_or_empty_month() {
-    for month in ["", "m", "j", "a"] {
-        cargo_bin_cmd!()
-            .args(["2020", "-m", month])
-            .assert()
-            .failure()
-            .stdout("")
-            .stderr(predicate::str::contains("invalid value"));
-    }
-}
-
-#[test]
-fn dies_long_year_and_month_in_either_order() {
-    for args in [["--year", "-m", "December"], ["-m", "December", "--year"]] {
-        cargo_bin_cmd!()
-            .args(args)
-            .assert()
-            .failure()
-            .stdout("")
-            .stderr(predicate::str::contains("cannot be used with"));
-    }
-}
-
-#[test]
-fn dies_long_year_and_explicit_year_in_either_order() {
-    for args in [["--year", "2000"], ["2000", "--year"]] {
-        cargo_bin_cmd!()
-            .args(args)
-            .assert()
-            .failure()
-            .stdout("")
-            .stderr(predicate::str::contains("cannot be used with"));
-    }
-}
-
-#[test]
-fn redirected_calendar_has_no_ansi() {
-    cargo_bin_cmd!()
+#[cli_test]
+fn redirected_calendar_has_no_ansi(cx: &TestContext) {
+    cx.cmd()
         .assert()
         .code(0)
         .stderr("")

@@ -7,6 +7,15 @@ service availability. User files and terminal contents may contain sensitive dat
 
 ## Trust boundaries
 
+- **Assistants to production observability:** The [MCP adapters](../packages/boxie/docs/mcp.md)
+  run over stdio on private Docker networks without public listeners. SSH operators
+  or an explicitly associated OpenAI tunnel control access. Grafana uses a dedicated
+  Viewer credential and disables write tools; only its bootstrap job receives the
+  admin password. Temporal's pinned adapter exposes read-only tools and omits payload
+  data, but its shared operator certificate has broader backend authority because
+  the server has no per-operation authorizer. Keep the certificate and Grafana token
+  on the host. Tool output is production data and may contain untrusted text; it is
+  not an instruction source. OpenAI tunnel membership grants access to this data.
 - **Local CLIs:** Arguments, stdin, files, and filenames are untrusted. Commands
   run with the invoking user's permissions; parsing must not cause unintended
   reads, writes, or execution.
@@ -48,6 +57,11 @@ service availability. User files and terminal contents may contain sensitive dat
   [runsc isolation](../packages/boxie/src/boxie/sandbox/docker.py), the non-root
   user, disabled network, read-only root and artifacts, dropped capabilities,
   and resource limits, including during recovery.
+- **PR metadata to repository labels:** The pinned third-party label action reads
+  trusted base-revision configuration with contents-read and PR-write permissions.
+  Treat PR bodies, filenames, and event payloads as data; never execute PR code or
+  interpolate these values into shell scripts. Author selections cannot request
+  draft CI. Labels are advisory and do not replace branch protection.
 - **PR build to publication:** PR source and build outputs are untrusted.
   The [privileged controller](../.github/workflows/cli-playground-preview.yml)
   uses default-branch code. Never execute PR-controlled scripts or binaries with
@@ -56,6 +70,14 @@ service availability. User files and terminal contents may contain sensitive dat
   build, with elapsed-time/output limits and without ambient credentials; the
   publisher and gateway validate metadata without executing uploaded code.
   Those capture bounds do not isolate a malicious process from its build runner.
+- **Local fixture recipes and recordings:** CLI test catalogs and their reference
+  commands are trusted repository code, executed with the developer's permissions.
+  Temporary test workspaces do not sandbox host access. `cli-testing record`
+  stages output outside committed fixtures; `apply` is an explicit promotion of a
+  reviewed capture. Validate catalog ownership, allowed paths, input/expectation
+  hashes, reference identity, completion, and shared-file conflicts before writes.
+  A recording's provenance is consistency metadata, not authentication of an
+  arbitrary downloaded artifact.
 
 ## Review priorities
 

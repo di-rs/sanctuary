@@ -11,7 +11,7 @@ from host_mocks import HostMocks
 ROOT = Path(__file__).resolve().parents[4]
 
 
-@pulumi.runtime.test  # type: ignore[untyped-decorator]
+@pulumi.runtime.test
 async def test_environment_composes_service_owned_routes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

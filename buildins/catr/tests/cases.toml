@@ -1,7 +1,123 @@
 schema = 1
 binary = "catr"
 checks = ["help", "schema"]
+reference = "cat"
 
-# Byte fixtures remain owned by native tests in expected/.
-[paths]
-expected = "catalog-expected"
+[fixtures]
+empty = "empty.txt"
+fox = "fox.txt"
+multispaces = "spiders-multispaces.txt"
+spiders = "spiders.txt"
+bustle = "the-bustle.txt"
+
+[references.cat]
+program = "/bin/cat"
+platform = "macos"
+
+[[cases]]
+name = "bustle_stdin"
+args = ["-"]
+stdin = { mode = "pipe", files = ["bustle"] }
+
+[[cases]]
+name = "bustle_stdin_n"
+args = ["-n", "-"]
+stdin = { mode = "pipe", files = ["bustle"] }
+
+[[cases]]
+name = "bustle_stdin_b"
+args = ["-b", "-"]
+stdin = { mode = "pipe", files = ["bustle"] }
+
+[[cases]]
+name = "empty"
+args = [{ fixture = "empty" }]
+
+[[cases]]
+name = "empty_n"
+args = ["-n", { fixture = "empty" }]
+
+[[cases]]
+name = "empty_b"
+args = ["-b", { fixture = "empty" }]
+
+[[cases]]
+name = "fox"
+args = [{ fixture = "fox" }]
+
+[[cases]]
+name = "fox_n"
+args = ["-n", { fixture = "fox" }]
+
+[[cases]]
+name = "fox_b"
+args = ["-b", { fixture = "fox" }]
+
+[[cases]]
+name = "spiders"
+args = [{ fixture = "spiders" }]
+
+[[cases]]
+name = "spiders_n"
+args = ["-n", { fixture = "spiders" }]
+
+[[cases]]
+name = "spiders_b"
+args = ["-b", { fixture = "spiders" }]
+
+[[cases]]
+name = "bustle"
+args = [{ fixture = "bustle" }]
+
+[[cases]]
+name = "bustle_n"
+args = ["-n", { fixture = "bustle" }]
+
+[[cases]]
+name = "bustle_b"
+args = ["-b", { fixture = "bustle" }]
+
+[[cases]]
+name = "all"
+args = [{ fixtures = ["fox", "spiders", "bustle"] }]
+
+[[cases]]
+name = "all_n"
+args = ["-n", { fixtures = ["fox", "spiders", "bustle"] }]
+
+[[cases]]
+name = "all_b"
+args = ["-b", { fixtures = ["fox", "spiders", "bustle"] }]
+
+[[cases]]
+name = "mutipspaces"
+args = [{ fixture = "multispaces" }]
+
+[[cases]]
+name = "mutipspaces_s"
+args = ["-s", { fixture = "multispaces" }]
+
+[[cases]]
+name = "mutipspaces_s_n"
+args = ["-s", "-n", { fixture = "multispaces" }]
+
+[[cases]]
+name = "mutipspaces_s_b"
+args = ["-s", "-b", { fixture = "multispaces" }]
+
+[[cases]]
+name = "bustle_u"
+args = ["-u", { fixture = "bustle" }]
+expect = { stdout_file = "bustle.out" }
+
+[[cases]]
+name = "rejects_unknown_flag"
+args = ["--unknown"]
+origin = { manual = "Only declared options are accepted; unknown flags are argument errors." }
+expect = { exit = 2, stdout = "", stderr_contains = "unexpected argument '--unknown'" }
+
+[[cases]]
+name = "rejects_conflicting_numbering_modes"
+args = ["-n", "-b"]
+origin = { manual = "Number-all and number-nonblank modes are mutually exclusive." }
+expect = { exit = 2, stdout = "", stderr_contains = "cannot be used with" }
