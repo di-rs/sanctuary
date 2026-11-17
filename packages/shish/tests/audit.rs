@@ -142,7 +142,7 @@ fn pty_guard_cleans_up_descendants() -> anyhow::Result<()> {
     let pid = sysinfo::Pid::from_u32(pid);
     let started = std::time::Instant::now();
     loop {
-        let mut system = sysinfo::System::new();
+        let mut system = sysinfo::System::new()?;
         system.refresh_processes(sysinfo::ProcessesToUpdate::Some(&[pid]), true);
         if system
             .process(pid)
