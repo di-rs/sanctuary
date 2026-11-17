@@ -1,0 +1,14 @@
+{
+  "minLines": 5,
+  "minTokens": 50,
+  "format": ["rust", "python", "javascript", "jsx", "typescript", "tsx", "svelte"],
+  "pattern": "**/*.{rs,py,pyi,js,jsx,ts,tsx,svelte}",
+  "ignore": [
+    "**/node_modules/**", "**/target/**", "**/dist/**", "**/vendor/**",
+    "**/generated/**", "**/__pycache__/**", "**/fixtures/**",
+    "**/inputs/**", "**/expected/**", ".agents/**", ".codex/**",
+    "tools/cli-playground/src/cli_playground/static/**"
+  ],
+  "reporters": ["json", "markdown"],
+  "output": "target/duplication"
+}
