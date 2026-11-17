@@ -1,0 +1,67 @@
+name: Frontend dependency audit
+on:
+  pull_request:
+    branches: [master]
+    types: [opened, synchronize, reopened, ready_for_review, labeled]
+    paths:
+      - 'tools/cli-playground/frontend/package.json'
+      - 'tools/cli-playground/frontend/pnpm-lock.yaml'
+      - 'tools/cli-playground/frontend/pnpm-workspace.yaml'
+      - 'tools/cli-playground/frontend/.node-version'
+      - '.github/workflows/frontend-audit.yml'
+permissions:
+  contents: read
+concurrency:
+  group: frontend-audit-${{ github.event.pull_request.number }}-${{ github.event.action == 'labeled' && github.event.label.name != 'run-ci' && github.run_id || 'checks' }}
+  cancel-in-progress: true
+jobs:
+  audit:
+    if: >-
+      ${{
+        (github.event.action != 'labeled' || github.event.label.name == 'run-ci') &&
+        (!github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'run-ci'))
+      }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76 # v1.22.0
+        if: hashFiles('tools/cli-playground/frontend/pnpm-lock.yaml') != ''
+        with:
+          working-directory: tools/cli-playground/frontend
+          node-version-file: .node-version
+          version-file: package.json
+          run-install: false
+      - name: Audit locked production and development dependencies
+        shell: bash
+        run: |
+          frontend=tools/cli-playground/frontend
+          if [[ ! -f "$frontend/pnpm-lock.yaml" ]]; then
+            echo 'Frontend audit: no lockfile present; skipped.' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          # Audit a lockfile copy without repository ignore rules or lifecycle scripts.
+          audit_dir=$(mktemp -d)
+          trap 'rm -rf "$audit_dir"' EXIT
+          cp "$frontend/package.json" "$frontend/pnpm-lock.yaml" "$audit_dir/"
+          printf 'packages: []\n' > "$audit_dir/pnpm-workspace.yaml"
+          report="$RUNNER_TEMP/frontend-audit.json"
+          status=0
+          (cd "$audit_dir" && NPM_CONFIG_USERCONFIG=/dev/null NPM_CONFIG_GLOBALCONFIG=/dev/null \
+            timeout 300 pnpm audit --json --ignore-registry-errors=false) > "$report" || status=$?
+          if jq -e '[.metadata.vulnerabilities[]? | select(type == "number")] | (add // 0) > 0' "$report" > /dev/null 2>&1; then
+            echo 'Frontend audit: known vulnerabilities found; no exceptions permitted.' >> "$GITHUB_STEP_SUMMARY"
+            cat "$report"
+            exit 1
+          fi
+          if [[ "$status" -eq 0 ]] && jq -e '
+            (.metadata.vulnerabilities | type) == "object" and
+            (.metadata.vulnerabilities | length) > 0 and
+            all(.metadata.vulnerabilities[]; type == "number" and . >= 0) and .error == null
+          ' "$report" > /dev/null 2>&1; then
+            echo 'Frontend audit: no known vulnerabilities found.' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'Frontend audit incomplete; this is not a clean result.' >> "$GITHUB_STEP_SUMMARY"
+          fi

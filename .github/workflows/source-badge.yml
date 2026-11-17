@@ -11,9 +11,19 @@ on:
       - '**/*.ts'
       - '**/*.tsx'
       - '**/*.svelte'
-      - 'tools/guardrails/source_badge.py'
-      - 'tools/guardrails/changes.py'
       - '.github/workflows/source-badge.yml'
+      - '!**/node_modules/**'
+      - '!**/target/**'
+      - '!**/dist/**'
+      - '!**/vendor/**'
+      - '!**/generated/**'
+      - '!**/__pycache__/**'
+      - '!**/fixtures/**'
+      - '!**/inputs/**'
+      - '!**/expected/**'
+      - '!.agents/**'
+      - '!.codex/**'
+      - '!tools/cli-playground/src/cli_playground/static/**'
   workflow_dispatch:
 permissions:
   contents: read
@@ -22,16 +32,35 @@ concurrency:
   cancel-in-progress: false
 jobs:
   measure:
+    if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          fetch-depth: 2
           persist-credentials: false
-      - env:
-          PYTHONPATH: tools
-        run: python3 -m guardrails.source_badge
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: '0.13.0'
+      - name: Install line counter
+        run: sudo apt-get update && sudo apt-get install --yes cloc
+      - name: Count maintained source and render badge
+        shell: bash
+        run: |
+          mkdir -p badge
+          git ls-files -z -- . ':(exclude)tools/cli-playground/src/cli_playground/static/**' | while IFS= read -r -d '' path; do
+            if [[ -f "$path" && ! -L "$path" ]]; then
+              printf '%s\n' "$path"
+            fi
+          done > "$RUNNER_TEMP/source-files.txt"
+          cloc --list-file="$RUNNER_TEMP/source-files.txt" --fullpath --skip-uniqueness --json --quiet \
+            --include-ext=rs,py,pyi,js,jsx,ts,tsx,svelte \
+            --exclude-dir=node_modules,target,dist,vendor,generated,__pycache__,fixtures,inputs,expected,.agents,.codex \
+            --report-file="$RUNNER_TEMP/source-lines.json"
+          count=$(jq '(.SUM.code // 0) + (.SUM.comment // 0)' "$RUNNER_TEMP/source-lines.json")
+          uvx --from anybadge==1.14.0 anybadge --label 'source nonblank lines' \
+            --value "$count" --color '#374151' --file badge/loc.svg
+          echo "Source nonblank lines (cloc code + comments): $count" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: source-badge
@@ -60,9 +89,11 @@ jobs:
               if (error.status !== 404) throw error;
               await github.rest.git.createRef({...context.repo, ref: `refs/heads/${branch}`, sha: context.sha});
             }
+            const content = fs.readFileSync('badge/loc.svg').toString('base64');
             let sha;
             try {
               const result = await github.rest.repos.getContent({...context.repo, path: 'loc.svg', ref: branch});
+              if (result.data.content.replace(/\s/g, '') === content) return;
               sha = result.data.sha;
             } catch (error) {
               if (error.status !== 404) throw error;
@@ -70,5 +101,5 @@ jobs:
             await github.rest.repos.createOrUpdateFileContents({
               ...context.repo, branch, path: 'loc.svg', sha,
               message: '📊 Update source line-count badge',
-              content: fs.readFileSync('badge/loc.svg').toString('base64')
+              content
             });
