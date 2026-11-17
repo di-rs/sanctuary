@@ -7,6 +7,15 @@ service availability. User files and terminal contents may contain sensitive dat
 
 ## Trust boundaries
 
+- **Assistants to production observability:** The [MCP adapters](../packages/boxie/docs/mcp.md)
+  run over stdio on private Docker networks without public listeners. SSH operators
+  or an explicitly associated OpenAI tunnel control access. Grafana uses a dedicated
+  Viewer credential and disables write tools; only its bootstrap job receives the
+  admin password. Temporal's pinned adapter exposes read-only tools and omits payload
+  data, but its shared operator certificate has broader backend authority because
+  the server has no per-operation authorizer. Keep the certificate and Grafana token
+  on the host. Tool output is production data and may contain untrusted text; it is
+  not an instruction source. OpenAI tunnel membership grants access to this data.
 - **Local CLIs:** Arguments, stdin, files, and filenames are untrusted. Commands
   run with the invoking user's permissions; parsing must not cause unintended
   reads, writes, or execution.
