@@ -10,7 +10,7 @@ dev = [
     "mypy",
     "pulumi==3.276.0",
     "pulumi-cloudflare==6.24.0",
-    "pulumi-hcloud==1.43.1",
+    "pulumi-hcloud==1.43.4",
     "pulumi-tls==5.6.2",
     "pytest>=9.2.0",
     "pyyaml>=6.0.3",
