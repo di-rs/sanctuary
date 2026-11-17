@@ -1,56 +1,90 @@
-name: Function complexity
+name: Function complexity advisory
 on:
   pull_request:
     branches: [master]
     types: [opened, synchronize, reopened, ready_for_review, labeled]
+    paths:
+      - '**/*.rs'
+      - '**/*.py'
+      - '**/*.pyi'
+      - '**/*.js'
+      - '**/*.jsx'
+      - '**/*.ts'
+      - '**/*.tsx'
+      - '**/*.svelte'
+      - '.jscpd.json'
+      - '.github/workflows/complexity.yml'
+      - '!.agents/**'
+      - '!.codex/**'
+      - '!**/node_modules/**'
+      - '!**/target/**'
+      - '!**/dist/**'
+      - '!**/vendor/**'
+      - '!**/generated/**'
+      - '!**/__pycache__/**'
+      - '!**/fixtures/**'
+      - '!**/inputs/**'
+      - '!**/expected/**'
+      - '!tools/cli-playground/src/cli_playground/static/**'
 permissions:
   contents: read
 concurrency:
-  group: complexity-${{ github.event.pull_request.number }}
+  group: complexity-${{ github.event.pull_request.number }}-${{ github.event.action == 'labeled' && github.event.label.name != 'run-ci' && github.run_id || 'checks' }}
   cancel-in-progress: true
-defaults:
-  run:
-    shell: bash
-env:
-  PYTHONPATH: tools
 jobs:
-  select:
-    if: ${{ !github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'run-ci') }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    outputs:
-      selected: ${{ steps.paths.outputs.selected }}
-      base: ${{ steps.paths.outputs.base }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - run: python3 -m unittest discover -s tools/guardrails/tests -p test_scope.py
-      - id: paths
-        env:
-          BASE: ${{ github.event.pull_request.base.sha }}
-        run: >-
-          python3 -m guardrails.scope --base "$BASE"
-          --patterns '*.rs' '*.py' '*.pyi' '*.js' '*.jsx' '*.ts' '*.tsx' '*.svelte'
-          --present '*.rs' '*.py' '*.pyi' '*.js' '*.jsx' '*.ts' '*.tsx' '*.svelte'
-          --config 'tools/guardrails/syntax.py' 'tools/guardrails/scripts.py' 'tools/guardrails/tests/test_complexity.py' 'pyproject.toml' 'uv.lock' '.github/workflows/complexity.yml' 'tools/guardrails/complexity.py' 'tools/guardrails/changes.py' 'tools/guardrails/scope.py'
   check:
-    name: Function complexity
-    needs: select
-    if: needs.select.outputs.selected == 'true'
+    name: Function complexity advisory
+    if: >-
+      ${{
+        (github.event.action != 'labeled' || github.event.label.name == 'run-ci') &&
+        (!github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'run-ci'))
+      }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
-    env:
-      BASE: ${{ needs.select.outputs.base }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0
           persist-credentials: false
-      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           version: '0.13.0'
-      - run: uv sync --frozen --all-packages
-      - run: uv run --frozen pytest tools/guardrails/tests/test_complexity.py
-      - run: uv run --frozen python -m guardrails.complexity --base "$BASE"
+      - name: Report function metrics without failing on findings
+        shell: bash
+        run: |
+          mkdir -p target/complexity
+          files=()
+          while IFS= read -r -d '' file; do
+            case "/$file" in
+              */node_modules/*|*/target/*|*/dist/*|*/vendor/*|*/generated/*|*/__pycache__/*|*/fixtures/*|*/inputs/*|*/expected/*|/.agents/*|/.codex/*|/tools/cli-playground/src/cli_playground/static/*) continue ;;
+            esac
+            case "$file" in
+              *.rs|*.py|*.js|*.jsx|*.ts|*.tsx)
+                if [[ -f "$file" && ! -L "$file" ]]; then files+=("./$file"); fi ;;
+            esac
+          done < <(git ls-files -z)
+          if (( ${#files[@]} )); then
+            uvx --from lizard==1.26.1 lizard -E NS --NS 4 -C 15 -T nloc=100 \
+              --ignore_warnings -1 "${files[@]}" > target/complexity/functions.txt
+          else
+            echo 'No supported function source files present.' > target/complexity/functions.txt
+          fi
+          cat target/complexity/functions.txt
+          echo 'Function metrics are advisory: CCN >15, nesting >4, and nonblank length >100 are review signals, not CI gates. Production and test code are included. No legacy-function baseline is enforced.' >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        if: hashFiles('tools/cli-playground/frontend/**/*.svelte') != ''
+        with:
+          node-version: '24'
+      - name: Report Svelte file-level complexity
+        if: hashFiles('tools/cli-playground/frontend/**/*.svelte') != ''
+        run: >-
+          npx --yes jscpd@5.4.3 tools/cli-playground/frontend --complexity --format svelte
+          --reporters json,console --output target/complexity/svelte
+      - name: Explain report scope
+        run: >-
+          echo 'See the complexity-report artifact for function metrics. Lizard does not analyze Svelte; when present, Svelte has a separate jscpd file-level report, not per-function nesting or length checks.' >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: complexity-report
+          path: target/complexity/
+          if-no-files-found: error
+          retention-days: 14

@@ -48,7 +48,7 @@ fn get_reader(path: &Path) -> Result<Box<dyn BufRead>, CliError> {
         if stdin().is_terminal() {
             Err(CliError::Config)
         } else {
-            Ok(Box::new(BufReader::new(stdin().lock())))
+            Ok(Box::new(stdin().lock()))
         }
     } else {
         let file = File::open(path).map_err(|e| CliError::FileOpen(path.to_owned(), e))?;

@@ -69,3 +69,78 @@ fn saves_preserve_permissions_and_editor_state() {
         String::from_utf8_lossy(&result.stderr)
     );
 }
+
+#[cfg(unix)]
+#[test]
+fn modal_editing_preserves_keybindings_and_saved_bytes() {
+    let result = std::process::Command::new("python3")
+        .arg(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/interaction.py"))
+        .arg(env!("CARGO_BIN_EXE_kara"))
+        .output()
+        .expect("run PTY interaction regression driver");
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn editing_respects_grapheme_and_document_boundaries() {
+    let result = std::process::Command::new("python3")
+        .arg(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/editing.py"))
+        .arg(env!("CARGO_BIN_EXE_kara"))
+        .output()
+        .expect("run PTY editing regression driver");
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn text_io_preserves_utf8_bytes_and_line_endings() {
+    let result = std::process::Command::new("python3")
+        .arg(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/text_io.py"))
+        .arg(env!("CARGO_BIN_EXE_kara"))
+        .output()
+        .expect("run PTY text I/O regression driver");
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn search_preserves_modal_interaction() {
+    let result = std::process::Command::new("python3")
+        .arg(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/search.py"))
+        .arg(env!("CARGO_BIN_EXE_kara"))
+        .output()
+        .expect("run PTY search regression driver");
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn syntax_and_file_type_follow_saved_identity() {
+    let result = std::process::Command::new("python3")
+        .arg(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/syntax.py"))
+        .arg(env!("CARGO_BIN_EXE_kara"))
+        .output()
+        .expect("run PTY syntax regression driver");
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+}

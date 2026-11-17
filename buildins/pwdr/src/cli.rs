@@ -3,6 +3,7 @@ use clap::Parser;
 #[derive(Parser, Debug)]
 #[command(author, version, about)]
 /// Rust `pwd` implementation
+#[derive(cli_schema::Schema)]
 pub struct Cli {
     /// Physical path, resolves symlinks
     #[arg(short = 'P', conflicts_with("logical_path"))]

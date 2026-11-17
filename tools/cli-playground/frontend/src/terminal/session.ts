@@ -354,6 +354,20 @@ export function createSession({ terminal, input, geometry, prepare, onState }: S
     disconnect: () => {
       if (!disposed) disconnected("Disconnected. Reconnect to continue this session.");
     },
+    replaceLine: (command: string) => {
+      // Fixed Readline binding; uploaded metadata cannot supply control bytes.
+      if (
+        state.phase === "connected" &&
+        !disposed &&
+        !suspended &&
+        // eslint-disable-next-line no-control-regex
+        !/[\x00-\x1f\x7f-\x9f]/u.test(command)
+      ) {
+        send({ type: "input", epoch, source: "user", data: "\x1b[99~" });
+        terminal.paste(command);
+        terminal.focus();
+      }
+    },
     paste: (command: string) => {
       if (state.phase === "connected" && !disposed && !suspended) {
         terminal.paste(command);

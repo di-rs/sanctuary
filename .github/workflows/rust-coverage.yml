@@ -1,0 +1,65 @@
+name: Rust changed-line coverage
+on:
+  pull_request:
+    branches: [master]
+    types: [opened, synchronize, reopened, ready_for_review, labeled]
+    paths:
+      - '**/*.rs'
+      - '**/Cargo.toml'
+      - '**/Cargo.lock'
+      - 'rust-toolchain*'
+      - '.cargo/**'
+      - '.config/nextest.toml'
+      - '.github/workflows/rust-coverage.yml'
+permissions:
+  contents: read
+concurrency:
+  group: rust-coverage-${{ github.event.pull_request.number }}-${{ github.event.action == 'labeled' && github.event.label.name != 'run-ci' && github.run_id || 'checks' }}
+  cancel-in-progress: true
+jobs:
+  check:
+    name: Rust changed-line coverage
+    if: >-
+      ${{
+        (github.event.action != 'labeled' || github.event.label.name == 'run-ci') &&
+        (!github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'run-ci'))
+      }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
+        with:
+          tool: cargo-nextest@0.9.146,cargo-llvm-cov@0.9.1
+          fallback: none
+      - run: rustup component add llvm-tools-preview
+      - name: Collect Rust workspace coverage
+        run: |
+          mkdir -p target/coverage
+          cargo llvm-cov nextest --workspace --all-features --remap-path-prefix --lcov --output-path target/coverage/lcov.info
+        env:
+          NEXTEST_PROFILE: ci
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: '0.13.0'
+      - name: Report changed-line coverage without a minimum threshold
+        shell: bash
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          uvx --from diff-cover==11.0.3 diff-cover target/coverage/lcov.info \
+            --compare-branch "$BASE" --ignore-staged --ignore-unstaged --fail-under 0 \
+            --format markdown:target/coverage/diff.md
+          echo 'Coverage is advisory and counts only changed lines present in the LCOV report; no minimum is enforced.' >> "$GITHUB_STEP_SUMMARY"
+          cat target/coverage/diff.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: rust-pr-coverage
+          path: |
+            target/coverage/lcov.info
+            target/coverage/diff.md
+          if-no-files-found: error
+          retention-days: 14

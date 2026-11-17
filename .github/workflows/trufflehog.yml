@@ -1,0 +1,46 @@
+name: TruffleHog evaluation
+on:
+  pull_request:
+    branches: [master]
+    types: [opened, synchronize, reopened, ready_for_review, labeled]
+permissions:
+  contents: read
+concurrency:
+  group: trufflehog-${{ github.event.pull_request.number }}-${{ github.event.action == 'labeled' && github.event.label.name != 'run-ci' && github.run_id || 'checks' }}
+  cancel-in-progress: true
+jobs:
+  check:
+    name: TruffleHog evaluation
+    if: >-
+      ${{
+        (github.event.action != 'labeled' || github.event.label.name == 'run-ci') &&
+        (!github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'run-ci'))
+      }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      BASE: ${{ github.event.pull_request.base.sha }}
+      HEAD: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      # No --fail: this evaluates the scanner, without introducing a second gate.
+      # Do not upload raw findings or print credential material.
+      - name: Evaluate without credential verification
+        shell: bash
+        run: |
+          base=$(git merge-base "$BASE" "$HEAD")
+          trap 'rm -f "$RUNNER_TEMP/trufflehog.jsonl" "$RUNNER_TEMP/trufflehog-errors.txt"' EXIT
+          status=0
+          docker run --rm --network none -v "$PWD:/repo:ro" \
+            trufflesecurity/trufflehog:3.99.4 git file:///repo \
+            --since-commit "$base" --branch "$HEAD" --no-verification --no-update --json \
+            > "$RUNNER_TEMP/trufflehog.jsonl" 2> "$RUNNER_TEMP/trufflehog-errors.txt" || status=$?
+          if [ "$status" -eq 0 ]; then
+            count=$(wc -l < "$RUNNER_TEMP/trufflehog.jsonl")
+            echo "TruffleHog evaluation: $count unverified candidates; credential verification disabled." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'TruffleHog evaluation incomplete; Gitleaks remains the secret gate.' >> "$GITHUB_STEP_SUMMARY"
+          fi

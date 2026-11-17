@@ -4,6 +4,7 @@ use std::io::Write;
 #[derive(Debug, Parser)]
 #[command(author, version, about)]
 /// Rust version of `echo`
+#[derive(cli_schema::Schema)]
 struct Args {
     /// Input text
     #[arg(required(true))]

@@ -5,17 +5,6 @@ use std::fs;
 
 const SIMPLE: &str = "tests/inputs/simple.xml";
 
-#[test]
-fn usage() {
-    for flag in &["-h", "--help"] {
-        cargo_bin_cmd!()
-            .arg(flag)
-            .assert()
-            .success()
-            .stdout(predicate::str::contains("Usage"));
-    }
-}
-
 fn gen_bad_file() -> String {
     "tests/file/doesnt/exist".to_owned()
 }

@@ -7,6 +7,7 @@ use tailr::TakeValue;
 #[derive(Parser, Debug)]
 #[command(author, version, about)]
 /// Rust minimal `tail` implementation
+#[derive(cli_schema::Schema)]
 pub struct Cli {
     /// Input file(s), use `-` to read from stdin
     #[arg(value_name = "FILES", required(true))]
@@ -32,7 +33,7 @@ pub struct Cli {
     )]
     pub bytes: Option<TakeValue>,
 
-    /// Supress header printing when multiple files provided
+    /// Suppress header printing when multiple files provided
     #[arg(short('q'), long)]
     pub quiet: bool,
 }
