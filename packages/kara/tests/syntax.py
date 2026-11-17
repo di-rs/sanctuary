@@ -107,6 +107,16 @@ def main() -> None:
         assert colored_text(output, (0, 128, 128)) == b"'a" * 5
         assert (directory / "lifetimes.rs").read_bytes() == source
 
+        source = (
+            b'let a = "https://example.com"; let n = 42;\n'
+            b'let b = r##"quote "# // still raw\n'
+            b'// still raw"##; let m = 43; // actual comment\n'
+        )
+        (directory / "original").write_bytes(source)
+        output = session(binary, directory, [b":w line_comments.rs\r", b"\x11"])
+        assert colored_text(output, 1) == b"4243"
+        assert colored_text(output, (0, 128, 0)) == b"// actual comment"
+
 
 if __name__ == "__main__":
     main()
