@@ -72,7 +72,7 @@ have their own utility reference pages. Each broad area retains untested edges.
 | Traps/signals | §2.12, `trap` | Partial: EXIT handler/status verified; P04 reproduces missing TERM handling. Other signal traps remain unverified. |
 | Asynchronous jobs | §2.9.3, §2.11, `jobs`, `wait` | Tasks 46–53 verify interactive launch, output, listing, and reaping. P03 breaks PID tracking and J54 reproduces duplicate active IDs. Wait error/status and advanced jobspec options need broader coverage. |
 | Terminal ownership | §2.11 | Verified foreground Ctrl-C returns control and status 130 in a PTY. Stop/continue, fg/bg, and terminal resize remain unverified. |
-| Invocation/startup | `sh` | Verified -c/script/-s/-n arguments and EOF. P05 records intentionally skipped ENV startup. Login/interactive option combinations need more coverage. |
+| Invocation/startup | `sh` | Verified `-c`, script, `-s`, `-n` and EOF. With `-i`, command strings and scripts can run an external foreground process on a terminal and return its status. P05 records skipped ENV startup. Login option combinations need more coverage. |
 | Builtin requirements | §2.15 and individual utilities | true/false status/argument contract verified. Complete required-builtin option, error, and environment matrices remain unverified. |
 
 These are bounded checks, not a conformance suite. Upstream's

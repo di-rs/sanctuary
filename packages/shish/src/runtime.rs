@@ -12,6 +12,9 @@ use brush_interactive::{InteractiveOptions, InteractiveShell, ReedlineInputBacke
 use crate::Args;
 
 pub async fn run(args: &Args) -> anyhow::Result<u8> {
+    let from_stdin = args.command.is_none() && args.script().is_none();
+    let interactive = args.is_interactive();
+    let interactive_terminal = interactive && io::stdin().is_terminal();
     let shell_name = if args.stdin {
         "shish"
     } else {
@@ -42,8 +45,8 @@ pub async fn run(args: &Args) -> anyhow::Result<u8> {
         .shell_name(shell_name.to_owned())
         .shell_args(shell_args)
         .shell_product_display_str(format!("shish {}", env!("CARGO_PKG_VERSION")))
-        .interactive(args.is_interactive())
-        .read_commands_from_stdin(args.command.is_none() && args.script().is_none())
+        .interactive(interactive)
+        .read_commands_from_stdin(from_stdin)
         .command_string_mode(args.command.is_some())
         .sh_mode(!args.bash)
         .posix(!args.bash)
@@ -57,6 +60,11 @@ pub async fn run(args: &Args) -> anyhow::Result<u8> {
         .build()
         .await?;
 
+    // The REPL acquires the terminal itself. With -i and a command or script,
+    // foreground children need the same job-control setup before they exec.
+    let _terminal = (interactive_terminal && !from_stdin)
+        .then(brush_core::terminal::TerminalControl::acquire)
+        .transpose()?;
     if let Some(command) = &args.command {
         return Ok(shell
             .run_dash_c_command(command.clone())
@@ -71,7 +79,7 @@ pub async fn run(args: &Args) -> anyhow::Result<u8> {
             .exit_code
             .into());
     }
-    if args.is_interactive() && io::stdin().is_terminal() {
+    if interactive_terminal {
         let shell = Arc::new(tokio::sync::Mutex::new(shell));
         let options = UIOptions::default();
         let mut input = ReedlineInputBackend::new(&options, &shell)?;
