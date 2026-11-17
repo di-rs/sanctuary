@@ -30,6 +30,10 @@
       "parameters": {
         "required_status_checks": [
           {
+            "context": "Local CLI recordings",
+            "integration_id": 15368
+          },
+          {
             "context": "Sanctuary validation",
             "integration_id": 15368
           },

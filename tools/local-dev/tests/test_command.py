@@ -5,6 +5,20 @@ from pathlib import Path
 
 import pytest
 from local_dev.command import DevError, Stack, project_name, repository
+from local_dev.recording import check_pr_recordings
+
+
+def test_local_video_evidence_is_per_affected_cli() -> None:
+    url = "https://github.com/user-attachments/assets/18d04903-90f8-4b10-83aa-99c9755a6735"
+    body = f"#### `catr`\r\n\r\n{url}\r\n"
+    check_pr_recordings(["catr"], body)
+    check_pr_recordings([], "")
+    with pytest.raises(ValueError, match="echor"):
+        check_pr_recordings(["catr", "echor"], body)
+    with pytest.raises(ValueError, match="catr"):
+        check_pr_recordings(["catr"], body.replace("github.com", "example.org"))
+    with pytest.raises(ValueError, match="different"):
+        check_pr_recordings(["catr", "echor"], body + f"#### `echor`\n\n{url}\n")
 
 
 def test_worktree_identity(tmp_path: Path) -> None:

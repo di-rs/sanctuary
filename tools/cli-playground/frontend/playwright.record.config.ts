@@ -8,7 +8,6 @@ export default defineConfig({
   forbidOnly: true,
   timeout: 240_000,
   use: {
-    permissions: ["clipboard-read", "clipboard-write"],
     baseURL: process.env.CLI_RECORD_URL,
     viewport: { width: 1360, height: 820 },
     video: { mode: "on", size: { width: 1360, height: 820 } },

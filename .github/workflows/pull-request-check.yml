@@ -245,7 +245,7 @@ jobs:
       - name: 📦 Fetch locked Rust dependencies
         run: cargo fetch
       - name: 🧪 Run Rust workspace tests
-        run: cargo nextest run --workspace --hide-progress-bar --failure-output final | tee target/ci/tests.log
+        run: cargo nextest run --locked --workspace --profile ci --hide-progress-bar --failure-output final | tee target/ci/tests.log
       - name: 📚 Run Rust documentation examples
         run: cargo test --workspace --doc | tee target/ci/doctests.log
       - name: 🧹 Verify tests leave the checkout unchanged
@@ -448,7 +448,7 @@ jobs:
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           version: '0.13.0'
-      - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
+      - uses: taiki-e/install-action@4a76afe23f9e08d2d9550fb56e556444e8611d21 # v2.90.4
         with:
           tool: prek@0.5.5
           fallback: none
@@ -527,8 +527,10 @@ jobs:
         env:
           JOBS: ${{ toJSON(needs) }}
         run: |
-          jq -e 'all(.[]; .result == "success" or .result == "skipped")
-            and (.select.result == "success")
-            and (.["repository-policy"].result == "success")
+          jq -e '. as $jobs
+            | all("select", "docs-policy", "secrets", "repository-policy"; $jobs[.].result == "success")
+            and all({quality:"rust", tests:"rust", packages:"rust", dependencies:"rust",
+                     python:"python", frontend:"frontend", workflows:"actions"} | to_entries[];
+                $jobs[.key].result == (if $jobs.select.outputs[.value] == "true" then "success" else "skipped" end))
             and (if ((.["repository-policy"].outputs.recordings // "") | IN("", "[]"))
                  then .recordings.result == "skipped" else .recordings.result == "success" end)' <<< "$JOBS"

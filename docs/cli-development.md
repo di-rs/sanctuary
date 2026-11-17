@@ -112,9 +112,28 @@ with their merge base. Use `--all` for the complete inventory. A recording run
 uses its own Compose project and removes its session volume on exit. It writes
 videos under `target/cli-recordings/`; `--output` selects a new directory.
 
-On a ready PR, CI repeats the affected browser checks against the PR head in
-groups of up to eight CLIs, with four groups running concurrently. Each
-**CLI browser recordings** check links its downloadable videos in the job
-summary. Link that artifact under **Testing/Validation** in the PR and report
-the local run. GitHub retains CI videos for 14 days. To share the exact local
-capture, attach the WebM from the printed directory to the PR in GitHub.
+Open the local WebM and check that the commands and their results are legible.
+Attach one local video per affected CLI to **Testing/Validation** in the PR body.
+Give each video a level-four heading with the package name in backticks, followed
+by a blank line and its video on a separate line. For example, add this to your
+PR body file, using the path to the actual recording:
+
+```markdown
+#### `echor`
+
+![](./commands-echor/video.webm)
+```
+
+With the body file and recording directory beside each other, submit the body
+with `gh pr edit PR_NUMBER --body-file pr.md --attach ./commands-echor/video.webm`
+or supply the same flags to `gh pr create`. Repeat `--attach` for additional
+videos. GitHub replaces each image reference with an inline video player.
+In the web editor, drop the WebM directly under its heading. Re-record and
+replace videos when the demonstrated behavior changes.
+
+The **Local CLI recordings** check verifies the attachment headings and links
+on PR creation, pushes and body edits. You can run it locally on the published
+Markdown with `uv run --locked local-dev record --base origin/master
+--check-pr-body pr.md`. CI also repeats the browser checks against the PR head
+in groups of up to eight CLIs with four groups running concurrently. The
+**CLI browser recordings** job summaries link to the videos for 14 days.

@@ -13,7 +13,7 @@ from pathlib import Path
 from urllib.request import urlopen
 from uuid import uuid4
 
-from .recording import recording_packages
+from .recording import check_pr_recordings, recording_packages
 
 
 class DevError(Exception):
@@ -135,10 +135,12 @@ def parser() -> argparse.ArgumentParser:
     selection.add_argument("--all", action="store_true", help="select all workspace CLIs")
     selection.add_argument("--base", help="select CLI changes since the merge base with --head")
     record.add_argument("--head", default="HEAD")
-    record.add_argument(
+    mode = record.add_mutually_exclusive_group()
+    mode.add_argument(
         "--list", action="store_true", help="print selected CLI names as JSON and exit"
     )
-    record.add_argument("--output", type=Path, help="new directory for the browser videos")
+    mode.add_argument("--output", type=Path, help="new directory for the browser videos")
+    mode.add_argument("--check-pr-body", type=Path, help="verify local video links in PR Markdown")
     return command
 
 
@@ -146,6 +148,9 @@ def record(root: Path, args: argparse.Namespace) -> None:
     packages = recording_packages(root, args.package, args.base, args.head)
     if args.list:
         print(json.dumps(list(packages)))
+        return
+    if args.check_pr_body:
+        check_pr_recordings(packages, args.check_pr_body.read_text(encoding="utf-8"))
         return
     if not packages:
         print("No CLI recordings selected.")

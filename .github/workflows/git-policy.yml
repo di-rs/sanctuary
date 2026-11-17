@@ -8,6 +8,30 @@ permissions:
   contents: read
 
 jobs:
+  local-recordings:
+    name: Local CLI recordings${{ github.event.action == 'labeled' && github.event.label.name != 'run-ci' && ' (label metadata only)' || '' }}
+    if: >-
+      ${{ (github.event.action != 'labeled' || github.event.label.name == 'run-ci') &&
+          (!github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'run-ci')) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: '0.13.0'
+      - name: Verify the PR has a local video for each affected CLI
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          jq -r '.pull_request.body // ""' "$GITHUB_EVENT_PATH" > "$RUNNER_TEMP/pr-body.md"
+          uv run --locked --no-dev --package local-dev local-dev record \
+            --base "$BASE_SHA" --check-pr-body "$RUNNER_TEMP/pr-body.md"
+
   git-policy:
     if: >-
       ${{

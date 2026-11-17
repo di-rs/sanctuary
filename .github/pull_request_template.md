@@ -72,5 +72,6 @@ Select all applicable impacts, or None alone.
 <!-- Summarize checks and outcomes in one or two short bullets. Mention material
 failures or unverified behavior. For performance claims or hot-path changes, link
 benchmark evidence or state why it is unavailable. For CLI changes, report the local
-check and link the CLI browser recordings artifact for this PR head. Omit logs, test counts, and
-repeated runs. This reports completed verification; it does not request new checks. -->
+check and attach each affected CLI's local WebM under a level-four heading with the
+package name in backticks. See docs/cli-development.md for the upload command.
+Keep lengthy logs in the CI artifacts. -->

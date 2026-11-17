@@ -50,6 +50,10 @@ Keep `postgres-data` during releases and shutdown. Never use
 `docker compose down --volumes` in production. This package does not implement
 backups; arrange and test them before relying on the deployment.
 
+Compose sets `PGDATA` to the path mounted from `postgres-data`. Recreating a
+container with the same PostgreSQL major version reopens the same cluster. A
+major-version upgrade requires a tested PostgreSQL migration or dump and restore.
+
 For isolated checks, run from the repository root:
 
 ```sh

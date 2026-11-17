@@ -45,8 +45,11 @@ for (const [name, file] of Object.entries(packages)) {
     const output = () => Buffer.concat(frames).toString();
     async function enter(line: string) {
       await input.focus();
-      await page.evaluate((text) => navigator.clipboard.writeText(text), line);
-      await input.press("ControlOrMeta+v");
+      await input.evaluate((element, text) => {
+        const clipboardData = new DataTransfer();
+        clipboardData.setData("text/plain", text);
+        element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, clipboardData }));
+      }, line);
       await input.press("Enter");
     }
     // Let Bash report each exit status after execution. The video shows the same
