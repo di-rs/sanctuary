@@ -1,7 +1,7 @@
 name: boxie-operator-ingress
 services:
   cloudflared:
-    image: docker.io/cloudflare/cloudflared@sha256:c6c7ae1d5dfdcb094ad344ed68ccffc26635c9c6be80965664c33baf064b0515
+    image: docker.io/cloudflare/cloudflared:2026.10.4@sha256:c6c7ae1d5dfdcb094ad344ed68ccffc26635c9c6be80965664c33baf064b0515
     user: 65532:65532
     read_only: true
     cap_drop:

@@ -61,7 +61,6 @@ def test_private_production_deployment_has_explicit_jobs_and_trust() -> None:
     assert postgres_path.exists(), "Boxie PostgreSQL deployment missing"
     postgres = yaml.safe_load(postgres_path.read_text())
     temporal = yaml.safe_load((ROOT / "packages/boxie/infra/temporal/compose.yml").read_text())
-    versions = json.loads((ROOT / "packages/boxie/infra/temporal/versions.json").read_text())
     for package in (postgres, temporal):
         for name, service in package["services"].items():
             assert not service.get("ports"), "production ports must remain private"
@@ -73,9 +72,15 @@ def test_private_production_deployment_has_explicit_jobs_and_trust() -> None:
             else:
                 assert "@sha256:" in service["image"]
             assert not any("docker.sock" in str(mount) for mount in service.get("volumes", []))
-    assert temporal["services"]["temporal"]["image"] == versions["server"]["image"]
+    server_image = temporal["services"]["temporal"]["image"]
+    schema_image = temporal["services"]["schema"]["image"]
+    server_version = re.fullmatch(r"temporalio/server:([^@]+)@sha256:[a-f0-9]{64}", server_image)
+    schema_version = re.fullmatch(
+        r"temporalio/admin-tools:([^@]+)@sha256:[a-f0-9]{64}", schema_image
+    )
+    assert server_version and schema_version
+    assert server_version[1] == schema_version[1], "server and schema tools must share a release"
     assert temporal["services"]["schema"]["profiles"] == ["operations"]
-    assert temporal["services"]["schema"]["image"] == versions["admin_tools"]["image"]
     assert temporal["services"]["bootstrap"]["profiles"] == ["operations"]
     config = yaml.safe_load(
         re.sub(

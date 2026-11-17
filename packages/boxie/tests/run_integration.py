@@ -256,9 +256,12 @@ class ProductionStack:
                 ["docker", "version", "--format", "{{.Server.Version}} {{.Server.Arch}}"]
             ),
             "bootstrap_sdk": version("temporalio"),
-            "images": json.loads(
-                (ROOT / "packages/boxie/infra/temporal/versions.json").read_text()
-            ),
+            "images": {
+                name: service["image"]
+                for name, service in json.loads(
+                    self.compose("temporal", "--profile", "*", "config", "--format", "json")
+                )["services"].items()
+            },
             "schema": "fresh setup and explicit update succeeded for distinct databases",
             "namespace": "bootstrap succeeded and checked seven-day retention",
         }
