@@ -1,0 +1,47 @@
+name: Maintained shell scripts
+on:
+  pull_request:
+    branches: [master]
+    types: [opened, synchronize, reopened, ready_for_review, labeled]
+    paths:
+      - '**/*.sh'
+      - '**/*.bash'
+      - '**/*.shlib'
+      - '.shellcheckrc'
+      - '**/.shellcheckrc'
+      - '.github/workflows/shellcheck.yml'
+      - '!.agents/**'
+      - '!.codex/**'
+      - '!**/node_modules/**'
+      - '!**/target/**'
+      - '!**/dist/**'
+      - '!**/vendor/**'
+      - '!**/generated/**'
+      - '!tools/cli-playground/src/cli_playground/static/**'
+permissions:
+  contents: read
+concurrency:
+  group: shellcheck-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  check:
+    name: Maintained shell scripts
+    if: ${{ !github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'run-ci') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Check maintained files
+        shell: bash
+        run: |
+          files=()
+          while IFS= read -r -d '' file; do
+            if [[ -f "$file" && ! -L "$file" ]]; then
+              files+=("./$file")
+            fi
+          done < <(git ls-files -z -- '*.sh' '*.bash' '*.shlib' ':(exclude).agents/**' ':(exclude).codex/**' ':(exclude)**/node_modules/**' ':(exclude)**/target/**' ':(exclude)**/dist/**' ':(exclude)**/vendor/**' ':(exclude)**/generated/**' ':(exclude)tools/cli-playground/src/cli_playground/static/**')
+          if (( ${#files[@]} )); then
+            shellcheck --external-sources -- "${files[@]}"
+          fi

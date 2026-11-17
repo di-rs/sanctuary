@@ -6,7 +6,7 @@ x-admin:
   - control
 services:
   temporal:
-    image: temporalio/server:1.32.0@sha256:c3e752127759616bb1615e0f9ba0e21635aeb5fdeb922de4f371c350955f46ae
+    image: temporalio/server:1.32.2@sha256:7bf69188a6232fea14869b9cef3d94aa82a1601d99517f7e86c71f22da4e0670
     restart: unless-stopped
     entrypoint:
     - /bin/sh
@@ -32,7 +32,7 @@ services:
         max-buffer-size: 4m
         tag: boxie-temporal-temporal
   schema:
-    image: temporalio/admin-tools:1.32.0@sha256:a9f84fb9a374b2374fe2e67c8efc0468ff3f1c66c8a0b14597ec86e349e62bca
+    image: temporalio/admin-tools:1.32.2@sha256:4a95866efba29d7e17ab012df5232795e8b0ad0f7d5f9d1ec4df321f7792a754
     profiles: *id001
     networks: *id002
     entrypoint:
@@ -59,7 +59,7 @@ services:
     volumes:
     - ${TEMPORAL_OPERATOR_CERTS_DIR:?provide operator certificate directory}:/certs:ro
   ui:
-    image: temporalio/ui:2.56.0@sha256:66d55d383bfb334ee0781f21a3b36c865b3f0f2262491a070bb2143394e9fe88
+    image: temporalio/ui:2.58.1@sha256:ac3c13eddb4547d830991bb5eee93a5d97140134522b7297fdb2be1fe25ef925
     restart: unless-stopped
     environment:
       TEMPORAL_ADDRESS: temporal:7233
