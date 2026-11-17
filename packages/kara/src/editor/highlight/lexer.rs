@@ -9,6 +9,7 @@ pub enum Kind {
     Character,
     Lifetime,
     Comment,
+    String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -38,7 +39,7 @@ pub fn line(text: &str, mut state: LexState) -> (Vec<Annotation>, LexState) {
             if state.block_depth > 0 || (state.string.is_none() && remaining.starts_with("/*")) {
                 (block_length(remaining, &mut state), Some(Kind::Comment))
             } else if let Some(length) = string_length(remaining, &mut state) {
-                (length, None)
+                (length, Some(Kind::String))
             } else if remaining.starts_with("//") {
                 (remaining.len(), Some(Kind::Comment))
             } else if let Some(length) = character_length(remaining) {
@@ -713,6 +714,35 @@ mod tests {
                 .last()
                 .map(|annotation| annotation.kind),
             Some(Kind::Keyword)
+        );
+    }
+    #[test]
+    fn strings_carry_state_and_keep_comment_delimiters_literal() {
+        assert_eq!(tokens(r#""a\"b /* //" 12"#), ["12"]);
+        assert_eq!(tokens(r#""a\\" 12"#), ["12"]);
+        let (_, state) = line("\"/* comment-like", LexState::default());
+        assert_eq!(state.string, Some(StringDelimiter::Quoted));
+        assert_eq!(state.block_depth, 0);
+        let (middle, state) = line(r#"still \"quoted\" */"#, state);
+        assert_eq!(middle.len(), 1);
+        assert_eq!(
+            middle.first().map(|annotation| annotation.kind),
+            Some(Kind::String)
+        );
+        let (end, state) = line("end\" /* \"ignored\" */ 42", state);
+        assert_eq!(state, LexState::default());
+        assert_eq!(
+            end.into_iter()
+                .map(|annotation| annotation.kind)
+                .collect::<Vec<_>>(),
+            [Kind::String, Kind::Comment, Kind::Number]
+        );
+        let (_, state) = line("\"continued\\", LexState::default());
+        let (end, state) = line("\" 12", state);
+        assert_eq!(state, LexState::default());
+        assert_eq!(
+            end.last().map(|annotation| annotation.kind),
+            Some(Kind::Number)
         );
     }
 }

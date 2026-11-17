@@ -134,6 +134,13 @@ def main() -> None:
         assert colored_text(output, 1) == b"4243"
         assert colored_text(output, (0, 128, 0)) == b"/* actual block */"
 
+        source = b'let n = r#"/* " // "#;\n/* outer\n12\n*/\n'
+        (directory / "original").write_bytes(source)
+        output = session(binary, directory, [b":w comments.rs\r", b":q\r"])
+        assert b"38;2;255;165;0" in output, repr(output)
+        assert b"38;2;0;128;0" in output, repr(output)
+        assert (directory / "comments.rs").read_bytes() == source
+
 
 if __name__ == "__main__":
     main()
