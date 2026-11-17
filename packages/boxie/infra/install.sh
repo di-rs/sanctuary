@@ -66,5 +66,6 @@ if [[ ! -d /etc/sanctuary/grafana-plugins ]]; then
 fi
 timeout 180 docker compose --env-file /etc/sanctuary/boxie.env -f "$owner/observability/compose.yml" up -d --no-build --wait --wait-timeout 150
 timeout 180 docker compose --env-file /etc/sanctuary/boxie.env -f "$owner/observability/compose.yml" up -d --no-build --no-deps --force-recreate --wait --wait-timeout 150 prometheus
+bash "$owner/mcp/install.sh"
 timeout 180 docker compose --env-file /etc/sanctuary/boxie.env -f "$owner/ingress/compose.yml" run --rm cloudflared tunnel --config /etc/cloudflared/config.yml ingress validate
 timeout 180 docker compose --env-file /etc/sanctuary/boxie.env -f "$owner/ingress/compose.yml" up -d --no-build --force-recreate cloudflared

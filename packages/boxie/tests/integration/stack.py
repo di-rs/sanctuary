@@ -224,7 +224,7 @@ with httpx.Client(headers={'Authorization': 'Bearer ' + credential}, timeout=1, 
         else:
             self.runtime_command(action, service)
 
-    async def rows(self, statement: Select[Any]) -> list[dict[str, Any]]:
+    async def rows(self, statement: Select[*tuple[Any, ...]]) -> list[dict[str, Any]]:
         async with database(self.dsn) as sessions, sessions() as session:
             connection = await session.connection()
             return [dict(row) for row in (await connection.execute(statement)).mappings()]
