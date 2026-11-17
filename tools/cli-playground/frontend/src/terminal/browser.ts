@@ -2,6 +2,7 @@ import { createFreshBinding, stopBinding } from "../environment";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { createSession, type SessionState } from "./session";
+import { watchDraft, type Draft } from "./draft";
 import { createInputIntent } from "./input-intent";
 
 export type BrowserTerminal = ReturnType<typeof createBrowserTerminal>;
@@ -11,6 +12,7 @@ export function createBrowserTerminal(
   environmentId: string,
   revision: string,
   onState: (state: SessionState) => void,
+  onDraft: (draft: Draft) => void = () => {},
 ) {
   const terminal = new Terminal({
     fontFamily: '"SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace',
@@ -49,6 +51,8 @@ export function createBrowserTerminal(
     },
   });
   const fitAddon = new FitAddon();
+  const draft = watchDraft(terminal, onDraft);
+  let draftInput: { dispose(): void } | undefined;
   let resizeFrame = 0;
   let disposed = false;
   let observer: ResizeObserver | undefined;
@@ -79,6 +83,8 @@ export function createBrowserTerminal(
     window.removeEventListener("pagehide", hide);
     window.removeEventListener("pageshow", show);
     session?.dispose();
+    draftInput?.dispose();
+    draft.dispose();
     input?.dispose();
     // Disposing xterm also disposes its loaded addons and keyboard listeners.
     terminal.dispose();
@@ -86,6 +92,10 @@ export function createBrowserTerminal(
 
   try {
     input = createInputIntent(terminal);
+    draftInput = input.onInput(({ data, source }) => {
+      // eslint-disable-next-line no-control-regex
+      if (source === "user" && /[\r\n\x03]/u.test(data)) draft.invalidate();
+    });
     terminal.loadAddon(fitAddon);
     terminal.open(host);
     terminal.attachCustomKeyEventHandler(
@@ -131,6 +141,7 @@ export function createBrowserTerminal(
       resumeExisting: session.resumeExisting,
       disconnect: session.disconnect,
       paste: session.paste,
+      replaceLine: session.replaceLine,
       dispose,
     };
   } catch (error) {

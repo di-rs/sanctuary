@@ -1,0 +1,61 @@
+name: Python dependency audit
+on:
+  pull_request:
+    branches: [master]
+    types: [opened, synchronize, reopened, ready_for_review, labeled]
+    paths:
+      - '**/pyproject.toml'
+      - 'uv.lock'
+      - '.python-version'
+      - '.github/workflows/python-audit.yml'
+permissions:
+  contents: read
+concurrency:
+  group: python-audit-${{ github.event.pull_request.number }}-${{ github.event.action == 'labeled' && github.event.label.name != 'run-ci' && github.run_id || 'checks' }}
+  cancel-in-progress: true
+jobs:
+  audit:
+    if: >-
+      ${{
+        (github.event.action != 'labeled' || github.event.label.name == 'run-ci') &&
+        (!github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'run-ci'))
+      }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: '0.13.0'
+      - name: Audit all locked Python dependency groups
+        shell: bash
+        run: |
+          if [[ ! -f uv.lock ]]; then
+            echo 'Python audit: no lockfile present; skipped.' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          requirements="$RUNNER_TEMP/python-requirements.txt"
+          report="$RUNNER_TEMP/python-audit.json"
+          if ! uv export --frozen --all-packages --all-groups --no-emit-workspace --no-hashes --output-file "$requirements"; then
+            echo 'Python audit incomplete: export failed.' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          status=0
+          timeout 300 uvx --from pip-audit==2.10.1 pip-audit --disable-pip --no-deps \
+            --progress-spinner off --format json --requirement "$requirements" > "$report" || status=$?
+          # Findings fail even when another dependency could not be audited.
+          if jq -e '[.dependencies[]?.vulns[]?] | length > 0' "$report" > /dev/null 2>&1; then
+            echo 'Python audit: known vulnerabilities found; no exceptions permitted.' >> "$GITHUB_STEP_SUMMARY"
+            cat "$report"
+            exit 1
+          fi
+          if [[ "$status" -eq 0 ]] && jq -e '
+            (.dependencies | type) == "array" and
+            all(.dependencies[]; (.vulns | type) == "array") and .error == null
+          ' "$report" > /dev/null 2>&1; then
+            echo 'Python audit: no known vulnerabilities found.' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'Python audit incomplete; this is not a clean result.' >> "$GITHUB_STEP_SUMMARY"
+          fi

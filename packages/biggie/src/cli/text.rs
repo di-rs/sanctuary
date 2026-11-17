@@ -65,8 +65,8 @@ impl TextArgs {
                 line_ending: self.ending.line_ending.into(),
                 final_newline: !self.ending.no_final_newline,
             },
-            alphabet: self.alphabet_chars.as_ref().map_or_else(
-                || match self.alphabet {
+            alphabet: self.alphabet_chars.as_ref().map_or(
+                match self.alphabet {
                     AlphabetArg::Ascii => Alphabet::Ascii,
                     AlphabetArg::Unicode => Alphabet::Unicode,
                 },

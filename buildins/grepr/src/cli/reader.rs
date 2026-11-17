@@ -12,7 +12,7 @@ pub fn get_reader(path: &Path) -> Result<Box<dyn BufRead>, CliError> {
         if stdin().is_terminal() {
             Err(CliError::Config)
         } else {
-            Ok(Box::new(BufReader::new(stdin().lock())))
+            Ok(Box::new(stdin().lock()))
         }
     } else {
         Ok(Box::new(BufReader::new(File::open(path)?)))

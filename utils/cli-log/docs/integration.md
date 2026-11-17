@@ -10,7 +10,7 @@ a logger. Flush application data writers and join workers before returning.
 use clap::Parser;
 use std::process::ExitCode;
 
-#[derive(Parser)]
+#[derive(Parser, cli_schema::Schema)]
 struct Cli {
     input: String,
 }
@@ -41,3 +41,9 @@ Clap output/status and records argument errors; custom parsers can use
 `Session::clap_error`. `LogArgs` and `GlobalLogArgs` provide opt-in Clap flags for
 use with `init_with_level`. Biggie does not persist help/version invocations.
 See the [complete example](../examples/clap.rs).
+
+The root parser derives `cli_schema::Schema`. Both shared runners handle schema
+export before initializing logging or parsing. Custom startup code must wrap
+logging and parsing in `<Cli as cli_schema::Schema>::run(|| { /* startup */ })`.
+See the [schema contract](../../cli-schema/README.md) for the opt-in invocation
+and TOML executable checks.

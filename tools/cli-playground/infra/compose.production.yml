@@ -45,7 +45,7 @@ services:
       retries: 6
       start_period: 20s
   proxy:
-    image: traefik:v3.7.14
+    image: traefik:v3.7.19
     command:
     - --global.checknewversion=false
     - --global.sendanonymoususage=false

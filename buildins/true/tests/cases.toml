@@ -1,0 +1,9 @@
+schema = 1
+checks = ["schema"]
+binary = "true"
+
+[[cases]]
+name = "true_exits_zero_silently"
+args = []
+origin = { manual = "POSIX true specifies silent exit status 0; independently checked with /usr/bin/true." }
+expect = { stdout = "" }

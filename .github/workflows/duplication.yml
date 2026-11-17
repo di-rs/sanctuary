@@ -3,53 +3,64 @@ on:
   pull_request:
     branches: [master]
     types: [opened, synchronize, reopened, ready_for_review, labeled]
+    paths:
+      - '**/*.rs'
+      - '**/*.py'
+      - '**/*.pyi'
+      - '**/*.js'
+      - '**/*.jsx'
+      - '**/*.ts'
+      - '**/*.tsx'
+      - '**/*.svelte'
+      - '.jscpd.json'
+      - '.github/workflows/duplication.yml'
+      - '!.agents/**'
+      - '!.codex/**'
+      - '!**/node_modules/**'
+      - '!**/target/**'
+      - '!**/dist/**'
+      - '!**/vendor/**'
+      - '!**/generated/**'
+      - '!**/__pycache__/**'
+      - '!**/fixtures/**'
+      - '!**/inputs/**'
+      - '!**/expected/**'
+      - '!tools/cli-playground/src/cli_playground/static/**'
 permissions:
   contents: read
 concurrency:
-  group: duplication-${{ github.event.pull_request.number }}
+  group: duplication-${{ github.event.pull_request.number }}-${{ github.event.action == 'labeled' && github.event.label.name != 'run-ci' && github.run_id || 'checks' }}
   cancel-in-progress: true
-defaults:
-  run:
-    shell: bash
-env:
-  PYTHONPATH: tools
 jobs:
-  select:
-    if: ${{ !github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'run-ci') }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    outputs:
-      selected: ${{ steps.paths.outputs.selected }}
-      base: ${{ steps.paths.outputs.base }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - run: python3 -m unittest discover -s tools/guardrails/tests -p test_scope.py
-      - id: paths
-        env:
-          BASE: ${{ github.event.pull_request.base.sha }}
-        run: >-
-          python3 -m guardrails.scope --base "$BASE"
-          --patterns '*.rs' '*.py' '*.pyi' '*.js' '*.jsx' '*.ts' '*.tsx' '*.svelte'
-          --present '*.rs' '*.py' '*.pyi' '*.js' '*.jsx' '*.ts' '*.tsx' '*.svelte'
-          --config 'tools/guardrails/scripts.py' '.github/workflows/duplication.yml' 'tools/guardrails/duplication.py' 'tools/guardrails/changes.py' 'tools/guardrails/scope.py'
   check:
     name: New duplication advisory
-    needs: select
-    if: needs.select.outputs.selected == 'true'
+    if: >-
+      ${{
+        (github.event.action != 'labeled' || github.event.label.name == 'run-ci') &&
+        (!github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'run-ci'))
+      }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
-    env:
-      BASE: ${{ needs.select.outputs.base }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: '24'
-      - run: python3 -m unittest discover -s tools/guardrails/tests -p test_scripts.py
-      - run: python3 -m guardrails.duplication --base "$BASE"
+      - name: Report new duplicates without a failure threshold
+        shell: bash
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          base=$(git merge-base "$BASE" HEAD)
+          npx --yes jscpd@5.4.3 . --baseline-from-ref "$base"
+          jq -r '.statistics.total | "## New duplication (advisory)\n\n\(.newClones) new clone pairs; \(.newDuplicatedLines) newly duplicated lines. No failure threshold is enforced. See the JSON artifact for locations marked isNew."' \
+            target/duplication/jscpd-report.json >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: duplication-report
+          path: target/duplication/
+          if-no-files-found: error
+          retention-days: 14

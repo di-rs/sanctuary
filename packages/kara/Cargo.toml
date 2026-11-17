@@ -18,6 +18,10 @@ cli-log.workspace = true
 clap.workspace = true
 anyhow.workspace = true
 tempfile = "3.27.0"
+cli-schema = { version = "0.1.0", path = "../../utils/cli-schema" }
+rustix = { version = "1.1", features = ["fs"] }
+ropey = { version = "1.6.1", default-features = false, features = ["simd"] }
+ratatui = { version = "0.30.2", default-features = false, features = ["crossterm", "layout-cache"] }
 
 [dev-dependencies]
 cli-testing.workspace = true
@@ -36,3 +40,8 @@ xattr = "1.6.1"
 
 [package.metadata.cli-check]
 benchmark-exemption = "Interactive terminal editor; no finite command benchmark."
+
+[[test]]
+name = "catalog"
+path = "tests/catalog.rs"
+harness = false

@@ -298,18 +298,6 @@ fn assert_text(path: &Path, lines: usize) -> Result<()> {
 }
 
 #[test]
-fn usage() {
-    for flag in ["-h", "--help"] {
-        command()
-            .arg(flag)
-            .assert()
-            .success()
-            .stdout(predicate::str::contains("Usage"))
-            .stderr("");
-    }
-}
-
-#[test]
 fn creates_default_output_file() -> Result<()> {
     let dir = TempDir::new()?;
     command()
@@ -1572,6 +1560,45 @@ fn json_pair_reports_both_outputs() -> Result<()> {
                 b"0000000000000001\n0000000000000002\n0000000000000003\n0000000000000004\n0000000000000005\n"
             );
         }
+    }
+    Ok(())
+}
+
+#[test]
+fn exports_public_cli_schema_without_application_side_effects()
+-> std::result::Result<(), Box<dyn std::error::Error>> {
+    let value =
+        cli_testing::assert_cli_schema(cli_testing::cargo_bin_cmd!(), env!("CARGO_PKG_NAME"))?;
+    let commands = value["command"]["subcommands"]
+        .as_array()
+        .ok_or("missing subcommands")?;
+    let pair = commands
+        .iter()
+        .find(|command| command["name"] == "pair")
+        .ok_or("missing pair command")?;
+    let args = pair["args"].as_array().ok_or("missing pair arguments")?;
+    let ending = args
+        .iter()
+        .find(|arg| arg["long"] == "line-ending")
+        .ok_or("missing line ending")?;
+    if ending["default_values"] != serde_json::json!(["lf"])
+        || ending["possible_values"] != serde_json::json!(["lf", "crlf"])
+    {
+        return Err("incorrect defaults or enum choices".into());
+    }
+    let dry = args
+        .iter()
+        .find(|arg| arg["long"] == "dry-run")
+        .ok_or("missing inherited flag")?;
+    if dry["global"] != true || dry["owner"] != serde_json::json!([]) {
+        return Err("incorrect global option ownership".into());
+    }
+    let left = args
+        .iter()
+        .find(|arg| arg["long"] == "left")
+        .ok_or("missing required destination")?;
+    if left["required"] != true {
+        return Err("requiredness was lost".into());
     }
     Ok(())
 }

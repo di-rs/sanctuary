@@ -12,7 +12,7 @@ from pulumi.runtime.stack import Stack
 ROOT = Path(__file__).resolve().parents[3]
 
 
-@pulumi.runtime.test  # type: ignore[untyped-decorator]
+@pulumi.runtime.test
 async def test_host_owns_protected_disk_and_no_product_dns() -> None:
     from host_infra.host import HostConfig, provision
 
@@ -53,7 +53,7 @@ async def test_host_owns_protected_disk_and_no_product_dns() -> None:
     assert await pulumi.Output.from_input(root.outputs["sshPrivateKey"]).is_secret()
 
 
-@pulumi.runtime.test  # type: ignore[untyped-decorator]
+@pulumi.runtime.test
 async def test_optional_admin_key_does_not_change_server_key_count() -> None:
     from host_infra.host import HostConfig, provision
 
@@ -107,7 +107,7 @@ def test_bootstrap_prepares_fixed_compose_directories() -> None:
     assert "/opt/sanctuary/releases" not in bootstrap
 
 
-@pulumi.runtime.test  # type: ignore[untyped-decorator]
+@pulumi.runtime.test
 async def test_host_exposes_private_ssh_output_and_attachment() -> None:
     from host_infra.host import HostConfig, provision_resources
 

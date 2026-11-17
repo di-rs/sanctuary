@@ -5,49 +5,51 @@ mod cli;
 mod output;
 use cli::{Cli, Command, ParsedCli};
 fn main() -> ExitCode {
-    let cli = match Cli::parse_validated() {
-        Ok(cli) => cli,
-        Err(error) => {
-            let session = if matches!(
-                error.kind(),
-                clap::error::ErrorKind::DisplayHelp | clap::error::ErrorKind::DisplayVersion
-            ) {
-                cli_log::init_with_level("biggie", log::LevelFilter::Off)
-            } else if let Some(level) = Cli::error_log_level() {
-                cli_log::init_with_level("biggie", level)
-            } else {
-                cli_log::init("biggie")
-            };
-            if error.exit_code() != 0
-                && std::env::args_os()
-                    .skip(1)
-                    .take_while(|a| a != "--")
-                    .any(|a| a == "--json")
-            {
-                let _ = emit_json(
-                    &serde_json::json!({"ok": false, "error": {"kind": "arguments", "message": error.to_string()}}),
-                );
-                return session.finish(2);
+    <Cli as cli_schema::Schema>::run(|| {
+        let cli = match Cli::parse_validated() {
+            Ok(cli) => cli,
+            Err(error) => {
+                let session = if matches!(
+                    error.kind(),
+                    clap::error::ErrorKind::DisplayHelp | clap::error::ErrorKind::DisplayVersion
+                ) {
+                    cli_log::init_with_level("biggie", log::LevelFilter::Off)
+                } else if let Some(level) = Cli::error_log_level() {
+                    cli_log::init_with_level("biggie", level)
+                } else {
+                    cli_log::init("biggie")
+                };
+                if error.exit_code() != 0
+                    && std::env::args_os()
+                        .skip(1)
+                        .take_while(|a| a != "--")
+                        .any(|a| a == "--json")
+                {
+                    let _ = emit_json(
+                        &serde_json::json!({"ok": false, "error": {"kind": "arguments", "message": error.to_string()}}),
+                    );
+                    return session.finish(2);
+                }
+                return session.clap_error(&error);
             }
-            return session.clap_error(&error);
-        }
-    };
-    let session = cli_log::init_with_level("biggie", cli.logging.level());
-    let status = match execute(&cli) {
-        Ok(()) => 0,
-        Err(error) => {
-            if cli.json {
-                cli_log::record_error(format_args!("{error:#}"));
-                let _ = emit_json(
-                    &serde_json::json!({"ok": false, "error": {"kind": "operation", "message": format!("{error:#}")}}),
-                );
-            } else {
-                cli_log::diagnostic!("biggie: {error:#}");
+        };
+        let session = cli_log::init_with_level("biggie", cli.logging.level());
+        let status = match execute(&cli) {
+            Ok(()) => 0,
+            Err(error) => {
+                if cli.json {
+                    cli_log::record_error(format_args!("{error:#}"));
+                    let _ = emit_json(
+                        &serde_json::json!({"ok": false, "error": {"kind": "operation", "message": format!("{error:#}")}}),
+                    );
+                } else {
+                    cli_log::diagnostic!("biggie: {error:#}");
+                }
+                1
             }
-            1
-        }
-    };
-    session.finish(status)
+        };
+        session.finish(status)
+    })
 }
 fn execute(cli: &ParsedCli) -> Result<()> {
     let record_options = match &cli.command {

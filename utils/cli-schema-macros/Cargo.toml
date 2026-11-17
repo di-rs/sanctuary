@@ -1,0 +1,20 @@
+[package]
+name = "cli-schema-macros"
+version = "0.1.0"
+description = "Entrypoint attribute for Sanctuary CLI metadata export"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+readme = "README.md"
+
+[lib]
+proc-macro = true
+
+[lints]
+workspace = true
+
+[dependencies]
+proc-macro2 = "1.0.107"
+quote = "1.0.47"
+syn = { version = "3.0.6", features = ["full"] }
