@@ -1,0 +1,14 @@
+schema = 1
+binary = "false"
+
+[[cases]]
+name = "false_exits_one_silently"
+args = []
+origin = { manual = "POSIX false specifies silent exit status 1; independently checked with /usr/bin/false." }
+expect = { exit = 1, stdout = "" }
+
+[[cases]]
+name = "false_ignores_arguments"
+args = ["--help", "ignored"]
+origin = { manual = "POSIX false ignores operands and exits 1 without output; independently checked with /usr/bin/false." }
+expect = { exit = 1, stdout = "" }
