@@ -26,4 +26,6 @@ Reference `head` emits raw bytes, including partial UTF-8 sequences in byte
 mode. Keep those fixture bytes unchanged. The assertions explicitly decode
 expected bytes with replacement to match `headr`'s intentional UTF-8 behavior.
 
+Multi-file output headers preserve the operand spelling, including a leading `./`.
+
 [All commands](../../README.md)

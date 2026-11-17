@@ -1,0 +1,196 @@
+# Rules are evaluated by fuxingloh/multi-labeler; no repository scripts run.
+version: v1
+labels:
+  - label: type:feature
+    sync: true
+    matcher:
+      body: '<!-- labels:type -->\s*(?:- \[ \] [^\r\n]*\r?\n\s*)*- \[[xX]\] `type:feature`[^\r\n]*\r?\n\s*(?:- \[ \] [^\r\n]*\r?\n\s*)*<!-- /labels:type -->'
+  - label: type:fix
+    sync: true
+    matcher:
+      body: '<!-- labels:type -->\s*(?:- \[ \] [^\r\n]*\r?\n\s*)*- \[[xX]\] `type:fix`[^\r\n]*\r?\n\s*(?:- \[ \] [^\r\n]*\r?\n\s*)*<!-- /labels:type -->'
+  - label: type:refactor
+    sync: true
+    matcher:
+      body: '<!-- labels:type -->\s*(?:- \[ \] [^\r\n]*\r?\n\s*)*- \[[xX]\] `type:refactor`[^\r\n]*\r?\n\s*(?:- \[ \] [^\r\n]*\r?\n\s*)*<!-- /labels:type -->'
+  - label: type:performance
+    sync: true
+    matcher:
+      body: '<!-- labels:type -->\s*(?:- \[ \] [^\r\n]*\r?\n\s*)*- \[[xX]\] `type:performance`[^\r\n]*\r?\n\s*(?:- \[ \] [^\r\n]*\r?\n\s*)*<!-- /labels:type -->'
+  - label: type:docs
+    sync: true
+    matcher:
+      body: '<!-- labels:type -->\s*(?:- \[ \] [^\r\n]*\r?\n\s*)*- \[[xX]\] `type:docs`[^\r\n]*\r?\n\s*(?:- \[ \] [^\r\n]*\r?\n\s*)*<!-- /labels:type -->'
+  - label: type:tests
+    sync: true
+    matcher:
+      body: '<!-- labels:type -->\s*(?:- \[ \] [^\r\n]*\r?\n\s*)*- \[[xX]\] `type:tests`[^\r\n]*\r?\n\s*(?:- \[ \] [^\r\n]*\r?\n\s*)*<!-- /labels:type -->'
+  - label: type:dependencies
+    sync: true
+    matcher:
+      body: '<!-- labels:type -->\s*(?:- \[ \] [^\r\n]*\r?\n\s*)*- \[[xX]\] `type:dependencies`[^\r\n]*\r?\n\s*(?:- \[ \] [^\r\n]*\r?\n\s*)*<!-- /labels:type -->'
+      author: 'dependabot[bot]'
+  - label: type:maintenance
+    sync: true
+    matcher:
+      body: '<!-- labels:type -->\s*(?:- \[ \] [^\r\n]*\r?\n\s*)*- \[[xX]\] `type:maintenance`[^\r\n]*\r?\n\s*(?:- \[ \] [^\r\n]*\r?\n\s*)*<!-- /labels:type -->'
+  - label: area:biggie
+    sync: true
+    matcher:
+      files:
+        any:
+          - "packages/biggie/**"
+  - label: area:boxie
+    sync: true
+    matcher:
+      files:
+        any:
+          - "packages/boxie/**"
+  - label: area:kara
+    sync: true
+    matcher:
+      files:
+        any:
+          - "packages/kara/**"
+  - label: area:parsu
+    sync: true
+    matcher:
+      files:
+        any:
+          - "packages/parsu/**"
+  - label: area:shish
+    sync: true
+    matcher:
+      files:
+        any:
+          - "packages/shish/**"
+  - label: area:builtins
+    sync: true
+    matcher:
+      files:
+        any:
+          - "buildins/**"
+  - label: area:shared-libraries
+    sync: true
+    matcher:
+      files:
+        any:
+          - "utils/**"
+  - label: area:playground
+    sync: true
+    matcher:
+      files:
+        any:
+          - "tools/cli-playground/**"
+  - label: area:benchmarks
+    sync: true
+    matcher:
+      files:
+        any:
+          - "tools/cli-bench/**"
+  - label: area:repo-tooling
+    sync: true
+    matcher:
+      files:
+        any:
+          - "tools/cli-check/**"
+          - "AGENTS.md"
+          - ".agents/**"
+          - ".codex/**"
+          - ".github/labeler.yml"
+          - ".github/pull_request_template.md"
+          - "prek.toml"
+          - "Makefile"
+          - "bacon.toml"
+          - "lychee.toml"
+          - "typos.toml"
+          - ".config/**"
+          - ".zed/**"
+  - label: area:infrastructure
+    sync: true
+    matcher:
+      files:
+        any:
+          - "infra/**"
+          - "**/infra/**"
+          - "Dockerfile"
+          - "Dockerfile.*"
+          - "**/Dockerfile"
+          - "**/Dockerfile.*"
+          - "compose*.yml"
+          - "compose*.yaml"
+          - "**/compose*.yml"
+          - "**/compose*.yaml"
+          - "**/docker-compose*.yml"
+          - "**/docker-compose*.yaml"
+  - label: area:ci
+    sync: true
+    matcher:
+      files:
+        any:
+          - ".github/workflows/**"
+          - ".github/actions/**"
+          - ".github/rulesets/**"
+          - ".github/dependabot.yml"
+          - ".github/actionlint.yaml"
+          - "**/action.yml"
+          - "**/action.yaml"
+  - label: area:workspace
+    sync: true
+    matcher:
+      files:
+        any:
+          - "Cargo.toml"
+          - "Cargo.lock"
+          - "pyproject.toml"
+          - "uv.lock"
+          - "rust-toolchain*"
+          - ".python-version"
+          - ".cargo/**"
+          - "clippy.toml"
+          - "deny.toml"
+          - ".gitignore"
+  - label: area:docs
+    sync: true
+    matcher:
+      files:
+        any:
+          - "*.md"
+          - "**/*.md"
+          - ".github/**/*.md"
+          - ".agents/**/*.md"
+          - ".codex/**/*.md"
+          - "docs/**"
+          - "**/docs/**"
+  - label: risk:low
+    sync: true
+    matcher:
+      body: '<!-- labels:risk -->\s*(?:- \[ \] [^\r\n]*\r?\n\s*)*- \[[xX]\] `risk:low`[^\r\n]*\r?\n\s*(?:- \[ \] [^\r\n]*\r?\n\s*)*<!-- /labels:risk -->'
+  - label: risk:medium
+    sync: true
+    matcher:
+      body: '<!-- labels:risk -->\s*(?:- \[ \] [^\r\n]*\r?\n\s*)*- \[[xX]\] `risk:medium`[^\r\n]*\r?\n\s*(?:- \[ \] [^\r\n]*\r?\n\s*)*<!-- /labels:risk -->'
+  - label: risk:high
+    sync: true
+    matcher:
+      body: '<!-- labels:risk -->\s*(?:- \[ \] [^\r\n]*\r?\n\s*)*- \[[xX]\] `risk:high`[^\r\n]*\r?\n\s*(?:- \[ \] [^\r\n]*\r?\n\s*)*<!-- /labels:risk -->'
+  - label: impact:breaking
+    sync: true
+    matcher:
+      body: '<!-- labels:impact -->\s*(?:- \[(?: |[xX])\] `(?:impact:security|impact:persistence|impact:performance|impact:cross-platform)`[^\r\n]*\r?\n\s*|- \[ \] `impact:(?:none|breaking)`[^\r\n]*\r?\n\s*)*- \[[xX]\] `impact:breaking`[^\r\n]*\r?\n\s*(?:- \[(?: |[xX])\] `(?:impact:security|impact:persistence|impact:performance|impact:cross-platform)`[^\r\n]*\r?\n\s*|- \[ \] `impact:(?:none|breaking)`[^\r\n]*\r?\n\s*)*<!-- /labels:impact -->'
+  - label: impact:security
+    sync: true
+    matcher:
+      body: '<!-- labels:impact -->\s*(?:- \[(?: |[xX])\] `(?:impact:breaking|impact:persistence|impact:performance|impact:cross-platform)`[^\r\n]*\r?\n\s*|- \[ \] `impact:(?:none|security)`[^\r\n]*\r?\n\s*)*- \[[xX]\] `impact:security`[^\r\n]*\r?\n\s*(?:- \[(?: |[xX])\] `(?:impact:breaking|impact:persistence|impact:performance|impact:cross-platform)`[^\r\n]*\r?\n\s*|- \[ \] `impact:(?:none|security)`[^\r\n]*\r?\n\s*)*<!-- /labels:impact -->'
+  - label: impact:persistence
+    sync: true
+    matcher:
+      body: '<!-- labels:impact -->\s*(?:- \[(?: |[xX])\] `(?:impact:breaking|impact:security|impact:performance|impact:cross-platform)`[^\r\n]*\r?\n\s*|- \[ \] `impact:(?:none|persistence)`[^\r\n]*\r?\n\s*)*- \[[xX]\] `impact:persistence`[^\r\n]*\r?\n\s*(?:- \[(?: |[xX])\] `(?:impact:breaking|impact:security|impact:performance|impact:cross-platform)`[^\r\n]*\r?\n\s*|- \[ \] `impact:(?:none|persistence)`[^\r\n]*\r?\n\s*)*<!-- /labels:impact -->'
+  - label: impact:performance
+    sync: true
+    matcher:
+      body: '<!-- labels:impact -->\s*(?:- \[(?: |[xX])\] `(?:impact:breaking|impact:security|impact:persistence|impact:cross-platform)`[^\r\n]*\r?\n\s*|- \[ \] `impact:(?:none|performance)`[^\r\n]*\r?\n\s*)*- \[[xX]\] `impact:performance`[^\r\n]*\r?\n\s*(?:- \[(?: |[xX])\] `(?:impact:breaking|impact:security|impact:persistence|impact:cross-platform)`[^\r\n]*\r?\n\s*|- \[ \] `impact:(?:none|performance)`[^\r\n]*\r?\n\s*)*<!-- /labels:impact -->'
+  - label: impact:cross-platform
+    sync: true
+    matcher:
+      body: '<!-- labels:impact -->\s*(?:- \[(?: |[xX])\] `(?:impact:breaking|impact:security|impact:persistence|impact:performance)`[^\r\n]*\r?\n\s*|- \[ \] `impact:(?:none|cross-platform)`[^\r\n]*\r?\n\s*)*- \[[xX]\] `impact:cross-platform`[^\r\n]*\r?\n\s*(?:- \[(?: |[xX])\] `(?:impact:breaking|impact:security|impact:persistence|impact:performance)`[^\r\n]*\r?\n\s*|- \[ \] `impact:(?:none|cross-platform)`[^\r\n]*\r?\n\s*)*<!-- /labels:impact -->'

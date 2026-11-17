@@ -16,10 +16,13 @@ from uuid import uuid4
 
 import httpx
 import pytest
+import yaml
 
 OBS = Path(__file__).parents[1] / "infra/observability"
-PINS = json.loads((OBS / "versions.json").read_text())
-VECTOR = PINS["collector"]["source_image"]
+PLUGINS = json.loads((OBS / "plugins.json").read_text())
+SERVICES = yaml.safe_load((OBS / "compose.yml").read_text())["services"]
+INGRESS = yaml.safe_load((OBS.parent / "ingress/compose.yml").read_text())["services"]
+VECTOR = SERVICES["storage-init"]["image"]
 
 
 def docker(*args: str, input: str | None = None) -> str:
@@ -125,7 +128,7 @@ def test_dashboard_queries_preserve_distinct_metrics(
         f"{tmp_path}:/tests:ro",
         "--entrypoint",
         "promtool",
-        PINS["images"]["prometheus"]["image"],
+        SERVICES["prometheus"]["image"],
         "test",
         "rules",
         "/tests/dashboard-queries.json",
@@ -174,7 +177,7 @@ def test_native_configs(tmp_path: Path, collector_image: str) -> None:
             "/config",
             "--entrypoint",
             "promtool",
-            PINS["images"]["prometheus"]["image"],
+            SERVICES["prometheus"]["image"],
             *args,
         )
     substituted(OBS.parent / "ingress/cloudflared.yml", tmp_path / "cloudflared.yml")
@@ -185,7 +188,7 @@ def test_native_configs(tmp_path: Path, collector_image: str) -> None:
         "0",
         "-v",
         f"{tmp_path}:/config:ro",
-        PINS["images"]["cloudflared"]["image"],
+        INGRESS["cloudflared"]["image"],
         "tunnel",
         "--config",
         "/config/cloudflared.yml",
@@ -285,7 +288,7 @@ def test_failed_lifecycle_is_searchable_after_collector_outage(
     try:
         logs = start(
             "logs",
-            PINS["images"]["victorialogs"]["image"],
+            SERVICES["victorialogs"]["image"],
             "--network-alias",
             "victorialogs",
             "--publish",
@@ -362,7 +365,7 @@ def test_failed_lifecycle_is_searchable_after_collector_outage(
                 emitter.stderr.close()
         docker("start", vector)
         # Install the pinned datasource and query it through actual Grafana.
-        pin = PINS["plugins"]["victoriametrics-logs-datasource"]
+        pin = PLUGINS["victoriametrics-logs-datasource"]
         with urllib.request.urlopen(pin["url"], timeout=30) as source:
             archive = source.read()
         assert hashlib.sha256(archive).hexdigest() == pin["sha256"]
@@ -376,7 +379,7 @@ def test_failed_lifecycle_is_searchable_after_collector_outage(
                 path.chmod(0o755 if path.is_dir() or executable else 0o644)
         grafana = start(
             "grafana",
-            PINS["images"]["grafana"]["image"],
+            SERVICES["grafana"]["image"],
             "--publish",
             "127.0.0.1::3000",
             "--memory",
