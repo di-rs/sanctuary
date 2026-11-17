@@ -10,6 +10,7 @@ use std::{
 #[derive(Debug, Clone)]
 pub struct Fixtures {
     root: PathBuf,
+    paths: crate::catalog::FixturePaths,
 }
 
 impl Fixtures {
@@ -18,6 +19,7 @@ impl Fixtures {
     pub fn new(tests_dir: impl Into<PathBuf>) -> Self {
         Self {
             root: tests_dir.into(),
+            paths: crate::catalog::FixturePaths::default(),
         }
     }
 
@@ -26,7 +28,7 @@ impl Fixtures {
     /// # Errors
     /// Returns an error for an invalid name or unreadable fixture.
     pub fn read_input(&self, name: impl AsRef<Path>) -> io::Result<Vec<u8>> {
-        self.read("inputs", name.as_ref())
+        self.read(&self.paths.inputs, name.as_ref())
     }
 
     /// Read raw bytes from `expected/name` without decoding or normalization.
@@ -34,10 +36,14 @@ impl Fixtures {
     /// # Errors
     /// Returns an error for an invalid name or unreadable fixture.
     pub fn read_expected(&self, name: impl AsRef<Path>) -> io::Result<Vec<u8>> {
-        self.read("expected", name.as_ref())
+        self.read(&self.paths.expected, name.as_ref())
     }
 
-    fn read(&self, directory: &str, name: &Path) -> io::Result<Vec<u8>> {
+    pub(crate) const fn with_paths(root: PathBuf, paths: crate::catalog::FixturePaths) -> Self {
+        Self { root, paths }
+    }
+
+    fn read(&self, directory: &Path, name: &Path) -> io::Result<Vec<u8>> {
         if name.as_os_str().is_empty()
             || !name
                 .components()
@@ -46,7 +52,8 @@ impl Fixtures {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 format!(
-                    "fixture name must be relative within {directory}/: {}",
+                    "fixture name must be relative within {}/: {}",
+                    directory.display(),
                     name.display()
                 ),
             ));

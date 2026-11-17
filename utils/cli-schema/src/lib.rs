@@ -5,6 +5,37 @@ use std::{collections::BTreeMap, io::Write, process::ExitCode};
 use clap::{Arg, ArgAction, Command, CommandFactory};
 use serde_json::{Value, json};
 
+/// Opt a parser into schema-aware startup.
+pub use cli_schema_macros::Schema;
+
+/// Metadata support declared on the CLI type and consumed by the shared runner.
+pub trait Schema: Sized {
+    /// Emit the metadata request, or let normal startup continue.
+    fn export_schema() -> Option<ExitCode>;
+
+    /// Run custom startup only when metadata was not requested.
+    fn run<R: SchemaExit>(operation: impl FnOnce() -> R) -> R {
+        Self::export_schema().map_or_else(operation, R::from_schema_exit)
+    }
+}
+
+/// Entry-point return types supported by [`Schema::run`].
+pub trait SchemaExit {
+    fn from_schema_exit(status: ExitCode) -> Self;
+}
+
+impl SchemaExit for ExitCode {
+    fn from_schema_exit(status: ExitCode) -> Self {
+        status
+    }
+}
+
+impl<E> SchemaExit for Result<ExitCode, E> {
+    fn from_schema_exit(status: ExitCode) -> Self {
+        Ok(status)
+    }
+}
+
 fn requested() -> bool {
     std::env::var_os("SANCTUARY_CLI_SCHEMA").is_some_and(|value| value == "1")
         && std::env::args_os().skip(1).eq(["--help"])

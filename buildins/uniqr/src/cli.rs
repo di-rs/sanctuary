@@ -4,6 +4,7 @@ use thiserror::Error;
 #[derive(Parser, Debug)]
 #[command(author, version, about)]
 /// Rust minimal uniq implementation
+#[derive(cli_schema::Schema)]
 pub struct Cli {
     /// Input file, use `-` to read from stdin (must not be a tty)
     #[arg(value_name = "FILE", default_value = "-")]

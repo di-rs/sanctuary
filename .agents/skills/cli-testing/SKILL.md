@@ -52,7 +52,7 @@ retaining checks on the other stream and status.
 Compare raw bytes without trimming, lossy decoding, sorting, newline conversion
 or wildcard matching. If the specified behavior needs a narrow transformation,
 document it at that assertion. Keep command-specific differences in the owning
-package's tests and README. See the [helper API](../../../utils/cli-testing/README.md).
+package's tests and README. See the [helper API](../../../tools/cli-testing/docs/testing.md).
 
 ## Isolate process state
 

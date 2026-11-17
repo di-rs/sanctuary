@@ -121,9 +121,7 @@ describe("catalog admission and terminal insertion", () => {
     expect(() => parseCatalog({ ...value, schema_version: 2 }, value.head_sha, ["catr"])).toThrow();
   });
   it("quotes tokens and never inserts Enter or positional placeholders", () => {
-    expect(commandText("catr", ["run", "a'b;$HOME"])).toBe(
-      `/opt/artifact/catr run 'a'"'"'b;$HOME' `,
-    );
+    expect(commandText("catr", ["run", "a'b;$HOME"])).toBe(`catr run 'a'"'"'b;$HOME' `);
     expect(
       flagText(argument({ long: "file", num_args: { min: 1, max: 1 }, value_names: ["FILE"] })),
     ).toBe(" --file ");

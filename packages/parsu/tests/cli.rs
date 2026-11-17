@@ -5,17 +5,6 @@ use std::fs;
 
 const SIMPLE: &str = "tests/inputs/simple.xml";
 
-#[test]
-fn usage() {
-    for flag in &["-h", "--help"] {
-        cargo_bin_cmd!()
-            .arg(flag)
-            .assert()
-            .success()
-            .stdout(predicate::str::contains("Usage"));
-    }
-}
-
 fn gen_bad_file() -> String {
     "tests/file/doesnt/exist".to_owned()
 }
@@ -206,37 +195,6 @@ fn json_tree_and_errors_are_machine_readable() -> Result<()> {
         let value: serde_json::Value = serde_json::from_slice(&result.get_output().stdout)?;
         assert_eq!(value["ok"], false);
         assert!(!String::from_utf8_lossy(&result.get_output().stdout).contains("not-xml-secret"));
-    }
-    Ok(())
-}
-
-#[test]
-fn exports_public_cli_schema_without_application_side_effects()
--> std::result::Result<(), Box<dyn std::error::Error>> {
-    let logs = assert_fs::TempDir::new()?;
-    let output = cli_testing::cargo_bin_cmd!()
-        .env("SANCTUARY_CLI_SCHEMA", "1")
-        .env("SANCTUARY_LOG_LEVEL", "info")
-        .env("SANCTUARY_LOG_DIR", logs.path())
-        .arg("--help")
-        .assert()
-        .code(0)
-        .stderr("")
-        .get_output()
-        .stdout
-        .clone();
-    let value: serde_json::Value = serde_json::from_slice(&output)?;
-    if value["schema_version"] != 1 {
-        return Err("unexpected schema version".into());
-    }
-    if value["command"]["name"] != env!("CARGO_PKG_NAME") {
-        return Err("unexpected CLI identity".into());
-    }
-    if !value["command"]["args"].is_array() {
-        return Err("missing argument metadata".into());
-    }
-    if std::fs::read_dir(logs.path())?.count() != 0 {
-        return Err("schema export wrote logs".into());
     }
     Ok(())
 }

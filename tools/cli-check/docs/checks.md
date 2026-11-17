@@ -30,7 +30,7 @@ explicit target paths and `test = false`. It rejects `mk-outs.nu` and requires
 `tests/expected/` when `mk-outputs.nu` exists. Fixture-free packages need no empty
 fixture directories. Registration does not establish feature eligibility, test
 completeness, assertion quality or reference correctness. The
-[Rust test helper](../../../utils/cli-testing/README.md) supplies command setup and
+[Rust test helper](../../../tools/cli-testing/README.md) supplies command setup and
 byte fixture loading; the [testing skill](../../../.agents/skills/cli-testing/SKILL.md)
 describes how to write behavioral tests.
 

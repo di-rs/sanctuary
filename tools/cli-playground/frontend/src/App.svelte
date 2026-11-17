@@ -19,6 +19,7 @@
   let environment = $state<RunnableEnvironment | null>(null);
   let latest = $state<Environment | null>(null);
   let selectedCli = $state("");
+  let draft = $state({ text: "", ready: false });
   let failure = $state<EnvironmentError | null>(null);
   let loading = $state(true);
   let controller = $state.raw<BrowserTerminal | null>(null);
@@ -137,13 +138,13 @@
     }
   }
 
-  async function insert(value: string) {
-    if (!connected) return;
+  async function replaceLine(value: string) {
+    if (!connected || !draft.ready) return;
     const active = controller;
     drawerOpen = false;
-    // Let the drawer release its focus boundary before focusing xterm.
     await tick();
-    if (connected && controller === active) active?.paste(value);
+    if (connected && draft.ready && controller === active)
+      active?.replaceLine(value);
   }
 
   async function closeDrawer() {
@@ -162,6 +163,9 @@
         environment.revision,
         (next) => {
           session = next;
+        },
+        (next) => {
+          draft = next;
         },
       );
       controller = terminal;
@@ -348,7 +352,8 @@
             {catalog}
             {catalogLoading}
             {connected}
-            {insert}
+            {draft}
+            {replaceLine}
             retry={() => void refreshCatalog()}
           />
         </aside>

@@ -5,7 +5,7 @@ export async function openExplorer(page: Page) {
   if ((await toggle.isVisible()) && (await toggle.getAttribute("aria-expanded")) === "false") {
     await toggle.click();
   }
-  await expect(page.getByRole("combobox", { name: "CLI", exact: true })).toBeVisible();
+  await expect(page.getByText("Command builder", { exact: true })).toBeVisible();
 }
 export async function openSampleFiles(page: Page) {
   await openExplorer(page);

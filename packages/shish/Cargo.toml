@@ -32,3 +32,8 @@ serde_json.workspace = true
 sysinfo = { version = "0.37", default-features = false, features = ["system"] }
 vt100 = "0.16"
 
+
+[[test]]
+name = "catalog"
+path = "tests/catalog.rs"
+harness = false

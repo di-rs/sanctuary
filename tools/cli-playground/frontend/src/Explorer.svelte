@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { tick } from "svelte";
-  import CommandNode from "./CommandNode.svelte";
-  import { compareCommand, visible, type Catalog } from "./catalog";
+  import { commandContext } from "./command-context";
+  import { commandText, quoteToken, type Catalog } from "./catalog";
+  import type { Draft } from "./terminal/draft";
   import { files, shellExamples } from "./examples";
   let {
     clis,
@@ -9,7 +9,8 @@
     catalog,
     catalogLoading,
     connected,
-    insert,
+    draft,
+    replaceLine,
     retry,
   }: {
     clis: string[];
@@ -17,246 +18,274 @@
     catalog: Catalog | null;
     catalogLoading: boolean;
     connected: boolean;
-    insert: (value: string) => void;
+    draft: Draft;
+    replaceLine: (value: string) => void;
     retry: () => void;
   } = $props();
-  let picker: HTMLDivElement;
-  let pickerOpen = $state(false);
-  let pickerQuery = $state("");
-  let active = $state(0);
-  let query = $state("");
-  let changesOnly = $state(false);
-  const choices = $derived(
-    clis.filter((cli) => cli.toLowerCase().includes(pickerQuery.toLowerCase())),
-  );
-  const entry = $derived(catalog?.clis.find((cli) => cli.name === selectedCli));
-  const tree = $derived(
-    entry
-      ? compareCommand(
-          entry.head.command,
-          entry.base?.command ?? null,
-          entry.comparison,
-        )
-      : null,
-  );
-  function choose(cli: string) {
-    selectedCli = cli;
-    query = "";
-    changesOnly = false;
-    picker.querySelector("input")?.focus();
-    pickerOpen = false;
-  }
-  function revealActive() {
-    void tick().then(() =>
-      document
-        .getElementById(`cli-option-${active}`)
-        ?.scrollIntoView({ block: "nearest" }),
-    );
-  }
-  function keys(event: KeyboardEvent) {
-    if (event.key === "Escape" && pickerOpen) {
-      event.stopPropagation();
-      pickerOpen = false;
+  const context = $derived(commandContext(draft.text, clis, catalog));
+  const editable = $derived(connected && draft.ready);
+  $effect(() => {
+    if (context.cli) selectedCli = context.cli;
+  });
+  function apply(value: string) {
+    // Both catalog and shell content are untrusted. No pasted control bytes.
+    if (
+      [...value].some(
+        (c) =>
+          c.charCodeAt(0) < 32 ||
+          (c.charCodeAt(0) >= 127 && c.charCodeAt(0) <= 159),
+      )
+    )
       return;
-    }
-    if (event.key === "Tab") {
-      pickerOpen = false;
-      return;
-    }
-    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-      event.preventDefault();
-      if (!pickerOpen) {
-        pickerOpen = true;
-        pickerQuery = "";
-        active = 0;
-      } else
-        active = Math.max(
-          0,
-          Math.min(
-            choices.length - 1,
-            active + (event.key === "ArrowDown" ? 1 : -1),
-          ),
-        );
-      revealActive();
-    } else if (event.key === "Enter" && pickerOpen) {
-      event.preventDefault();
-      const cli = choices[active];
-      if (cli) choose(cli);
-    }
+    replaceLine(value);
+  }
+  function addFlag(spelling: string) {
+    apply(`${draft.text.trimEnd()} ${quoteToken(spelling)} `);
   }
 </script>
 
-<svelte:window
-  onclick={(event) => {
-    if (event.target instanceof Node && !picker?.contains(event.target))
-      pickerOpen = false;
-  }}
-/>
+{#snippet matched(label: string)}
+  {#if context.query}{#each label.split(context.query) as part, index}{#if index > 0}<mark
+          >{context.query}</mark
+        >{/if}{part}{/each}{:else}{label}{/if}
+{/snippet}
 
-<div class="explorer-controls">
-  <div class="explorer-heading">
-    <span class="eyebrow">COMMAND EXPLORER</span><span class="cli-total"
-      >{clis.length} CLIs</span
-    >
-  </div>
-  <div class="cli-picker" bind:this={picker}>
-    <input
-      role="combobox"
-      aria-label="CLI"
-      aria-expanded={pickerOpen}
-      aria-controls="cli-options"
-      aria-autocomplete="list"
-      aria-activedescendant={pickerOpen && choices[active]
-        ? `cli-option-${active}`
-        : undefined}
-      value={pickerOpen ? pickerQuery : selectedCli}
-      placeholder={selectedCli}
-      onfocus={() => {
-        pickerOpen = true;
-        pickerQuery = "";
-        active = 0;
-      }}
-      onclick={() => {
-        if (!pickerOpen) {
-          pickerOpen = true;
-          pickerQuery = "";
-          active = 0;
-        }
-      }}
-      oninput={(event) => {
-        pickerQuery = event.currentTarget.value;
-        pickerOpen = true;
-        active = 0;
-      }}
-      onkeydown={keys}
-    />
-    <span class="picker-chevron" aria-hidden="true">⌄</span>
-    {#if pickerOpen}
-      <div
-        id="cli-options"
-        role="listbox"
-        aria-label="Available CLIs"
-        class="cli-options"
-      >
-        {#each choices as cli, index (cli)}
-          <button
-            id={`cli-option-${index}`}
-            type="button"
-            role="option"
-            aria-selected={cli === selectedCli}
-            tabindex="-1"
-            class:active={active === index}
-            onclick={() => choose(cli)}
-            ><code>{cli}</code>{#if cli === selectedCli}<span aria-hidden="true"
-                >✓</span
-              >{/if}</button
-          >
-        {:else}<p>No matching CLI</p>{/each}
-      </div>
-    {/if}
-  </div>
-  <div class="explorer-search">
-    <input
-      aria-label="Search commands and flags"
-      placeholder="Find a command or flag…"
-      bind:value={query}
-    />
-    {#if query}<button
-        type="button"
-        class="clear-search"
-        aria-label="Clear command search"
-        onclick={() => {
-          query = "";
-          document
-            .querySelector<HTMLInputElement>(
-              '[aria-label="Search commands and flags"]',
-            )
-            ?.focus();
-        }}><span aria-hidden="true">×</span></button
-      >{/if}
-  </div>
-  <div class="explorer-filters" aria-label="Command filter">
-    <button
+<div class="builder-header">
+  <span>Command builder</span>
+  {#if context.cli || draft.text}<button
       type="button"
-      aria-pressed={!changesOnly}
-      onclick={() => (changesOnly = false)}>All</button
-    >
-    <button
-      type="button"
-      aria-pressed={changesOnly}
-      onclick={() => (changesOnly = true)}
-      >Changes <span>{tree?.count ?? 0}</span></button
-    >
-  </div>
+      disabled={!editable}
+      onclick={() => apply("")}
+      title="Clear the draft and choose another CLI">All CLIs</button
+    >{:else}<span class="cli-total">{clis.length} CLIs</span>{/if}
 </div>
-<div class="explorer-scroll">
-  <div class="catalog-status" aria-live="polite">
-    {#if catalogLoading}<span>Loading command reference…</span>
-    {:else if !entry}<span>Command reference unavailable</span><button
+<div class="explorer-scroll builder">
+  {#if !draft.ready}<p class="builder-note" role="status">
+      {connected
+        ? "Waiting for a shell prompt…"
+        : "Connect to build a command."}
+    </p>{/if}
+  {#if context.cli}
+    <nav class="builder-path" aria-label="Current command">
+      <button
         type="button"
-        onclick={retry}>Retry</button
+        disabled={!editable}
+        onclick={() => apply(commandText(context.cli, []))}
+        >{context.cli}</button
       >
-    {:else if entry.comparison === "unavailable"}<span
-        >Comparison unavailable</span
+      {#each context.node?.path ?? [] as part, index}<span>/</span><button
+          type="button"
+          disabled={!editable}
+          onclick={() =>
+            apply(
+              commandText(context.cli, context.node!.path.slice(0, index + 1)),
+            )}>{part}</button
+        >{/each}
+    </nav>
+  {/if}
+  {#if catalogLoading}<p class="builder-note">Loading command reference…</p>
+  {:else if !catalog}<div class="catalog-status">
+      Command reference unavailable <button type="button" onclick={retry}
+        >Retry</button
       >
-    {:else}<span
-        >Compared with
-        <code>{catalog?.base_sha.slice(0, 7)}</code></span
-      >{/if}
-  </div>
-  <div id="command-list" class="command-list">
-    {#if tree}
-      {#key selectedCli}
-        <CommandNode
-          node={tree}
-          cli={selectedCli}
-          {query}
-          {changesOnly}
-          {connected}
-          {insert}
-          root
-        />
-      {/key}
-      {#if !visible(tree, query, changesOnly)}<p class="empty-list">
-          {changesOnly
-            ? "No matching interface changes."
-            : "No matching commands or flags."}
+    </div>{/if}
+  {#if context.kind === "missing"}
+    <p class="builder-empty" role="status">No command found</p>
+    <p class="builder-note">
+      Edit the command in the terminal, or choose All CLIs to start again.
+    </p>
+  {:else if context.kind === "unsupported"}
+    <p class="builder-empty">No command reference</p>
+    <p class="builder-note">
+      Suggestions cover a single command. Keep using the terminal for pipes,
+      redirects and shell expressions.
+    </p>
+  {:else}
+    {#if context.kind === "clis"}
+      <p class="builder-intro">Choose a CLI or start typing.</p>
+      <div class="cli-grid" aria-label="CLIs">
+        {#each context.choices as choice}<button
+            type="button"
+            disabled={!editable}
+            aria-label={`Insert ${choice.label}`}
+            title={choice.description}
+            onclick={() => apply(choice.value)}
+            ><code>{@render matched(choice.label)}</code></button
+          >{/each}
+      </div>
+    {:else}
+      {#if context.node}<p class="command-about">
+          {context.node.command.about}
         </p>{/if}
-    {:else if !catalogLoading}<p class="empty-list">
-        This build has no command catalog. You can still explore its CLIs in the
-        terminal.
-      </p>{/if}
-  </div>
+      {#if context.node && !context.query && !(context.kind === "commands" && context.choices.length)}
+        {@const operands = context.node.args
+          .filter(
+            (row) => row.argument.index !== null && row.change !== "removed",
+          )
+          .sort((a, b) => a.argument.index! - b.argument.index!)}
+        {#if operands.length}
+          <div class="argument-usage" aria-label="Argument usage">
+            <code class="usage-pattern"
+              >{[context.cli, ...context.node.path].join(
+                " ",
+              )}{#each operands as row}{@const arg = row.argument}{@const name =
+                  (
+                    arg.value_names.join(" ") || arg.id
+                  ).toLowerCase()}{@const repeated =
+                  arg.num_args.max === null ||
+                  arg.num_args.max > Math.max(1, arg.value_names.length)}<span
+                  class="usage-operand"
+                >
+                  {" "}{arg.required ? "<" : "["}{name}{repeated
+                    ? "…"
+                    : ""}{arg.required ? ">" : "]"}</span
+                >{/each}</code
+            >
+            {#each operands as row}
+              <p class="usage-explanation">
+                {#if operands.length > 1}<code
+                    >{(
+                      row.argument.value_names.join(" ") || row.argument.id
+                    ).toLowerCase()}</code
+                  >:
+                {/if}{row.argument.help.split("\n")[0]}<span class="usage-note">
+                  {" · "}{row.argument.required
+                    ? "required"
+                    : "optional"}{#if row.argument.default_values.length}
+                    {" · defaults to "}<code
+                      >{row.argument.default_values.join(", ")}</code
+                    >{/if}</span
+                >
+              </p>
+            {/each}
+          </div>
+        {/if}
+      {/if}
+      {#if context.kind === "value"}
+        <h2 class="builder-heading">
+          Value for {context.pending?.argument.long
+            ? `--${context.pending.argument.long}`
+            : context.pending?.argument.id}
+        </h2>
+        <p class="builder-note">
+          {context.pending?.argument.help} Type a value in the terminal{context
+            .choices.length
+            ? " or choose below."
+            : "."}
+        </p>
+      {:else if context.choices.length}<h2 class="builder-heading">
+          {context.kind === "commands" ? "Commands" : "Matching flags"}
+        </h2>{/if}
+      <div class="builder-choices">
+        {#each context.choices as choice}
+          <button
+            type="button"
+            disabled={!editable}
+            aria-label={`Complete ${choice.label}`}
+            onclick={() => apply(choice.value)}
+          >
+            <span class="choice-title"
+              ><code>{@render matched(choice.label)}</code
+              >{#if choice.change && choice.change !== "unchanged"}<span
+                  class="badge"
+                  >{choice.change === "added" ? "+ Added" : "~ Changed"}</span
+                >{/if}<span class="choice-arrow" aria-hidden="true">↗</span
+              ></span
+            >
+            {#if choice.description}<span class="choice-description"
+                >{choice.description.split("\n")[0]}</span
+              >{/if}
+          </button>
+        {/each}
+      </div>
+      {#if !context.query && context.kind !== "value" && !(context.kind === "commands" && context.choices.length)}
+        {#if context.flags.length}<h2 class="builder-heading">Flags</h2>{/if}
+        <div class="builder-flags">
+          {#each context.flags as row}
+            {@const arg = row.argument}
+            {@const spelling = arg.long ? `--${arg.long}` : `-${arg.short}`}
+            {@const used = context.used.includes(arg.id)}
+            <div class="builder-flag" data-change={row.change}>
+              <button
+                type="button"
+                class="flag-choice"
+                aria-label={`Insert ${spelling}`}
+                disabled={!editable || used}
+                onclick={() => addFlag(spelling)}
+              >
+                <span class="choice-title"
+                  ><code
+                    >{[
+                      arg.short ? `-${arg.short}` : "",
+                      arg.long ? `--${arg.long}` : "",
+                    ]
+                      .filter(Boolean)
+                      .join(", ")}</code
+                  >{#if arg.num_args.max !== 0}<span class="value-label"
+                      >{arg.value_names.join(" ") || "VALUE"}</span
+                    >{/if}<span class="choice-arrow">{used ? "✓" : "+"}</span
+                  ></span
+                >
+                {#if row.change !== "unchanged"}<span class="badge"
+                    >{row.change === "added" ? "+ Added" : "~ Changed"}</span
+                  >{/if}
+                <span class="choice-description">{arg.help.split("\n")[0]}</span
+                >
+              </button>
+            </div>
+          {/each}
+        </div>
+      {/if}
+    {/if}
+  {/if}
+  {#if context.node && !["missing", "unsupported"].includes(context.kind)}
+    {@const removed = [
+      ...context.node.args
+        .filter((row) => row.change === "removed")
+        .map((row) => ({
+          name: row.argument.long ? `--${row.argument.long}` : row.argument.id,
+          help: row.argument.help,
+        })),
+      ...context.node.children
+        .filter((child) => child.change === "removed")
+        .map((child) => ({
+          name: child.command.name,
+          help: child.command.about,
+        })),
+    ]}
+    {#if removed.length}<details class="builder-details removed-section">
+        <summary>Removed in this PR · {removed.length}</summary
+        >{#each removed as item}<p>
+            <code>{item.name}</code> — {item.help}
+          </p>{/each}
+      </details>{/if}
+  {/if}
   <div class="explorer-extras">
     <details class="workspace-details">
-      <summary
-        >Sample files<span class="extra-count">{files.length}</span></summary
-      >
-      <p class="directory-label">/workspace</p>
-      <ul id="file-list" class="file-list">
-        {#each files as file (file)}<li>
+      <summary>Sample files</summary>
+      <ul class="file-list">
+        {#each files as file}<li>
             <button
               type="button"
-              disabled={!connected}
+              disabled={!editable}
               aria-label={`Insert command to read ${file}`}
-              onclick={() => insert(`cat ${file}`)}>{file}</button
+              onclick={() => apply(`cat ${quoteToken(file)}`)}>{file}</button
             >
           </li>{/each}
       </ul>
     </details>
     <details class="shell-details">
-      <summary>Shell essentials</summary>
-      {#each shellExamples as example (example.command)}<button
+      <summary>Shell essentials</summary>{#each shellExamples as example}<button
           type="button"
           class="shell-example"
-          disabled={!connected}
+          disabled={!editable}
           aria-label={`Insert ${example.display}: ${example.label}`}
-          onclick={() => insert(example.command)}
+          onclick={() => apply(example.command)}
           ><span>{example.label}</span><code>{example.display}</code></button
         >{/each}
     </details>
   </div>
-  <div class="explorer-footer">
-    Click to insert. <kbd>Enter</kbd> to run.
-  </div>
+  <p class="builder-footnote">
+    Clicks edit your command. <kbd>Enter</kbd> runs it.
+  </p>
 </div>

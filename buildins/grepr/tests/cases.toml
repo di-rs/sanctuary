@@ -1,0 +1,7 @@
+schema = 1
+binary = "grepr"
+checks = ["help", "schema"]
+
+# Byte fixtures remain owned by native tests in expected/.
+[paths]
+expected = "catalog-expected"

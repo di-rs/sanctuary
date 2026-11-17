@@ -12,6 +12,7 @@ use clap::Parser;
 #[derive(Parser)]
 #[command(version, about)]
 #[expect(clippy::struct_excessive_bools, reason = "independent CLI switches")]
+#[derive(cli_schema::Schema)]
 struct Args {
     /// Execute a command string; the first operand supplies $0.
     #[arg(short = 'c', conflicts_with = "stdin")]
@@ -67,22 +68,21 @@ impl Args {
 }
 
 fn main() -> anyhow::Result<ExitCode> {
-    if let Some(status) = cli_schema::emit::<Args>() {
-        return Ok(status);
-    }
-    let args = Args::parse();
-    if args.no_execute {
-        return match syntax::parse(&args.syntax_input()?, args.bash) {
-            Ok(_) => Ok(ExitCode::SUCCESS),
-            Err(error) => {
-                eprintln!("shish: {error}");
-                Ok(ExitCode::from(2))
-            }
-        };
-    }
-    let runtime = tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(2)
-        .enable_all()
-        .build()?;
-    runtime.block_on(runtime::run(&args)).map(ExitCode::from)
+    <Args as cli_schema::Schema>::run(|| {
+        let args = Args::parse();
+        if args.no_execute {
+            return match syntax::parse(&args.syntax_input()?, args.bash) {
+                Ok(_) => Ok(ExitCode::SUCCESS),
+                Err(error) => {
+                    eprintln!("shish: {error}");
+                    Ok(ExitCode::from(2))
+                }
+            };
+        }
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .build()?;
+        runtime.block_on(runtime::run(&args)).map(ExitCode::from)
+    })
 }

@@ -19,18 +19,6 @@ fn assert_path(cmd: &mut Command, expected: &Path) {
 }
 
 #[test]
-fn usage() {
-    for flag in ["-h", "--help"] {
-        cargo_bin_cmd!()
-            .arg(flag)
-            .assert()
-            .success()
-            .stdout(predicate::str::contains("Usage"))
-            .stderr("");
-    }
-}
-
-#[test]
 fn prints_current_directory_in_each_mode() -> Result<()> {
     let dir = TempDir::new()?;
     let physical = dir.path().canonicalize()?;
@@ -110,37 +98,6 @@ fn rejects_conflicting_modes() -> Result<()> {
             .code(2)
             .stdout("")
             .stderr(predicate::str::contains("cannot be used with"));
-    }
-    Ok(())
-}
-
-#[test]
-fn exports_public_cli_schema_without_application_side_effects()
--> std::result::Result<(), Box<dyn std::error::Error>> {
-    let logs = assert_fs::TempDir::new()?;
-    let output = cli_testing::cargo_bin_cmd!()
-        .env("SANCTUARY_CLI_SCHEMA", "1")
-        .env("SANCTUARY_LOG_LEVEL", "info")
-        .env("SANCTUARY_LOG_DIR", logs.path())
-        .arg("--help")
-        .assert()
-        .code(0)
-        .stderr("")
-        .get_output()
-        .stdout
-        .clone();
-    let value: serde_json::Value = serde_json::from_slice(&output)?;
-    if value["schema_version"] != 1 {
-        return Err("unexpected schema version".into());
-    }
-    if value["command"]["name"] != env!("CARGO_PKG_NAME") {
-        return Err("unexpected CLI identity".into());
-    }
-    if !value["command"]["args"].is_array() {
-        return Err("missing argument metadata".into());
-    }
-    if std::fs::read_dir(logs.path())?.count() != 0 {
-        return Err("schema export wrote logs".into());
     }
     Ok(())
 }

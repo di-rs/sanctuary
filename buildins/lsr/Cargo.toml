@@ -23,3 +23,8 @@ pretty_assertions = { workspace = true }
 
 [lints]
 workspace = true
+
+[[test]]
+name = "catalog"
+path = "tests/catalog.rs"
+harness = false

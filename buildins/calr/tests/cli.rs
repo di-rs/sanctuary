@@ -195,17 +195,6 @@ fn year() -> Result<()> {
 }
 
 #[test]
-fn usage() {
-    for flag in ["-h", "--help"] {
-        cargo_bin_cmd!()
-            .arg(flag)
-            .assert()
-            .success()
-            .stdout(predicate::str::contains("Usage"));
-    }
-}
-
-#[test]
 fn minimum_year_january() -> Result<()> {
     run(&["1", "-m", "1"], "1-1.txt")
 }
@@ -278,35 +267,4 @@ fn redirected_calendar_has_no_ansi() {
         .code(0)
         .stderr("")
         .stdout(predicate::str::contains("\u{1b}").not());
-}
-
-#[test]
-fn exports_public_cli_schema_without_application_side_effects()
--> std::result::Result<(), Box<dyn std::error::Error>> {
-    let logs = assert_fs::TempDir::new()?;
-    let output = cli_testing::cargo_bin_cmd!()
-        .env("SANCTUARY_CLI_SCHEMA", "1")
-        .env("SANCTUARY_LOG_LEVEL", "info")
-        .env("SANCTUARY_LOG_DIR", logs.path())
-        .arg("--help")
-        .assert()
-        .code(0)
-        .stderr("")
-        .get_output()
-        .stdout
-        .clone();
-    let value: serde_json::Value = serde_json::from_slice(&output)?;
-    if value["schema_version"] != 1 {
-        return Err("unexpected schema version".into());
-    }
-    if value["command"]["name"] != env!("CARGO_PKG_NAME") {
-        return Err("unexpected CLI identity".into());
-    }
-    if !value["command"]["args"].is_array() {
-        return Err("missing argument metadata".into());
-    }
-    if std::fs::read_dir(logs.path())?.count() != 0 {
-        return Err("schema export wrote logs".into());
-    }
-    Ok(())
 }

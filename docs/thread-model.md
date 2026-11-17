@@ -38,6 +38,12 @@ service availability. User files and terminal contents may contain sensitive dat
   or placeholder operands. Changing the explorer must not replace a session or
   silently change the revision described. Digests establish artifact identity,
   not the truth of descriptions or the completeness of behavior-change badges.
+  The command builder reads echoed shell drafts from xterm after OSC 133 prompt
+  markers. These sandbox-controlled markers are advisory UI state, not a security
+  boundary. Builder clicks send only a fixed Readline clear-line binding followed
+  by validated, shell-quoted text; never derive terminal control sequences from
+  metadata. Disable builder edits outside the observed prompt. Do not log drafts
+  or send them to external search or telemetry services.
 - **Sandbox to host:** Only the supervisor receives Docker access. Preserve
   [runsc isolation](../packages/boxie/src/boxie/sandbox/docker.py), the non-root
   user, disabled network, read-only root and artifacts, dropped capabilities,
@@ -64,6 +70,20 @@ reservations. Keep terminal contents and credentials out of logs and metrics.
 Distinguish local CLI failures from remotely reachable service vulnerabilities.
 
 ## Deployment assumptions
+
+The opt-in [playground development Compose stack](../tools/cli-playground/compose.dev.yml)
+uses real CLI binaries and PTYs inside one non-root container, backed by the
+terminal transport test harness. It is for trusted local code and disposable data,
+not untrusted PR execution: sessions share a container and its private development
+network, and have no gVisor or Temporal isolation. Publish only its loopback UI
+port; never mount host directories, production credentials, or the Docker socket.
+The local-dev launcher scopes Compose resources by canonical worktree path; Docker
+allocates the published loopback port. PostgreSQL remains private to each project.
+Its development-only adapter translates loopback Host ports to the internal
+authority after requiring any Origin to match the original Host exactly. It
+rejects non-loopback hosts and duplicate authorities; production host validation
+is unchanged. Its runner lives outside the installed playground package and
+production images.
 
 The intended topology exposes only the playground. Confirm that Boxie,
 Docker, PostgreSQL, Temporal, and metrics remain private; verify TLS, proxy/Host

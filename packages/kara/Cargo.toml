@@ -37,3 +37,8 @@ xattr = "1.6.1"
 
 [package.metadata.cli-check]
 benchmark-exemption = "Interactive terminal editor; no finite command benchmark."
+
+[[test]]
+name = "catalog"
+path = "tests/catalog.rs"
+harness = false

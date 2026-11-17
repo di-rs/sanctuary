@@ -1,4 +1,4 @@
-import { argument, catalog } from "../testing/catalog";
+import { catalog, command } from "../testing/catalog";
 import { openExplorer, openSampleFiles } from "./explorer";
 import { Buffer } from "node:buffer";
 import { expect, test, type Page, type WebSocketRoute } from "@playwright/test";
@@ -26,6 +26,7 @@ const currentBuild = {
 
 type ClientMessage = {
   type: string;
+  source?: string;
   credential?: string;
   data?: string;
   epoch?: number;
@@ -84,6 +85,7 @@ async function mockTerminal(
     (url) => url.pathname === `/ws/${identifier}`,
     (socket) => {
       const session: Session = { socket, messages: [], closed: false, deleted: false, sequence: 0 };
+      let prompted = false;
       socket.onMessage((message) => {
         expect(typeof message).toBe("string");
         expect(message.length).toBeLessThanOrEqual(16_384);
@@ -112,6 +114,17 @@ async function mockTerminal(
           socket.send(
             JSON.stringify({ type: "resized", epoch: 1, cols: data.cols, rows: data.rows }),
           );
+          if (!prompted) {
+            prompted = true;
+            output(session, Buffer.from("\x1b]133;A\x07$ \x1b]133;B\x07"));
+          }
+        } else if (data.type === "input" && data.source !== "terminal") {
+          if (data.data === "\x1b[99~")
+            output(session, Buffer.from("\r\x1b[2K\x1b]133;A\x07$ \x1b]133;B\x07"));
+          else if (data.data === "\r")
+            output(session, Buffer.from("\x1b]133;C\x07\r\n\x1b]133;A\x07$ \x1b]133;B\x07"));
+          else if (data.data && !data.data.includes("\x1b"))
+            output(session, Buffer.from(data.data));
         } else if (data.type === "heartbeat") socket.send(JSON.stringify(data));
         session.messages.push(data);
       });
@@ -131,7 +144,9 @@ function output(session: Session, data: Buffer) {
 }
 
 function inputs(session: Session): string[] {
-  return session.messages.flatMap((message) => (message.type === "input" ? [message.data!] : []));
+  return session.messages.flatMap((message) =>
+    message.type === "input" && message.data !== "\x1b[99~" ? [message.data!] : [],
+  );
 }
 
 async function openPlayground(page: Page): Promise<Session[]> {
@@ -167,7 +182,7 @@ test("loads the production terminal, fits the viewport, and inserts commands wit
     )
     .toBe(true);
 
-  output(session, Buffer.from("Native terminal output\r\n", "utf8"));
+  output(session, Buffer.from("Native terminal output\r\n\x1b]133;A\x07$ \x1b]133;B\x07", "utf8"));
   await expect(page.locator(".xterm-accessibility-tree")).toContainText("Native terminal output");
   await expect
     .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth))
@@ -175,77 +190,49 @@ test("loads the production terminal, fits the viewport, and inserts commands wit
 
   await openExplorer(page);
   await page.getByRole("button", { name: "Insert catr", exact: true }).click();
-  await expect.poll(() => inputs(session)).toEqual(["/opt/artifact/catr "]);
+  await expect.poll(() => inputs(session)).toEqual(["catr "]);
   await page.keyboard.press("Enter");
-  await expect.poll(() => inputs(session)).toEqual(["/opt/artifact/catr ", "\r"]);
+  await expect.poll(() => inputs(session)).toEqual(["catr ", "\r"]);
 
   await openSampleFiles(page);
   await page.getByRole("button", { name: "Insert command to read welcome.txt" }).click();
-  await expect
-    .poll(() => inputs(session))
-    .toEqual(["/opt/artifact/catr ", "\r", "cat welcome.txt"]);
+  await expect.poll(() => inputs(session)).toEqual(["catr ", "\r", "cat welcome.txt"]);
 
   await openExplorer(page);
   await page.locator(".shell-details > summary").click();
   await page.getByRole("button", { name: "Insert cat welcome.txt | wc -l: Pipe output" }).click();
   await expect
     .poll(() => inputs(session))
-    .toEqual(["/opt/artifact/catr ", "\r", "cat welcome.txt", "cat welcome.txt | wc -l"]);
+    .toEqual(["catr ", "\r", "cat welcome.txt", "cat welcome.txt | wc -l"]);
 
   await page.keyboard.type(" && printf 'manual'");
   await expect
     .poll(() => inputs(session).join(""))
-    .toBe("/opt/artifact/catr \rcat welcome.txtcat welcome.txt | wc -l && printf 'manual'");
+    .toBe("catr \rcat welcome.txtcat welcome.txt | wc -l && printf 'manual'");
 });
 
 for (const count of [3, 5, 10]) {
-  test(`selects among ${count} CLIs within the same PR terminal and URL`, async ({ page }) => {
+  test(`chooses among ${count} CLI buttons without replacing the terminal`, async ({ page }) => {
     const clis = ["catr", ...Array.from({ length: count - 1 }, (_, index) => `tool${index + 1}`)];
-    const target = clis[count - 1];
     await page.route(`**${metadataPath}`, (route) =>
       route.fulfill({ json: { ...metadata, clis } }),
     );
     const sessions = await mockTerminal(page, environmentId, clis);
     await page.goto(previewPath);
     await expect(page.locator("#connection-status")).toHaveText("Connected");
-    const session = sessions[0];
-    output(session, Buffer.from("Existing workspace output\r\n", "utf8"));
-    const screen = page.locator(".xterm-accessibility-tree");
-    await expect(screen).toContainText("Existing workspace output");
     const terminal = await page.locator("#terminal").elementHandle();
-    await page.locator(".xterm-helper-textarea").focus();
-    await page.keyboard.type("partially typed");
-    await openExplorer(page);
-    const picker = page.getByRole("combobox", { name: "CLI", exact: true });
-    await picker.click();
-    await expect(page.getByRole("option")).toHaveCount(count);
-    for (const name of [target, "catr", target]) {
-      await picker.fill(name);
-      await picker.press("ArrowDown");
-      await picker.press("Enter");
-      await expect(picker).toHaveValue(name);
-      await page.getByRole("textbox", { name: "Search commands and flags" }).fill("number");
-      await page.getByRole("button", { name: "Changes", exact: false }).click();
-      await page.getByRole("button", { name: "All", exact: true }).click();
-      await page.getByRole("textbox", { name: "Search commands and flags" }).clear();
-      const close = page.getByRole("button", { name: "Close explorer ×" });
-      if (await close.isVisible()) {
-        await close.click();
-        await openExplorer(page);
-        await picker.press("Escape");
-      }
+    for (const name of [clis.at(-1)!, "catr"]) {
+      await openExplorer(page);
+      await expect(page.locator(".cli-grid button")).toHaveCount(count);
+      await page.getByRole("button", { name: `Insert ${name}`, exact: true }).click();
+      await openExplorer(page);
+      await expect(page.locator(".builder-path")).toContainText(name);
+      await page.getByRole("button", { name: "All CLIs", exact: true }).click();
     }
     expect(await terminal!.evaluate((node) => node.isConnected)).toBe(true);
-    await expect(page).toHaveURL(previewPath);
-    await expect(page).toHaveTitle(`${target} / cli-playground`);
-    await expect(screen).toContainText("Existing workspace output");
-    await expect(picker).toHaveValue(target);
-    await page.getByRole("button", { name: `Insert ${target}`, exact: true }).click();
-    await expect
-      .poll(() => inputs(session).join(""))
-      .toBe(`partially typed/opt/artifact/${target} `);
-    expect(session.closed).toBe(false);
     expect(sessions).toHaveLength(1);
+    expect(sessions[0].closed).toBe(false);
+    expect(inputs(sessions[0]).join("")).not.toContain("\r");
     await expect
       .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth))
       .toBe(true);
@@ -288,8 +275,7 @@ for (const action of ["Reset session"]) {
     await page.getByRole("button", { name: action, exact: true }).click();
     await expect(page.locator("#meta-sha")).toHaveText("bbbbbbb");
     await openExplorer(page);
-    await page.getByRole("combobox", { name: "CLI", exact: true }).press("Escape");
-    await expect(page.getByRole("combobox", { name: "CLI", exact: true })).toHaveValue("echor");
+
     await expect(page.getByRole("button", { name: "Insert echor", exact: true })).toBeEnabled();
     await expect(page).toHaveURL(previewPath);
     await expect.poll(() => sessions.length).toBe(2);
@@ -431,7 +417,7 @@ test("a failed newer build labels the retained session and polling errors leave 
   await page.clock.fastForward(10_000);
   await openExplorer(page);
   await page.getByRole("button", { name: "Insert catr", exact: true }).click();
-  await expect.poll(() => inputs(sessions[0])).toEqual(["/opt/artifact/catr "]);
+  await expect.poll(() => inputs(sessions[0])).toEqual(["catr "]);
   expect(sessions).toHaveLength(1);
   expect(sessions[0].closed).toBe(false);
 });
@@ -576,151 +562,125 @@ test("a successful HTML response is reported as invalid metadata", async ({ page
   expect(sessions).toHaveLength(0);
 });
 
-test("explorer exposes change details and inserts flags without values or execution", async ({
-  page,
-}) => {
-  const [session] = await openPlayground(page);
-  await openExplorer(page);
-  await expect(page.locator('[data-change="changed"] .badge')).toHaveText("~ Changed");
-  await expect(page.locator('[data-change="added"] .badge')).toHaveText("+ Added");
-  await page.locator('[data-change="changed"] summary').click();
-  await expect(page.locator('[data-change="changed"] del')).toHaveText("Number output");
-  await expect(page.locator('[data-change="changed"] ins')).toHaveText("Number each line");
-  await page.locator(".removed-section > summary").click();
-  await expect(page.locator(".removed-section")).toContainText("--old");
-  await expect(page.locator(".removed-section button:not(:disabled)")).toHaveCount(0);
-  await page.getByRole("button", { name: "Insert --format", exact: true }).click();
-  await expect.poll(() => inputs(session)).toEqual([" --format "]);
-  await expect(page.getByRole("textbox", { name: "Terminal input" })).toBeFocused();
-  await page.keyboard.type("json");
-  await expect.poll(() => inputs(session).join("")).toBe(" --format json");
-});
-
-test("search finds flags by their displayed long and short spellings", async ({ page }) => {
-  const [session] = await openPlayground(page);
-  await openExplorer(page);
-  const search = page.getByRole("textbox", { name: "Search commands and flags" });
-  for (const query of ["--number", "-n", "number"]) {
-    await search.fill(query);
-    await expect(page.getByRole("button", { name: "Insert --number", exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Insert --format", exact: true })).toHaveCount(0);
-  }
-  expect(inputs(session)).toEqual([]);
-});
-
-test("long references keep search pinned and sample files reachable without disturbing the terminal", async ({
+test("typing filters and highlights commands, completion edits rather than duplicates", async ({
   page,
 }) => {
   const sessions = await mockTerminal(page);
   await page.route(`**${metadataPath}`, (route) => route.fulfill({ json: metadata }));
   const reference = catalog(metadata.sha);
-  reference.clis[0].head.command.args.push(
-    ...Array.from({ length: 30 }, (_, index) =>
-      argument({
-        id: `option-${index}`,
-        long: `option-${index}`,
-        short: null,
-        help: `Configure output option ${index}`,
-      }),
-    ),
-  );
+  reference.clis[0].head.command.subcommands = [
+    command({ name: "text", about: "Generate text" }),
+    command({ name: "bytes", about: "Generate bytes" }),
+    command({ name: "records" }),
+  ];
   await page.route("**/catalog", (route) => route.fulfill({ json: reference }));
   await page.goto(previewPath);
   await expect(page.locator("#connection-status")).toHaveText("Connected");
   const terminal = await page.locator("#terminal").elementHandle();
+  await page.locator(".xterm-helper-textarea").focus();
+  await page.keyboard.type("catr t");
   await openExplorer(page);
-  const picker = page.getByRole("combobox", { name: "CLI", exact: true });
-  await expect(picker).toHaveAttribute("aria-expanded", "false");
-  const referenceArea = page.locator(".explorer-scroll");
-  await referenceArea.hover();
-  await page.mouse.wheel(0, 1800);
-  await expect.poll(() => referenceArea.evaluate((node) => node.scrollTop)).toBeGreaterThan(0);
-  await expect(picker).toBeInViewport();
-  const search = page.getByRole("textbox", { name: "Search commands and flags" });
-  await expect(search).toBeInViewport();
-  await page.locator(".workspace-details > summary").scrollIntoViewIfNeeded();
-  await expect(page.locator(".workspace-details > summary")).toBeInViewport();
-  await expect(search).toBeInViewport();
-  await search.fill("option-24");
-  await expect(page.getByRole("button", { name: "Insert --option-24", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Clear command search" }).click();
-  await expect(search).toBeFocused();
-  await expect(search).toHaveValue("");
+  await expect(page.getByRole("button", { name: "Complete text", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Complete bytes", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Complete records", exact: true })).toHaveCount(0);
+  await expect(page.locator("mark")).toHaveText(["t", "t", "t"]);
+  await page.getByRole("button", { name: "Complete text", exact: true }).press("Enter");
+  await openExplorer(page);
+  await expect(page.locator(".builder-path button")).toHaveText(["catr", "text"]);
+  await page.getByRole("button", { name: "Insert --help", exact: true }).click();
+  await expect.poll(() => inputs(sessions[0]).at(-1)).toBe("catr text --help ");
+  expect(inputs(sessions[0]).join("")).not.toContain("/opt/artifact/");
+  expect(inputs(sessions[0]).join("")).not.toContain("\r");
   expect(await terminal!.evaluate((node) => node.isConnected)).toBe(true);
   expect(sessions).toHaveLength(1);
-  expect(inputs(sessions[0])).toEqual([]);
 });
 
-test("catalog remains on the active revision through build polling", async ({ page }) => {
+test("wrong commands hide suggestions and flag cards show change badges without extra details", async ({
+  page,
+}) => {
+  const [session] = await openPlayground(page);
+  await page.locator(".xterm-helper-textarea").focus();
+  await page.keyboard.type("unknown");
+  await openExplorer(page);
+  await expect(page.getByText("No command found", { exact: true })).toBeVisible();
+  await expect(page.locator(".cli-grid, .builder-flags")).toHaveCount(0);
+  await page.getByRole("button", { name: "All CLIs", exact: true }).click();
+  await openExplorer(page);
+  await page.getByRole("button", { name: "Insert catr", exact: true }).click();
+  await openExplorer(page);
+  await expect(page.locator('[data-change="changed"] .badge')).toHaveText("~ Changed");
+  await expect(page.locator(".builder-flag summary")).toHaveCount(0);
+  await expect(page.locator(".flag-default")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Changes/ })).toHaveCount(0);
+  await page.getByRole("button", { name: "Insert --format", exact: true }).click();
+  await openExplorer(page);
+  await expect(page.getByRole("heading", { name: "Value for --format" })).toBeVisible();
+  await page.getByRole("button", { name: "Complete json", exact: true }).click();
+  await expect.poll(() => inputs(session).at(-1)).toBe("catr --format json ");
+});
+
+test("unsupported shell syntax and programs do not receive builder edits", async ({ page }) => {
+  const [session] = await openPlayground(page);
+  await page.locator(".xterm-helper-textarea").focus();
+  await page.keyboard.type("catr | wc");
+  await openExplorer(page);
+  await expect(page.getByText("No command reference", { exact: true })).toBeVisible();
+  output(session, Buffer.from("\x1b]133;C\x07\r\nRunning program"));
+  await expect(page.getByText("Waiting for a shell prompt…")).toBeVisible();
+  await expect(page.locator(".cli-grid button:enabled")).toHaveCount(0);
+});
+
+test("catalog stays pinned through build polling and metadata renders as text", async ({
+  page,
+}) => {
   await page.clock.install();
+  await page.emulateMedia({ reducedMotion: "reduce" });
   let latest = { ...metadata };
   await page.route(`**${metadataPath}`, (route) => route.fulfill({ json: latest }));
   const sessions = await mockTerminal(page);
   const requests: string[] = [];
-  await page.route(`**/api/environments/${environmentId}/revisions/*/catalog`, (route) => {
-    const revision = route.request().url().split("/").at(-2)!;
-    requests.push(revision);
-    const reference = catalog(revision, latest.clis);
-    reference.clis[0].head.command.about =
-      revision === metadata.sha ? "Original reference" : "Updated reference";
+  await page.route("**/catalog", (route) => {
+    requests.push(route.request().url());
+    const reference = catalog(metadata.sha);
+    reference.clis[0].head.command.about = '<img src=x onerror="alert(1)">';
     return route.fulfill({ json: reference });
   });
   await page.goto(previewPath);
   await expect(page.locator("#connection-status")).toHaveText("Connected");
   await openExplorer(page);
-  await expect(page.locator(".command-about")).toHaveText("Original reference");
+  await page.getByRole("button", { name: "Insert catr", exact: true }).click();
+  await openExplorer(page);
+  await expect(page.locator(".command-about")).toHaveText('<img src=x onerror="alert(1)">');
+  await expect(page.locator(".command-about img")).toHaveCount(0);
   latest = { ...metadata, sha: "b".repeat(40), revision: "b".repeat(40) };
   await page.clock.fastForward(30_000);
-  expect(requests).toEqual([metadata.sha]);
-  await expect(page.locator(".command-about")).toHaveText("Original reference");
-  const close = page.getByRole("button", { name: "Close explorer ×" });
-  if (await close.isVisible()) await close.click();
-  await page.getByRole("button", { name: "Switch to latest build" }).click();
-  await expect.poll(() => sessions.length).toBe(2);
-  await openExplorer(page);
-  await expect(page.locator(".command-about")).toHaveText("Updated reference");
-  expect(requests).toEqual([metadata.sha, "b".repeat(40)]);
+  expect(requests).toHaveLength(1);
+  expect(sessions).toHaveLength(1);
 });
 
-test("legacy previews and unavailable comparisons remain usable without speculative badges", async ({
-  page,
-}) => {
-  const sessions = await mockTerminal(page);
+test("legacy catalogs remain usable with unavailable reference", async ({ page }) => {
+  await mockTerminal(page);
   await page.route(`**${metadataPath}`, (route) => route.fulfill({ json: metadata }));
   await page.route("**/catalog", (route) => route.fulfill({ json: null }));
   await page.goto(previewPath);
   await expect(page.locator("#connection-status")).toHaveText("Connected");
   await openExplorer(page);
   await expect(page.locator(".catalog-status")).toContainText("Command reference unavailable");
-  const reference = catalog(metadata.sha);
-  reference.clis[0].base = null;
-  reference.clis[0].comparison = "unavailable";
-  await page.route("**/catalog", (route) => route.fulfill({ json: reference }));
-  await page.getByRole("button", { name: "Retry", exact: true }).click();
-  await expect(page.locator(".catalog-status")).toHaveText("Comparison unavailable");
-  await expect(page.locator(".badge")).toHaveCount(0);
-  expect(sessions).toHaveLength(1);
+  await expect(page.getByRole("button", { name: "Insert catr", exact: true })).toBeEnabled();
 });
 
-test("metadata is plain text and reduced motion preserves the same terminal", async ({ page }) => {
-  await page.emulateMedia({ reducedMotion: "reduce" });
-  const sessions = await mockTerminal(page);
-  await page.route(`**${metadataPath}`, (route) => route.fulfill({ json: metadata }));
-  const reference = catalog(metadata.sha);
-  reference.clis[0].head.command.about = '<img src=x onerror="alert(1)">';
-  await page.route("**/catalog", (route) => route.fulfill({ json: reference }));
-  await page.goto(previewPath);
-  await expect(page.locator("#connection-status")).toHaveText("Connected");
-  const terminal = await page.locator("#terminal").elementHandle();
+test("shell history redraws and wrapped input update choices without another connection", async ({
+  page,
+}) => {
+  const [session] = await openPlayground(page);
+  output(session, Buffer.from("catr --format json"));
   await openExplorer(page);
-  await expect(page.locator(".command-about")).toHaveText(reference.clis[0].head.command.about);
-  await expect(page.locator(".command-about img")).toHaveCount(0);
-  expect(
-    await page.locator(".sidebar").evaluate((node) => getComputedStyle(node).transitionDuration),
-  ).toBe("0s");
-  const search = page.getByRole("textbox", { name: "Search commands and flags" });
-  await search.fill("no matching command");
-  await expect(page.getByText("No matching commands or flags.")).toBeVisible();
-  expect(await terminal!.evaluate((node) => node.isConnected)).toBe(true);
-  expect(sessions).toHaveLength(1);
+  await expect(page.getByRole("button", { name: "Insert --format", exact: true })).toBeDisabled();
+  output(session, Buffer.from("\r\x1b[2K$ unknown"));
+  await expect(page.getByText("No command found", { exact: true })).toBeVisible();
+  output(session, Buffer.from("\r\x1b[2K$ catr --format " + "x".repeat(300)));
+  await expect(page.locator(".builder-path button")).toHaveText(["catr"]);
+  await expect(page.getByRole("button", { name: "Insert --number", exact: true })).toBeEnabled();
+  expect(inputs(session)).toEqual([]);
+  expect(session.closed).toBe(false);
 });

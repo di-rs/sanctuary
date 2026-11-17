@@ -33,11 +33,17 @@ async def boxie_network(root: Path, *, daemon: EchoDaemon | None = None) -> Asyn
 
 @asynccontextmanager
 async def product_server(
-    root: Path, api_url: str, *, port: int = 0, clock: Callable[[], float] | None = None
+    root: Path,
+    api_url: str,
+    *,
+    port: int = 0,
+    clock: Callable[[], float] | None = None,
+    bind_host: str = "127.0.0.1",
+    configure_app: Callable[[FastAPI], None] | None = None,
 ) -> AsyncIterator[Product]:
     with socket.socket() as sock:
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock.bind(("127.0.0.1", port))
+        sock.bind((bind_host, port))
         url = f"http://127.0.0.1:{sock.getsockname()[1]}"
         settings = Settings(
             data_dir=root,
@@ -51,6 +57,8 @@ async def product_server(
             boxie=HttpBoxieClient(api_url, "consumer-one-secret"),
             clock=clock or MutableClock(),
         )
+        if configure_app is not None:
+            configure_app(app)
         server = uvicorn.Server(
             uvicorn.Config(app, log_level="error", ws="websockets-sansio", access_log=False)
         )

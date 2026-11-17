@@ -5,6 +5,7 @@ use thiserror::Error;
 #[derive(Parser, Debug)]
 #[command(author, version, about)]
 /// Rust minimal `ls` implementation
+#[derive(cli_schema::Schema)]
 pub struct Cli {
     /// Files and/or directories
     #[arg(default_value = ".")]

@@ -1,8 +1,46 @@
 # CLI schema
 
 `cli-schema` exports a Sanctuary CLI's public Clap interface for the playground.
-Call `cli_schema::emit::<Args>()` at the start of `main`, returning its exit status
-when present. Argument-insensitive utilities use `emit_empty(name, description)`.
+Derive `Schema` on the root parser struct:
+
+```rust,no_run
+use cli_schema::Schema;
+
+#[derive(clap::Parser, Schema)]
+struct Cli {}
+
+fn main() -> std::process::ExitCode {
+    Cli::run(|| {
+        // Custom parsing, logging, and application work go here.
+        std::process::ExitCode::SUCCESS
+    })
+}
+```
+
+Ordinary CLIs use `cli_log::run` or `cli_log::try_run`, which call this guard
+before initializing logging or parsing arguments. Their `main` needs no schema
+attribute or explicit check. Custom entrypoints use `Schema::run` around all
+startup work, as above. The guard supports `ExitCode` and `Result<ExitCode, E>`;
+errors from normal startup pass through unchanged. The derive declares support
+but does not execute code by itself.
+
+Argument-insensitive utilities derive `Schema` on a unit struct with
+`#[schema(name = "true", about = "Exit with status 0")]` and use the same guard.
+They export an empty interface without acquiring help or version flags.
+The lower-level `emit` and `emit_empty` functions remain available.
+
+Register shared executable checks in the package's `tests/cases.toml`:
+
+```toml
+schema = 1
+binary = "example"
+checks = ["help", "schema"]
+```
+
+Use only `checks = ["schema"]` for `true` and `false`, which have no help contract.
+The [catalog harness](../../tools/cli-testing/docs/testing.md) runs these as named
+executable tests. Command-specific assertions can use `assert_cli_schema` to
+retrieve validated JSON; the generic Rust registration macro is no longer needed.
 
 Run a built binary with `SANCTUARY_CLI_SCHEMA=1` and exactly `--help` to emit a
 version 1 JSON document to stdout. Export succeeds with status 0; output errors

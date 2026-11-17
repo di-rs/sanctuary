@@ -298,18 +298,6 @@ fn assert_text(path: &Path, lines: usize) -> Result<()> {
 }
 
 #[test]
-fn usage() {
-    for flag in ["-h", "--help"] {
-        command()
-            .arg(flag)
-            .assert()
-            .success()
-            .stdout(predicate::str::contains("Usage"))
-            .stderr("");
-    }
-}
-
-#[test]
 fn creates_default_output_file() -> Result<()> {
     let dir = TempDir::new()?;
     command()
@@ -1579,31 +1567,8 @@ fn json_pair_reports_both_outputs() -> Result<()> {
 #[test]
 fn exports_public_cli_schema_without_application_side_effects()
 -> std::result::Result<(), Box<dyn std::error::Error>> {
-    let logs = assert_fs::TempDir::new()?;
-    let output = cli_testing::cargo_bin_cmd!()
-        .env("SANCTUARY_CLI_SCHEMA", "1")
-        .env("SANCTUARY_LOG_LEVEL", "info")
-        .env("SANCTUARY_LOG_DIR", logs.path())
-        .arg("--help")
-        .assert()
-        .code(0)
-        .stderr("")
-        .get_output()
-        .stdout
-        .clone();
-    let value: serde_json::Value = serde_json::from_slice(&output)?;
-    if value["schema_version"] != 1 {
-        return Err("unexpected schema version".into());
-    }
-    if value["command"]["name"] != env!("CARGO_PKG_NAME") {
-        return Err("unexpected CLI identity".into());
-    }
-    if !value["command"]["args"].is_array() {
-        return Err("missing argument metadata".into());
-    }
-    if std::fs::read_dir(logs.path())?.count() != 0 {
-        return Err("schema export wrote logs".into());
-    }
+    let value =
+        cli_testing::assert_cli_schema(cli_testing::cargo_bin_cmd!(), env!("CARGO_PKG_NAME"))?;
     let commands = value["command"]["subcommands"]
         .as_array()
         .ok_or("missing subcommands")?;

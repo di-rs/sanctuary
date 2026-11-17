@@ -8,31 +8,30 @@ mod cli;
 use crate::cli::{Cli, CliError, get_reader, get_writer};
 
 fn main() -> std::process::ExitCode {
-    if let Some(status) = cli_schema::emit::<Cli>() {
-        return status;
-    }
-    setup_panic!();
-    let logging = cli_log::init("grepr");
-    let cli = match logging.parse::<Cli>() {
-        Ok(cli) => cli,
-        Err(status) => return status,
-    };
-    logging.set_stderr_level(cli.verbosity.log_level_filter());
-    info!("starting up");
+    <Cli as cli_schema::Schema>::run(|| {
+        setup_panic!();
+        let logging = cli_log::init("grepr");
+        let cli = match logging.parse::<Cli>() {
+            Ok(cli) => cli,
+            Err(status) => return status,
+        };
+        logging.set_stderr_level(cli.verbosity.log_level_filter());
+        info!("starting up");
 
-    let status = match run(&cli) {
-        Ok(failed) => i32::from(failed),
-        Err(CliError::Config) => {
-            cli_log::record_error(CliError::Config);
-            let _ = Cli::command().print_help();
-            exitcode::CONFIG
-        }
-        Err(e) => {
-            cli_log::diagnostic!("Error: {e}");
-            exitcode::DATAERR
-        }
-    };
-    logging.finish(status)
+        let status = match run(&cli) {
+            Ok(failed) => i32::from(failed),
+            Err(CliError::Config) => {
+                cli_log::record_error(CliError::Config);
+                let _ = Cli::command().print_help();
+                exitcode::CONFIG
+            }
+            Err(e) => {
+                cli_log::diagnostic!("Error: {e}");
+                exitcode::DATAERR
+            }
+        };
+        logging.finish(status)
+    })
 }
 
 fn run(cli: &Cli) -> Result<bool, CliError> {

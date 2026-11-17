@@ -4,6 +4,7 @@ use std::io::Write;
 #[derive(Debug, Parser)]
 #[command(author, version, about)]
 /// Rust version of `echo`
+#[derive(cli_schema::Schema)]
 struct Args {
     /// Input text
     #[arg(required(true))]
@@ -15,9 +16,6 @@ struct Args {
 }
 
 fn main() -> std::process::ExitCode {
-    if let Some(status) = cli_schema::emit::<Args>() {
-        return status;
-    }
     cli_log::run("echor", |Args { text, omit_newline }| {
         let ending = if omit_newline { "" } else { "\n" };
         let mut stdout = std::io::stdout().lock();

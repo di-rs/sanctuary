@@ -312,7 +312,7 @@ export function quoteToken(value: string): string {
   return /^[a-zA-Z0-9_./-]+$/.test(value) ? value : `'${value.replace(/'/g, `'"'"'`)}'`;
 }
 export function commandText(cli: string, path: string[]): string {
-  return [quoteToken(`/opt/artifact/${cli}`), ...path.map(quoteToken)].join(" ") + " ";
+  return [quoteToken(cli), ...path.map(quoteToken)].join(" ") + " ";
 }
 export function flagText(arg: Argument): string {
   const flag = arg.long ? `--${arg.long}` : arg.short ? `-${arg.short}` : null;

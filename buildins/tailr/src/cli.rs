@@ -7,6 +7,7 @@ use tailr::TakeValue;
 #[derive(Parser, Debug)]
 #[command(author, version, about)]
 /// Rust minimal `tail` implementation
+#[derive(cli_schema::Schema)]
 pub struct Cli {
     /// Input file(s), use `-` to read from stdin
     #[arg(value_name = "FILES", required(true))]

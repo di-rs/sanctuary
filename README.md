@@ -30,6 +30,15 @@ Open a pull request's playground link to try its commands without building them
 locally. The [playground guide](tools/cli-playground/README.md#use-a-preview)
 explains sessions, sample files, and switching builds.
 
+To run the playground and all CLIs locally with Docker Compose:
+
+```sh
+uv run local-dev up
+```
+
+The [local development guide](docs/local-development.md) covers setup, console
+output, rebuilding, shutdown, and the separate full Boxie service setup.
+
 ## Applications
 
 | Project | Purpose |
@@ -75,7 +84,7 @@ explains sessions, sample files, and switching builds.
 | Project | Purpose |
 | --- | --- |
 | [cli-log](utils/cli-log/README.md) | Shared structured file logging and error reporting |
-| [cli-testing](utils/cli-testing/README.md) | Shared CLI test setup and byte fixture loading |
+| [cli-testing](tools/cli-testing/README.md) | Shared CLI test setup and byte fixture loading |
 
 ## Find your way around
 
