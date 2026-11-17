@@ -468,13 +468,23 @@ def lifecycle(
     return message
 
 
-def preview_deployment(api: GitHub[TokenAuthStrategy], base: str, number: int, sha: str) -> int:
+def preview_deployment(
+    api: GitHub[TokenAuthStrategy], base: str, number: int, sha: str, binaries: dict[str, str]
+) -> int:
     environment = f"cli-playground/pr-{number}"
-    query = urllib.parse.urlencode({"environment": environment, "sha": sha, "task": "deploy"})
-    for deployment in github_pages(api, f"{base}/deployments?{query}"):
+    digest = hashlib.sha256(json.dumps(binaries, sort_keys=True).encode()).hexdigest()
+    query = urllib.parse.urlencode({"environment": environment, "task": "deploy", "per_page": 1})
+    latest = array(github_json(api, f"{base}/deployments?{query}"))
+    if latest:
+        deployment = table(latest[0])
+        payload = deployment.get("payload")
+        previous = payload.get("binaries_sha256") if isinstance(payload, dict) else None
+        # Existing deployments predate content digests. A SHA match can identify a retry.
+        same = previous == digest if previous is not None else deployment.get("sha") == sha
         if (
-            deployment.get("environment") == environment
-            and deployment.get("sha") == sha
+            same
+            and deployment.get("task") == "deploy"
+            and deployment.get("environment") == environment
             and deployment.get("creator") is not None
             and table(deployment["creator"]).get("login") == "github-actions[bot]"
         ):
@@ -489,6 +499,7 @@ def preview_deployment(api: GitHub[TokenAuthStrategy], base: str, number: int, s
                 "auto_merge": False,
                 "required_contexts": [],
                 "environment": environment,
+                "payload": {"binaries_sha256": digest},
                 "description": f"cli-playground for PR #{number}",
                 "transient_environment": True,
                 "production_environment": False,
@@ -597,6 +608,7 @@ def publish(
     )
     publish_failed = False
     url: str | None = None
+    binary_digests: dict[str, str] = {}
     if artifact is None:
         expired = any(
             item.get("name") == ARTIFACT_NAME and item.get("expired") for item in artifacts
@@ -626,11 +638,10 @@ def publish(
                     api, f"{base}/actions/artifacts/{artifact_id}/zip", limit=MAX_ARCHIVE
                 )
                 binaries = binary_archive(bundle)
-                archive_catalog(
-                    bundle,
-                    sha,
-                    {name: hashlib.sha256(binary).hexdigest() for name, binary in binaries.items()},
-                )
+                binary_digests = {
+                    name: hashlib.sha256(binary).hexdigest() for name, binary in binaries.items()
+                }
+                archive_catalog(bundle, sha, binary_digests)
                 count = len(binaries)
                 response = upload(
                     api,
@@ -672,7 +683,7 @@ def publish(
     if not current_pull(api, repo, number, sha):
         return None
     if url:
-        deployment_id = preview_deployment(api, base, number, sha)
+        deployment_id = preview_deployment(api, base, number, sha, binary_digests)
         github_request(
             api,
             f"{base}/deployments/{deployment_id}/statuses",

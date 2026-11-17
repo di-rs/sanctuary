@@ -43,8 +43,13 @@ uses the automatic GitHub token with `contents: read`, `actions: read`,
 by either publisher. PR builds receive neither the preview token nor host SSH
 credentials. The controller uses `deployment: false` for its credential
 environment. A successful hosted upload creates the deployment for
-`cli-playground/pr-N`. Replaying publication for the same PR commit updates its existing deployment status. Build progress, empty builds and lifecycle reconciliation
-use the environment without creating deployment records. GitHub supports
+`cli-playground/pr-N`. The controller compares the names and SHA-256 digests of
+the binaries with the latest deployment on that PR. Identical binaries update
+the existing deployment status, including after a documentation-only follow-up.
+Each preview catalog and PR comment still identifies the checked commit. For a
+deployment created before content digests were recorded, retries use its commit.
+Build progress, empty builds and lifecycle reconciliation use the credential
+environment without creating deployment records. GitHub supports
 required reviewers with this mode. Custom deployment protection rules are
 incompatible with it.
 

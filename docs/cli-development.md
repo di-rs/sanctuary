@@ -128,6 +128,9 @@ With the body file and recording directory beside each other, submit the body
 with `gh pr edit PR_NUMBER --body-file pr.md --attach ./commands-echor/video.webm`
 or supply the same flags to `gh pr create`. Repeat `--attach` for additional
 videos. GitHub replaces each image reference with an inline video player.
+GitHub CLI accepts 50 attachments per edit. For larger changes, start each
+batch with the current body from `gh pr view PR_NUMBER --json body --jq .body`
+and append the next group. This preserves the links already uploaded.
 In the web editor, drop the WebM directly under its heading. Re-record and
 replace videos when the demonstrated behavior changes.
 

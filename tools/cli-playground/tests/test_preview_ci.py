@@ -399,17 +399,44 @@ def test_repeated_publication_reuses_this_pr_and_sha_deployment() -> None:
         "id": 88,
         "environment": "cli-playground/pr-7",
         "sha": SHA,
+        "task": "deploy",
         "creator": {"login": "github-actions[bot]"},
     }
-    github.deployments = [
-        deployment | {"id": 11, "sha": "c" * 40},
-        deployment | {"id": 12, "creator": {"login": "another-bot"}},
-        deployment,
-    ]
+    github.deployments = [deployment]
     backend = Mock(return_value={"id": "a" * 32, "url": "https://play.example/p/" + "a" * 32})
     preview_ci.publish(github, REPO, 500, "https://play.example", "token", backend=backend)
     assert not any(path.endswith("/deployments") for path, _ in github.writes)
     assert any(path.endswith("/deployments/88/statuses") for path, _ in github.writes)
+
+
+def test_docs_followup_reuses_latest_trusted_deployment_by_binary_contents() -> None:
+    github = FakeGitHub()
+    base = f"repos/{REPO}"
+    binaries = {"catr": "a" * 64, "echor": "b" * 64}
+    assert preview_ci.preview_deployment(github, base, 7, SHA, binaries) == 99
+    created = github.writes[-1][1]
+    assert isinstance(created, dict)
+    deployment = created | {
+        "id": 88,
+        "sha": SHA,
+        "task": "deploy",
+        "creator": {"login": "github-actions[bot]"},
+    }
+    github.deployments = [deployment]
+    head = "c" * 40
+    reordered = dict(reversed(binaries.items()))
+    assert preview_ci.preview_deployment(github, base, 7, head, reordered) == 88
+    assert len(github.writes) == 1
+    for change in [{"catr": "a" * 64}, binaries | {"catr": "0" * 64}]:
+        assert preview_ci.preview_deployment(github, base, 7, head, change) == 99
+    other_deployments: list[dict[str, object]] = [
+        {"creator": {"login": "another-bot"}},
+        {"environment": "production"},
+        {"task": "custom"},
+    ]
+    for fields in other_deployments:
+        github.deployments = [deployment | fields]
+        assert preview_ci.preview_deployment(github, base, 7, head, binaries) == 99
 
 
 @pytest.mark.parametrize(
