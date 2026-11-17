@@ -106,8 +106,8 @@ impl EditorCommand {
                 (Char(':'), _) => Self::ChangeMode(EditorMode::Command),
                 (Char('/'), _) => Self::StartSearch(super::search::SearchDirection::Forward),
                 (Char('?'), _) => Self::StartSearch(super::search::SearchDirection::Backward),
-                (Char('n'), _) => Self::RepeatSearch { reverse: false },
-                (Char('N'), _) => Self::RepeatSearch { reverse: true },
+                (Char('n'), _) => Self::RepeatSearch(super::search::SearchDirection::Backward),
+                (Char('N'), _) => Self::RepeatSearch(super::search::SearchDirection::Forward),
                 (KeyCode::Esc, _) => Self::ClearSearch,
 
                 (Char('d'), _) => Self::Edit(Edit::Delete),

@@ -34,7 +34,7 @@ pub enum Edit {
 #[derive(Debug, PartialEq, Eq)]
 pub enum EditorCommand {
     StartSearch(super::search::SearchDirection),
-    RepeatSearch { reverse: bool },
+    RepeatSearch(super::search::SearchDirection),
     ClearSearch,
     Move(Move),
     ChangeMode(EditorMode),

@@ -8,15 +8,6 @@ pub enum SearchDirection {
     Backward,
 }
 
-impl SearchDirection {
-    pub const fn reversed(self) -> Self {
-        match self {
-            Self::Forward => Self::Backward,
-            Self::Backward => Self::Forward,
-        }
-    }
-}
-
 #[derive(Default, Clone)]
 pub struct Search {
     pub query: String,
