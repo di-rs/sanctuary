@@ -4,6 +4,7 @@ import base64
 import json
 import os
 import sys
+import time
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -11,6 +12,20 @@ from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_ope
 
 ACCOUNT = "sanctuary-mcp"
 TOKEN = "sanctuary-mcp-read"
+
+
+def wait_ready(url: str) -> None:
+    opener = build_opener(ProxyHandler({}), NoRedirect)
+    for attempt in range(30):
+        try:
+            with opener.open(url + "/api/health", timeout=2) as response:
+                if json.load(response).get("database") == "ok":
+                    return
+        except OSError, ValueError:
+            pass
+        if attempt < 29:
+            time.sleep(2)
+    raise RuntimeError("Grafana did not become ready within the startup retry budget")
 
 
 class NoRedirect(HTTPRedirectHandler):
@@ -74,6 +89,7 @@ def provision(url: str, password_file: Path, token_file: Path) -> None:
 
 def main() -> None:
     try:
+        wait_ready("http://grafana:3000")
         provision(
             "http://grafana:3000", Path("/admin-password"), Path("/credentials/grafana-token")
         )

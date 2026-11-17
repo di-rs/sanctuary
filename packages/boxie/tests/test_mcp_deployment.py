@@ -16,9 +16,38 @@ from uuid import uuid4
 
 import pytest
 import yaml
-from boxie_infra.mcp import provision
+from boxie_infra.mcp import provision, wait_ready
 
 INFRA = Path(__file__).parents[1] / "infra"
+
+
+def test_readiness_retries_until_database_is_ready() -> None:
+    opener = MagicMock()
+    opener.open.side_effect = [
+        URLError("connection refused"),
+        io.BytesIO(b'{"database":"starting"}'),
+        io.BytesIO(b'{"database":"ok"}'),
+    ]
+    with (
+        patch("boxie_infra.mcp.build_opener", return_value=opener),
+        patch("boxie_infra.mcp.time.sleep") as sleep,
+    ):
+        wait_ready("http://grafana:3000")
+    assert opener.open.call_count == 3
+    assert sleep.call_count == 2
+
+
+def test_readiness_failure_is_bounded() -> None:
+    opener = MagicMock()
+    opener.open.side_effect = URLError("connection refused")
+    with (
+        patch("boxie_infra.mcp.build_opener", return_value=opener),
+        patch("boxie_infra.mcp.time.sleep") as sleep,
+    ):
+        with pytest.raises(RuntimeError, match="startup retry budget"):
+            wait_ready("http://grafana:3000")
+    assert opener.open.call_count == 30
+    assert sleep.call_count == 29
 
 
 def mcp_probe(command: list[str], tool: str, arguments: dict[str, Any]) -> dict[str, Any]:
