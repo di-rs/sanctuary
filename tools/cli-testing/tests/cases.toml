@@ -1,6 +1,6 @@
 schema = 1
 binary = "cli-testing"
-checks = ["help"]
+checks = ["help", "schema"]
 
 [[cases]]
 name = "version"

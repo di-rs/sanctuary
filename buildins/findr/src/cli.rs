@@ -8,6 +8,7 @@ use findr::EntryType;
 #[derive(Parser, Debug)]
 #[command(author, version, about)]
 /// Rust minimal find implementation
+#[derive(cli_schema::Schema)]
 pub struct Cli {
     /// Search paths
     #[arg(value_name = "PATHS", default_value = ".")]

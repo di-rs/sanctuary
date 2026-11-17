@@ -37,7 +37,24 @@ Advisory secret scans must not publish credential values and run without credent
   admission. Preserve path/type validation and expanded-byte limits in
   [Boxie extraction](../packages/boxie/src/boxie/persistence/artifact_files.py)
   and [playground validation](../tools/cli-playground/src/cli_playground/artifacts.py).
-  Valid executable headers do not establish trust.
+  Valid executable headers do not establish trust. The optional command catalog
+  is untrusted data with bounded bytes, tree size, strings, names and collections.
+  Bind it to the expected head revision and exact executable digests. Persist its
+  canonical digest in both upload intents and immutable revisions, including
+  conflict checks on retries and recovery. Strip the sidecar before sending the
+  executable bundle to Boxie. [Publication contracts](../tools/cli-playground/docs/previews.md#build-and-comparison-contract)
+  define the limits and unavailable-baseline behavior.
+- **Catalog to browser and terminal:** Render metadata as text, never HTML.
+  Shell-quote inserted tokens and reject control characters; never append Enter
+  or placeholder operands. Changing the explorer must not replace a session or
+  silently change the revision described. Digests establish artifact identity,
+  not the truth of descriptions or the completeness of behavior-change badges.
+  The command builder reads echoed shell drafts from xterm after OSC 133 prompt
+  markers. These sandbox-controlled markers are advisory UI state, not a security
+  boundary. Builder clicks send only a fixed Readline clear-line binding followed
+  by validated, shell-quoted text; never derive terminal control sequences from
+  metadata. Disable builder edits outside the observed prompt. Do not log drafts
+  or send them to external search or telemetry services.
 - **Sandbox to host:** Only the supervisor receives Docker access. Preserve
   [runsc isolation](../packages/boxie/src/boxie/sandbox/docker.py), the non-root
   user, disabled network, read-only root and artifacts, dropped capabilities,
@@ -51,7 +68,10 @@ Advisory secret scans must not publish credential values and run without credent
   The [privileged controller](../.github/workflows/cli-playground-preview.yml)
   uses default-branch code. Never execute PR-controlled scripts or binaries with
   publication or deployment credentials. Apply the same boundary to benchmark
-  reporting and release automation.
+  reporting and release automation. CLI reflection runs only in the unprivileged
+  build, with elapsed-time/output limits and without ambient credentials; the
+  publisher and gateway validate metadata without executing uploaded code.
+  Those capture bounds do not isolate a malicious process from its build runner.
 - **Local fixture recipes and recordings:** CLI test catalogs and their reference
   commands are trusted repository code, executed with the developer's permissions.
   Temporary test workspaces do not sandbox host access. `cli-testing record`
@@ -76,6 +96,20 @@ Distinguish local CLI failures from remotely reachable service vulnerabilities.
 Source badge generation runs with read-only access; its write-capable publisher never executes repository code or artifact contents.
 
 ## Deployment assumptions
+
+The opt-in [playground development Compose stack](../tools/cli-playground/compose.dev.yml)
+uses real CLI binaries and PTYs inside one non-root container, backed by the
+terminal transport test harness. It is for trusted local code and disposable data,
+not untrusted PR execution: sessions share a container and its private development
+network, and have no gVisor or Temporal isolation. Publish only its loopback UI
+port; never mount host directories, production credentials, or the Docker socket.
+The local-dev launcher scopes Compose resources by canonical worktree path; Docker
+allocates the published loopback port. PostgreSQL remains private to each project.
+Its development-only adapter translates loopback Host ports to the internal
+authority after requiring any Origin to match the original Host exactly. It
+rejects non-loopback hosts and duplicate authorities; production host validation
+is unchanged. Its runner lives outside the installed playground package and
+production images.
 
 The intended topology exposes only the playground. Confirm that Boxie,
 Docker, PostgreSQL, Temporal, and metrics remain private; verify TLS, proxy/Host

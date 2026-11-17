@@ -289,3 +289,73 @@ expect = {{ exit = 0 }}
     );
     Ok(())
 }
+
+const SCHEMA: &str =
+    r#"{"schema_version":1,"command":{"name":"probe","args":[],"subcommands":[]}}"#;
+
+#[test]
+fn schema_contract_uses_opt_in_and_rejects_invalid_output_and_logs() -> Result {
+    let valid = format!("printf '%s\\n' '{SCHEMA}'");
+    let (_dir, cx) = package(
+        "checks = ['schema']",
+        &format!(
+            r#"[ "$SANCTUARY_CLI_SCHEMA:$SANCTUARY_LOG_LEVEL:$1:$#" = '1:info:--help:1' ] || exit 9
+{valid}"#
+        ),
+    )?;
+    cx.case("schema_export")?.check()?;
+    assert_eq!(cx.suite()?.cases.len(), 1);
+    for script in [
+        "printf Usage".to_owned(),
+        "printf schema_version".to_owned(),
+        valid.replace("schema_version\":1", "schema_version\":2"),
+        valid.replace("probe", "wrong"),
+        valid.replace("\"args\":[]", "\"args\":{}"),
+        valid.replace("\"subcommands\":[]", "\"subcommands\":null"),
+        format!("{valid}; exit 2"),
+        format!("{valid}; printf unexpected >&2"),
+        format!("{valid}; touch \"$SANCTUARY_LOG_DIR/leaked.log\""),
+    ] {
+        let (_dir, cx) = package("checks = ['schema']", &script)?;
+        let error = cx
+            .case("schema_export")?
+            .check()
+            .expect_err("invalid schema accepted");
+        assert!(error.to_string().contains("schema contract"), "{error}");
+    }
+    Ok(())
+}
+
+#[test]
+fn schema_contract_is_inspectable_comparable_and_cannot_collide() -> Result {
+    let (dir, cx) = package(
+        "checks = ['help', 'schema']",
+        &format!("printf '%s\\n' '{SCHEMA}'"),
+    )?;
+    let suite = cx.suite()?;
+    assert!(suite.case("schema_export")?.origin.reference.is_none());
+    reference::compare(
+        &suite,
+        suite.case("schema_export")?,
+        &dir.path().join("probe"),
+    )?;
+    cargo_bin_cmd!()
+        .arg("--suite")
+        .arg(suite.path())
+        .args(["explain", "schema_export"])
+        .assert()
+        .code(0)
+        .stderr("")
+        .stdout(predicate::str::contains("schema contract"));
+    for recipe in [
+        "checks = ['schema', 'schema']".to_owned(),
+        format!(
+            "checks = ['schema']\n{}",
+            ERROR.replace("rejects_invalid", "schema_export")
+        ),
+    ] {
+        let (_dir, cx) = package(&recipe, "touch launched")?;
+        assert!(cx.suite().is_err());
+    }
+    Ok(())
+}

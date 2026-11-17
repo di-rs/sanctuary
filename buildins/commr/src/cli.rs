@@ -12,6 +12,7 @@ use commr::{Column, Reporter};
 #[command(author, version, about)]
 /// Rust minimal `comm` implementation
 /// Input file lines should be sorted
+#[derive(cli_schema::Schema)]
 pub struct Cli {
     /// First file to compare, use `-` to read from stdin
     #[arg(value_name = "FILE_1", required(true))]

@@ -1,6 +1,6 @@
 schema = 1
 binary = "commr"
-checks = ["help"]
+checks = ["help", "schema"]
 reference = "comm"
 
 [fixtures]

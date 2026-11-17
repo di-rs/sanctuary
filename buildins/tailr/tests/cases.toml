@@ -1,6 +1,6 @@
 schema = 1
 binary = "tailr"
-checks = ["help"]
+checks = ["help", "schema"]
 reference = "tail"
 
 [fixtures]

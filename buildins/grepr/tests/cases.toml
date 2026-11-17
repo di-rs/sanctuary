@@ -1,6 +1,6 @@
 schema = 1
 binary = "grepr"
-checks = ["help"]
+checks = ["help", "schema"]
 reference = "grep"
 
 [fixtures]

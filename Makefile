@@ -18,3 +18,9 @@ install-cli-testing:
 install-python:
 	UV_TOOL_BIN_DIR="$(PREFIX)/bin" uv tool install --python 3.15 --force "$(CURDIR)/tools/cli-check"
 	UV_TOOL_BIN_DIR="$(PREFIX)/bin" uv tool install --python 3.15 --force --with "$(CURDIR)/tools/cli-check" "$(CURDIR)/tools/cli-bench"
+
+.PHONY: install-cli-testing
+install-cli-testing:
+	cargo build --target "$(INSTALL_TARGET)" --target-dir "$(INSTALL_TARGET_DIR)" --locked --release -p cli-testing
+	install -d "$(PREFIX)/bin"
+	install -m 755 "$(INSTALL_TARGET_DIR)/$(INSTALL_TARGET)/release/cli-testing" "$(PREFIX)/bin/"

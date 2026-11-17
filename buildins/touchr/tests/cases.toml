@@ -1,6 +1,6 @@
 schema = 1
 binary = "touchr"
-checks = ["help"]
+checks = ["help", "schema"]
 
 [[cases]]
 name = "creates_single_file"

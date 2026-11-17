@@ -1,6 +1,6 @@
 schema = 1
 binary = "wcr"
-checks = ["help"]
+checks = ["help", "schema"]
 reference = "wc"
 
 [fixtures]

@@ -39,8 +39,8 @@ reference is unavailable on this host; normal fixture tests remain usable.
 ```sh
 cli-testing --json discover --root . --limit 10
 cli-testing --suite buildins/cutr/tests/cases.toml list
-cli-testing --json --suite buildins/cutr/tests/cases.toml resolve tsv_b8
-cli-testing --suite buildins/cutr/tests/cases.toml explain tsv_b8
+cli-testing --json --suite buildins/cutr/tests/cases.toml resolve schema_export
+cli-testing --suite buildins/cutr/tests/cases.toml explain schema_export
 cli-testing --suite buildins/cutr/tests/cases.toml validate
 ```
 
@@ -74,17 +74,16 @@ protocol; child stdin comes from the catalog.
 
 ## Compare a built candidate
 
-On macOS, the pilot uses explicit `/bin/cat`, `/usr/bin/grep`, and `/usr/bin/cut`
-references. BSD fixtures are platform-specific; GNU binaries are not substituted.
-cutr's reference environment requires `LC_ALL=en_US.UTF-8` for multibyte character
-selection. Ordinary tests need neither these references nor this tool.
+Current CLI catalogs cover help and schema contracts. They need no independent
+reference. When adding byte-fixture cases, declare the reference executable and
+platform explicitly; GNU and BSD implementations are not interchangeable.
 
 ```sh
 cargo build -p cutr
 cli-testing --suite buildins/cutr/tests/cases.toml compare --candidate target/debug/cutr
 ```
 
-Add `--case tsv_b8` to select one case. Comparison checks the candidate's committed
+Add `--case schema_export` to select one case. Comparison checks the candidate's committed
 contract and the reference's declared exit code and stderr, then compares stdout
 with any declared expected-side adaptation. Manual origins check only the candidate
 contract. Rust-owned recipes are reported as requiring native tests; run them with
@@ -99,10 +98,12 @@ specified upstream implementation and locale.
 Choose a new output directory outside the package's `tests/` directory:
 
 ```sh
-cli-testing --suite buildins/cutr/tests/cases.toml record --output /tmp/cutr-recording
+cli-testing --suite path/to/tests/cases.toml record --output /tmp/cutr-recording
 ```
 
-Recording includes reference recipes owned by both TOML and Rust. Manual origins
+The recording examples require a suite with explicit reference recipes; replace
+`path/to/tests/cases.toml` with that suite. Interface-only catalogs have nothing
+to record. Recording includes reference recipes owned by both TOML and Rust. Manual origins
 are skipped. It writes raw `CASE.stdout` and `CASE.stderr` files, then a completed
 `recording.json` containing the executable's canonical path and SHA-256, OS release,
 optional version output, arguments, effective configured environment, exit status,
@@ -116,12 +117,11 @@ for inspection and does not update expectations or create a completed manifest.
 Retry into a new directory after fixing the cause.
 
 Review `recording.json` and compare each raw stream with its declared fixture,
-including binary differences. The staging files deliberately retain incomplete
-UTF-8 from BSD cut. Once the changes have been reviewed, explicitly promote them:
+including binary differences. Staging preserves raw bytes, including incomplete UTF-8. Once the changes have been reviewed, explicitly promote them:
 
 ```sh
-cli-testing --suite buildins/cutr/tests/cases.toml apply /tmp/cutr-recording --dry-run
-cli-testing --suite buildins/cutr/tests/cases.toml apply /tmp/cutr-recording
+cli-testing --suite path/to/tests/cases.toml apply /tmp/cutr-recording --dry-run
+cli-testing --suite path/to/tests/cases.toml apply /tmp/cutr-recording
 cargo nextest run -p cutr --profile ci
 ```
 

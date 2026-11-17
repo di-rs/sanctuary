@@ -1,6 +1,6 @@
 schema = 1
 binary = "headr"
-checks = ["help"]
+checks = ["help", "schema"]
 reference = "head"
 
 [fixtures]

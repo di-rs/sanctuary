@@ -43,11 +43,24 @@ pub struct Suite<A = String> {
 #[serde(rename_all = "kebab-case")]
 pub enum Check {
     Help,
+    Schema,
 }
 
 impl Check {
     pub(super) fn cases(self) -> Vec<Case> {
         match self {
+            Self::Schema => vec![Case {
+                name: "schema_export".into(),
+                execution: Execution::Toml,
+                args: vec!["--help".into()],
+                inputs: Vec::new(),
+                stdin: None,
+                env: BTreeMap::from([("SANCTUARY_CLI_SCHEMA".into(), "1".into())]),
+                origin: Origin { manual: Some("The schema contract validates versioned JSON, binary identity, argument/subcommand arrays, successful status, empty stderr, and absence of logs.".into()), ..Origin::default() },
+                expect: Expected { exit: 0, stdout: None, stdout_file: None, stdout_contains: Some("schema_version".into()), stderr: Some(String::new()), stderr_file: None, stderr_contains: None },
+                adapt: None,
+            }],
+
             Self::Help => [("help_short", "-h"), ("help_long", "--help")]
                 .into_iter()
                 .map(|(name, flag)| Case {

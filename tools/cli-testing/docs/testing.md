@@ -4,7 +4,7 @@
 reference recipe in one named test case. Use TOML for straightforward cases,
 `#[test_case]` for a case with Rust customization, and ordinary Rust tests for
 multiple commands, signals, or custom pipes. These conventions apply to every CLI
-in the repository. Representative catalogs are
+in the repository. The current interface-only catalogs are
 [catr](../../../buildins/catr/tests/cases.toml),
 [cutr](../../../buildins/cutr/tests/cases.toml), and
 [grepr](../../../buildins/grepr/tests/cases.toml).
@@ -39,11 +39,11 @@ the repository root:
 
 ```sh
 cargo test -p cutr --test catalog -- --list
-cargo test -p cutr --test catalog tsv_b8 -- --exact
-cargo nextest run -p cutr --profile ci -E 'test(=tsv_b8) | test(=tsv_b1_8)'
+cargo test -p cutr --test catalog schema_export -- --exact
+cargo nextest run -p cutr --profile ci -E 'test(=schema_export) | test(=help_long)'
 ```
 
-`tsv_b8` belongs to `catalog`; `tsv_b1_8` belongs to the native `cli` target.
+Both generated checks belong to `catalog`; command-specific native tests stay in `cli`.
 
 ## Write a straightforward case
 
@@ -339,3 +339,30 @@ wrapper around that runtime. [libtest-mimic registration](../src/harness.rs) giv
 automatic recipe its own test identity, while native Rust retains the normal test
 harness. This keeps ownership and reference provenance visible without duplicating
 parsers or introducing a scenario registry.
+
+## Schema export contract
+
+Add `"schema"` alongside `"help"` in the suite's top-level checks:
+
+```toml
+schema = 1
+binary = "biggie"
+checks = ["help", "schema"]
+```
+
+The harness expands this into `schema_export`, invokes the built executable with
+`SANCTUARY_CLI_SCHEMA=1 --help`, and requires status 0 and empty stderr. It validates
+JSON version 1, the suite's binary identity, and argument/subcommand arrays. It
+requests file logging in a temporary directory and rejects any log files. This
+contract needs no expected-output fixture or independent reference; recording
+never captures it. `list`, `explain`, and `compare` use the same generated case.
+
+The `true` and `false` suites use `checks = ["schema"]` because their ordinary
+invocations ignore `--help`. Keep command-specific metadata assertions in native
+tests; `assert_cli_schema(cmd, name)` returns the validated JSON for those tests.
+The parser struct derives `cli_schema::Schema`; see the
+[exporter integration](../../../utils/cli-schema/README.md).
+
+Interface-only catalogs own help and schema checks. Their
+`[paths] expected = "catalog-expected"` keeps fixture ownership separate from
+existing native tests using `expected/`. No empty directory is required.

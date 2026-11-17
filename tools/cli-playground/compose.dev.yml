@@ -1,0 +1,40 @@
+services:
+  playground:
+    build:
+      context: ../..
+      dockerfile: tools/cli-playground/dev/Dockerfile
+    # Artifact admission deliberately retains its production x86_64 ELF contract.
+    platform: linux/amd64
+    init: true
+    ports:
+      - target: 8765
+        host_ip: 127.0.0.1
+        protocol: tcp
+    environment:
+      DEV_DATABASE_URL: postgresql://postgres:local-development@postgres/postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    read_only: true
+    tmpfs: ["/tmp:exec,mode=1777"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 256
+    mem_limit: 2g
+    stop_grace_period: 15s
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+  postgres:
+    image: postgres:17.11@sha256:2d2b8998d31037bf721cfdf764d76ba74171b4fab3431b7f72c27c56ddbdf9e3
+    environment:
+      POSTGRES_PASSWORD: local-development
+    tmpfs: ["/var/lib/postgresql/data"]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U postgres"]
+      interval: 2s
+      timeout: 3s
+      retries: 30

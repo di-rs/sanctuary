@@ -1,6 +1,6 @@
 schema = 1
 binary = "catr"
-checks = ["help"]
+checks = ["help", "schema"]
 reference = "cat"
 
 [fixtures]

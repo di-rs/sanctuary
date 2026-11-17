@@ -236,6 +236,7 @@ dependencies = [
  "assert_fs",
  "clap",
  "cli-log",
+ "cli-schema",
  "cli-testing",
  "csv",
  "log",
@@ -478,6 +479,7 @@ dependencies = [
  "chrono",
  "clap",
  "cli-log",
+ "cli-schema",
  "cli-testing",
  "exitcode",
  "itertools 0.15.0",
@@ -502,6 +504,7 @@ dependencies = [
  "assert_fs",
  "clap",
  "cli-log",
+ "cli-schema",
  "cli-testing",
  "exitcode",
  "predicates",
@@ -628,9 +631,28 @@ dependencies = [
  "anyhow",
  "assert_fs",
  "clap",
+ "cli-schema",
  "flexi_logger",
  "log",
  "serde_json",
+]
+
+[[package]]
+name = "cli-schema"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "cli-schema-macros",
+ "serde_json",
+]
+
+[[package]]
+name = "cli-schema-macros"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 3.0.10",
 ]
 
 [[package]]
@@ -641,6 +663,7 @@ dependencies = [
  "assert_cmd",
  "assert_fs",
  "clap",
+ "cli-schema",
  "cli-testing-macros",
  "libtest-mimic",
  "predicates",
@@ -732,6 +755,7 @@ dependencies = [
  "assert_fs",
  "clap",
  "cli-log",
+ "cli-schema",
  "cli-testing",
  "exitcode",
  "predicates",
@@ -897,6 +921,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "cli-log",
+ "cli-schema",
  "cli-testing",
  "csv",
  "exitcode",
@@ -1058,6 +1083,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "cli-log",
+ "cli-schema",
  "cli-testing",
 ]
 
@@ -1147,6 +1173,7 @@ version = "0.1.0"
 dependencies = [
  "assert_fs",
  "cli-log",
+ "cli-schema",
  "cli-testing",
  "serde_json",
 ]
@@ -1202,6 +1229,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "cli-log",
+ "cli-schema",
  "cli-testing",
  "exitcode",
  "predicates",
@@ -1448,6 +1476,7 @@ dependencies = [
  "clap",
  "clap-verbosity-flag",
  "cli-log",
+ "cli-schema",
  "cli-testing",
  "exitcode",
  "human-panic",
@@ -1489,9 +1518,11 @@ dependencies = [
  "assert_fs",
  "clap",
  "cli-log",
+ "cli-schema",
  "cli-testing",
  "exitcode",
  "predicates",
+ "serde_json",
  "thiserror 2.0.21",
 ]
 
@@ -1816,6 +1847,7 @@ dependencies = [
  "assert_fs",
  "clap",
  "cli-log",
+ "cli-schema",
  "cli-testing",
  "crossterm",
  "exacl",
@@ -1950,6 +1982,7 @@ dependencies = [
  "chrono",
  "clap",
  "cli-log",
+ "cli-schema",
  "cli-testing",
  "exitcode",
  "predicates",
@@ -2010,6 +2043,7 @@ dependencies = [
  "assert_fs",
  "clap",
  "cli-log",
+ "cli-schema",
  "cli-testing",
  "color-eyre",
  "predicates",
@@ -2259,6 +2293,7 @@ dependencies = [
  "anyhow",
  "clap",
  "cli-log",
+ "cli-schema",
  "cli-testing",
  "color-eyre",
  "predicates",
@@ -2524,6 +2559,7 @@ dependencies = [
  "assert_fs",
  "clap",
  "cli-log",
+ "cli-schema",
  "cli-testing",
  "color-eyre",
  "predicates",
@@ -2932,6 +2968,7 @@ dependencies = [
  "brush-interactive",
  "brush-parser",
  "clap",
+ "cli-schema",
  "cli-testing",
  "false",
  "portable-pty",
@@ -3263,6 +3300,7 @@ dependencies = [
  "assert_fs",
  "clap",
  "cli-log",
+ "cli-schema",
  "cli-testing",
  "exitcode",
  "predicates",
@@ -3486,6 +3524,7 @@ dependencies = [
  "chrono",
  "clap",
  "cli-log",
+ "cli-schema",
  "cli-testing",
  "color-eyre",
  "predicates",
@@ -3555,8 +3594,10 @@ name = "true"
 version = "0.1.0"
 dependencies = [
  "cli-log",
+ "cli-schema",
  "cli-testing",
  "predicates",
+ "serde_json",
 ]
 
 [[package]]
@@ -3667,6 +3708,7 @@ dependencies = [
  "assert_fs",
  "clap",
  "cli-log",
+ "cli-schema",
  "cli-testing",
  "exitcode",
  "predicates",
@@ -3940,6 +3982,7 @@ dependencies = [
  "assert_fs",
  "clap",
  "cli-log",
+ "cli-schema",
  "cli-testing",
  "exitcode",
  "predicates",

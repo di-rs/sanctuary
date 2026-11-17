@@ -91,3 +91,22 @@ fn malformed_input_is_not_eof(cx: &TestContext) -> Result<()> {
         .stderr(predicates::str::contains("Error:"));
     Ok(())
 }
+
+#[test]
+fn exports_public_cli_schema_without_application_side_effects()
+-> std::result::Result<(), Box<dyn std::error::Error>> {
+    let value =
+        cli_testing::assert_cli_schema(cli_testing::cargo_bin_cmd!(), env!("CARGO_PKG_NAME"))?;
+    let args = value["command"]["args"]
+        .as_array()
+        .ok_or("missing arguments")?;
+    if args
+        .iter()
+        .filter(|arg| arg["required"] == true && arg["index"].is_number())
+        .count()
+        != 2
+    {
+        return Err("required file operands were lost".into());
+    }
+    Ok(())
+}

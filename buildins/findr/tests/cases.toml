@@ -1,6 +1,6 @@
 schema = 1
 binary = "findr"
-checks = ["help"]
+checks = ["help", "schema"]
 
 # Unordered traversal fixtures remain native-owned in tests/expected/.
 [paths]

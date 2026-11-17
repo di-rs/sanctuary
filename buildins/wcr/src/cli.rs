@@ -11,6 +11,7 @@ use wcr::FileInfo;
 #[derive(Parser, Debug)]
 #[command(author, version, about)]
 /// Rust minimal `wc` implementation
+#[derive(cli_schema::Schema)]
 pub struct Cli {
     /// Input file(s), use `-` to read from stdin (must not be a tty)
     #[arg(value_name = "FILE", default_value = "-")]

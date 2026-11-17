@@ -17,6 +17,7 @@ pub use writer::get_writer;
 #[derive(Parser, Debug)]
 #[command(author, version, about)]
 /// Rust minimal `grep` implementation
+#[derive(cli_schema::Schema)]
 pub struct Cli {
     /// The pattern to look for
     #[arg(value_name = "PATTERN", required(true))]

@@ -44,7 +44,7 @@ fn get_reader(path: &str) -> Result<Box<dyn BufRead>, CliError> {
             let _ = Cli::command().print_help();
             return Err(CliError::Config);
         }
-        Ok(Box::new(BufReader::new(stdin().lock())))
+        Ok(Box::new(stdin().lock()))
     } else {
         let file = File::open(path).map_err(|err| CliError::FileOpen {
             err,

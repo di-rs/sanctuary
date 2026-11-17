@@ -142,6 +142,8 @@ pub struct Context {
     output: Option<Output>,
     attempted: bool,
     workspace: Option<Workspace>,
+    schema_logs: Option<assert_fs::TempDir>,
+    schema_binary: String,
 }
 
 impl Context {
@@ -159,6 +161,21 @@ impl Context {
         let mut command = test.std_command();
         command.args(&case.args).envs(&suite.env).envs(&case.env);
         let input = prepare_input(suite, case.stdin.as_ref())?;
+        let schema_logs = if case.name == "schema_export"
+            && suite
+                .checks
+                .iter()
+                .any(|check| matches!(check, crate::catalog::Check::Schema))
+        {
+            let logs = assert_fs::TempDir::new().map_err(|error| Error::new(error.to_string()))?;
+            command
+                .env("SANCTUARY_LOG_LEVEL", "info")
+                .env("SANCTUARY_LOG_DIR", logs.path());
+            Some(logs)
+        } else {
+            None
+        };
+
         Ok(Self {
             name: case.name.clone(),
             execution: case.execution,
@@ -176,6 +193,8 @@ impl Context {
             output: None,
             attempted: false,
             workspace: None,
+            schema_logs,
+            schema_binary: suite.binary.clone(),
         })
     }
 
@@ -332,7 +351,15 @@ impl Context {
         self.expected_stdout
             .check(&self.name, "stdout", &output.stdout)?;
         self.expected_stderr
-            .check(&self.name, "stderr", &output.stderr)
+            .check(&self.name, "stderr", &output.stderr)?;
+        if let Some(logs) = &self.schema_logs {
+            crate::validate_cli_schema(&output.stdout, &self.schema_binary)
+                .map_err(|error| Error::new(format!("case {:?}: {error}", self.name)))?;
+            if fs::read_dir(logs.path())?.next().is_some() {
+                return Err(Error::new("schema export wrote logs"));
+            }
+        }
+        Ok(())
     }
 }
 

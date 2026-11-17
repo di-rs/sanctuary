@@ -30,12 +30,17 @@ pub struct Session {
 ///
 /// The operation owns command-specific diagnostics and status mapping. Clap
 /// help/version and argument failures finish the session without calling it.
-pub fn run<C: clap::Parser>(command: &str, operation: impl FnOnce(C) -> i32) -> ExitCode {
-    let session = init(command);
-    match session.parse::<C>() {
-        Ok(cli) => session.finish(operation(cli)),
-        Err(status) => status,
-    }
+pub fn run<C: clap::Parser + cli_schema::Schema>(
+    command: &str,
+    operation: impl FnOnce(C) -> i32,
+) -> ExitCode {
+    C::run(|| {
+        let session = init(command);
+        match session.parse::<C>() {
+            Ok(cli) => session.finish(operation(cli)),
+            Err(status) => status,
+        }
+    })
 }
 
 /// Run a fallible command, preserving its error for the caller's rich reporter.
@@ -46,23 +51,25 @@ pub fn run<C: clap::Parser>(command: &str, operation: impl FnOnce(C) -> i32) -> 
 ///
 /// # Errors
 /// Returns the original operation error, including its context chain.
-pub fn try_run<C: clap::Parser, E: Display>(
+pub fn try_run<C: clap::Parser + cli_schema::Schema, E: Display>(
     command: &str,
     operation: impl FnOnce(C) -> Result<(), E>,
 ) -> Result<ExitCode, E> {
-    let session = init(command);
-    let cli = match session.parse::<C>() {
-        Ok(cli) => cli,
-        Err(status) => return Ok(status),
-    };
-    match operation(cli) {
-        Ok(()) => Ok(session.finish(0)),
-        Err(error) => {
-            record_error(format_args!("{error:#}"));
-            let _ = session.finish(1);
-            Err(error)
+    C::run(|| {
+        let session = init(command);
+        let cli = match session.parse::<C>() {
+            Ok(cli) => cli,
+            Err(status) => return Ok(status),
+        };
+        match operation(cli) {
+            Ok(()) => Ok(session.finish(0)),
+            Err(error) => {
+                record_error(format_args!("{error:#}"));
+                let _ = session.finish(1);
+                Err(error)
+            }
         }
-    }
+    })
 }
 
 /// Configure the crates.io backend from `SANCTUARY_LOG_*`, without failing the CLI.

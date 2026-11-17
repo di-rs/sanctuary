@@ -1,6 +1,6 @@
 schema = 1
 binary = "lsr"
-checks = ["help"]
+checks = ["help", "schema"]
 reference = "ls"
 
 [fixtures]

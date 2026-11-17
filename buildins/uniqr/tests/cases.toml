@@ -1,6 +1,6 @@
 schema = 1
 binary = "uniqr"
-checks = ["help"]
+checks = ["help", "schema"]
 reference = "uniq"
 
 [fixtures]

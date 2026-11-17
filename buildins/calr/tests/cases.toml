@@ -1,6 +1,6 @@
 schema = 1
 binary = "calr"
-checks = ["help"]
+checks = ["help", "schema"]
 reference = "cal"
 
 [references.cal]

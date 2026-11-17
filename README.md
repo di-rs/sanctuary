@@ -6,6 +6,41 @@ Sanctuary is a platform for shell sandboxes, with Rust command-line tools, share
 libraries, and Python services. Each CLI is its own Cargo package.
 Python services and repository tools share a uv workspace.
 
+## Try a command
+
+From the repository root with the pinned Rust toolchain installed:
+
+```sh
+cargo run -p echor -- hello world
+```
+
+For installed commands, `make install-local` installs Biggie, Parsu, Kara, Shish, cli-testing, cli-bench,
+and cli-check into `~/.local/bin`. Add it to `PATH`; use `PREFIX=/path` to override.
+The Rust tools are release binaries; the Python tools use isolated uv tool environments.
+The target replaces installations with these seven names; built-ins are not installed.
+
+Choose another package from the tables below. These commands implement selected
+behaviors, not complete GNU/BSD replacements; each README explains the differences.
+
+For Python tools, install the workspace dependencies with
+`uv sync --all-packages`, then run commands through `uv run`.
+Frontend development has its own prerequisites in the playground guide.
+
+## Try the browser playground
+
+Open a pull request's playground link to try its commands without building them
+locally. The [playground guide](tools/cli-playground/README.md#use-a-preview)
+explains sessions, sample files, and switching builds.
+
+To run the playground and all CLIs locally with Docker Compose:
+
+```sh
+uv run local-dev up
+```
+
+The [local development guide](docs/local-development.md) covers setup, console
+output, rebuilding, shutdown, and the separate full Boxie service setup.
+
 ## Applications
 
 | Project                             | Purpose                                                 |
@@ -52,6 +87,7 @@ Python services and repository tools share a uv workspace.
 | Project                            | Purpose                                            |
 | ---------------------------------- | -------------------------------------------------- |
 | [cli-log](utils/cli-log/README.md) | Shared structured file logging and error reporting |
+| [cli-testing](tools/cli-testing/README.md) | Shared CLI test setup and byte fixture loading |
 
 ## Find your way around
 

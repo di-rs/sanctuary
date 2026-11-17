@@ -14,7 +14,7 @@ use std::{
 };
 
 /// Inspect CLI test cases, compare real CLIs, and stage reference fixtures.
-#[derive(Parser)]
+#[derive(Parser, cli_schema::Schema)]
 #[command(version)]
 pub struct Args {
     /// Emit a schema-versioned JSON envelope, including failures.

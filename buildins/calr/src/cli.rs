@@ -8,6 +8,7 @@ use calr::{Month, get_today};
 #[derive(Parser, Debug)]
 #[command(author, version, about)]
 /// Rust minimal `cal` implementation
+#[derive(cli_schema::Schema)]
 pub struct Cli {
     /// Year (1-9999)
     #[arg(value_parser(clap::value_parser!(i32).range(1..=9999)))]

@@ -50,6 +50,7 @@ pub fn std_command(
             command.env_remove(key);
         }
     }
+    command.env_remove("SANCTUARY_CLI_SCHEMA");
     command.envs(default_environment());
     command
 }
@@ -98,4 +99,70 @@ macro_rules! fixtures {
     () => {
         $crate::Fixtures::new(concat!(env!("CARGO_MANIFEST_DIR"), "/tests"))
     };
+}
+
+/// Check the built executable's schema contract and return it for CLI-specific assertions.
+/// Runs with logging requested and verifies that metadata export writes no log files.
+///
+/// # Errors
+/// Returns an error for temporary-directory or JSON failures, an unexpected schema
+/// version or identity, missing metadata arrays, or files in the log directory.
+///
+/// # Panics
+/// Panics when the executable cannot run, exits unsuccessfully, or writes to stderr.
+pub fn assert_cli_schema(
+    mut command: Command,
+    name: &str,
+) -> std::result::Result<serde_json::Value, Box<dyn std::error::Error>> {
+    let logs = assert_fs::TempDir::new()?;
+    let output = command
+        .env("SANCTUARY_CLI_SCHEMA", "1")
+        .env("SANCTUARY_LOG_LEVEL", "info")
+        .env("SANCTUARY_LOG_DIR", logs.path())
+        .arg("--help")
+        .assert()
+        .code(0)
+        .stderr("")
+        .get_output()
+        .stdout
+        .clone();
+    let value = validate_cli_schema(&output, name)?;
+    if std::fs::read_dir(logs.path())?.count() != 0 {
+        return Err("schema export wrote logs".into());
+    }
+    Ok(value)
+}
+
+pub(crate) fn validate_cli_schema(
+    output: &[u8],
+    name: &str,
+) -> std::result::Result<serde_json::Value, Box<dyn std::error::Error>> {
+    let value: serde_json::Value = serde_json::from_slice(output)?;
+    if value
+        .get("schema_version")
+        .and_then(serde_json::Value::as_u64)
+        != Some(1)
+    {
+        return Err("unexpected schema version".into());
+    }
+    if value
+        .pointer("/command/name")
+        .and_then(serde_json::Value::as_str)
+        != Some(name)
+    {
+        return Err("unexpected CLI identity".into());
+    }
+    if !value
+        .pointer("/command/args")
+        .is_some_and(serde_json::Value::is_array)
+    {
+        return Err("missing argument metadata".into());
+    }
+    if !value
+        .pointer("/command/subcommands")
+        .is_some_and(serde_json::Value::is_array)
+    {
+        return Err("missing subcommand metadata".into());
+    }
+    Ok(value)
 }

@@ -1,4 +1,5 @@
 schema = 1
+checks = ["schema"]
 binary = "true"
 
 [[cases]]

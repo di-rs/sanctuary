@@ -1,6 +1,6 @@
 schema = 1
 binary = "echor"
-checks = ["help"]
+checks = ["help", "schema"]
 reference = "echo"
 
 [references.echo]
