@@ -4,6 +4,7 @@ use std::path::PathBuf;
 #[derive(Parser, Debug)]
 #[command(author, version, about)]
 /// Rust minimal `mkdir` implementation
+#[derive(cli_schema::Schema)]
 pub struct Cli {
     /// Create nested directories if it was provided in the name
     #[arg(short = 'p', default_value_t = true)]

@@ -21,9 +21,9 @@ It does not claim operating-system-wide or complete utility conformance.
 - **Unverified** means no adequate shish evidence has been recorded. An upstream
   claim, parser acceptance, or absence of a reported failure is not verification.
 
-The initial audit ran on 2026-10-22: shish 0.1.0 on
-Darwin 27.0.0 arm64, Brush core 0.5.0/parser 0.4.0/builtins 0.2.0/interactive 0.4.0,
-Reedline 0.47.0, default sh/POSIX mode. Commands used `-c` unless otherwise stated.
+The initial audit ran on 2026-10-22 on Darwin 27.0.0 arm64 in default sh/POSIX
+mode. For dependency versions, consult [Cargo.lock](../../../Cargo.lock) at the
+audited revision. Commands used `-c` unless otherwise stated.
 PTY cases use `-i`, a 120-column terminal, and an isolated temporary home. Linux,
 gVisor, other locales, and other architectures remain unverified by this local run.
 The Rust tests and doctests also passed on Ubuntu 24.04 and macOS 15 in

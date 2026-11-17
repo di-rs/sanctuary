@@ -1,0 +1,65 @@
+name: Source and documentation spelling
+on:
+  pull_request:
+    branches: [master]
+    types: [opened, synchronize, reopened, ready_for_review, labeled]
+    paths:
+      - '**/*.rs'
+      - '**/*.py'
+      - '**/*.pyi'
+      - '**/*.js'
+      - '**/*.jsx'
+      - '**/*.ts'
+      - '**/*.tsx'
+      - '**/*.svelte'
+      - '**/*.md'
+      - '**/*.markdown'
+      - '**/*.toml'
+      - '**/*.yml'
+      - '**/*.yaml'
+      - '**/*.json'
+      - '**/*.sh'
+      - '**/*.bash'
+      - '!.agents/**'
+      - '!.codex/**'
+      - '!**/node_modules/**'
+      - '!**/target/**'
+      - '!**/generated/**'
+      - '!**/vendor/**'
+      - '!**/fixtures/**'
+      - '!**/tests/inputs/**'
+      - '!**/tests/expected/**'
+      - '!**/pnpm-lock.yaml'
+      - '!**/package-lock.json'
+      - '!tools/cli-playground/src/cli_playground/static/**'
+permissions:
+  contents: read
+concurrency:
+  group: source-spelling-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  check:
+    name: Source and documentation spelling
+    if: ${{ !github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'run-ci') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283
+        with:
+          tool: typos@1.50.3
+          fallback: none
+      - name: Check maintained files
+        shell: bash
+        run: |
+          files=()
+          while IFS= read -r -d '' file; do
+            if [[ -f "$file" && ! -L "$file" ]]; then
+              files+=("./$file")
+            fi
+          done < <(git ls-files -z)
+          if (( ${#files[@]} )); then
+            typos --force-exclude -- "${files[@]}"
+          fi

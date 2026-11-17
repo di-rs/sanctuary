@@ -58,7 +58,7 @@ Record executable/version/mode when adding another reference.
 Specification-derived expectations take precedence over reference behavior where
 the reference predates POSIX.1-2024. No snapshot generator uses shish as its oracle.
 
-Repository CI runs workspace tests; local work runs affected packages only. The PTY test helpers
-use portable-pty 0.9.0 (which currently brings nix 0.28.0), sysinfo 0.37.2, and
-vt100 0.16.2. The pinned nightly reports a future-compatibility warning in that
-transitive nix version; current compilation and Clippy pass.
+Repository CI runs workspace tests; local work runs affected packages only. The
+PTY test helpers use portable-pty, sysinfo, and vt100. Dependency requirements live
+in [Cargo.toml](../Cargo.toml); [Cargo.lock](../../../Cargo.lock) records resolved
+versions. Use the lockfile from the revision under test when reproducing a run.

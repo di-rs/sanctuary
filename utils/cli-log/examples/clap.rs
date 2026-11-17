@@ -4,7 +4,7 @@ use std::{
     process::ExitCode,
 };
 
-#[derive(Parser)]
+#[derive(Parser, cli_schema::Schema)]
 struct Cli {}
 
 fn main() -> ExitCode {

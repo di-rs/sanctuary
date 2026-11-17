@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -10,6 +11,17 @@ import pytest
 import yaml
 
 INFRA = Path(__file__).parents[1] / "infra"
+
+
+def test_upstream_images_keep_version_tags_and_immutable_digests() -> None:
+    monitoring = yaml.safe_load((INFRA / "observability/compose.yml").read_text())["services"]
+    ingress = yaml.safe_load((INFRA / "ingress/compose.yml").read_text())["services"]
+    for name, service in (monitoring | ingress).items():
+        if name == "vector":
+            continue  # The collector is built locally or supplied by the operator.
+        assert re.fullmatch(r"[^\s@]+:[^\s:@]+@sha256:[a-f0-9]{64}", service["image"])
+    collector = (INFRA / "observability/collector/Dockerfile").read_text()
+    assert f"FROM {monitoring['storage-init']['image']} AS vector\n" in collector
 
 
 def test_setup_recreates_only_prometheus_after_starting_observability(tmp_path: Path) -> None:
