@@ -2,13 +2,7 @@ name: ✅ Pull request validation
 
 on:
   pull_request:
-    branches:
-      - master
-      - chore/kara-*
-      - fix/kara-*
-      - refactor/kara-*
-      - feat/kara-*
-      - docs/kara-*
+    branches: [master]
     types: [opened, synchronize, reopened, ready_for_review, labeled]
   push:
     branches: [master]
