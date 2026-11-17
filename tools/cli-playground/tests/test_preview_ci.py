@@ -91,7 +91,12 @@ def test_discovery_excludes_libraries_and_selection_uses_owning_packages(tmp_pat
     assert (
         preview_ci.select(
             packages,
-            ["buildins/echor/README.md", "buildins/catr/tests/a.rs"],
+            [
+                "buildins/echor/README.md",
+                "buildins/catr/tests/a.rs",
+                "tools/cli-check/src/cli_check/affected.py",
+                preview_ci.WORKFLOW,
+            ],
             "HEAD",
             "HEAD",
             root=tmp_path,
@@ -102,7 +107,7 @@ def test_discovery_excludes_libraries_and_selection_uses_owning_packages(tmp_pat
 
 @pytest.mark.parametrize(
     "path",
-    ["rust-toolchain.toml", ".cargo/config.toml", "tools/cli-check/src/cli_check/affected.py"],
+    ["rust-toolchain.toml", ".cargo/config.toml", "Cargo.toml"],
 )
 def test_global_build_changes_select_all_packages(path: str) -> None:
     assert preview_ci.select(
@@ -386,6 +391,25 @@ def test_batch_uses_one_upload_one_preview_and_constant_github_requests(name: st
     statuses = [value for path, value in github.writes if path.endswith("/statuses")]
     assert len(statuses) == 1 and isinstance(statuses[0], dict)
     assert statuses[0]["environment_url"] == url
+
+
+def test_repeated_publication_reuses_this_pr_and_sha_deployment() -> None:
+    github = FakeGitHub()
+    deployment = {
+        "id": 88,
+        "environment": "cli-playground/pr-7",
+        "sha": SHA,
+        "creator": {"login": "github-actions[bot]"},
+    }
+    github.deployments = [
+        deployment | {"id": 11, "sha": "c" * 40},
+        deployment | {"id": 12, "creator": {"login": "another-bot"}},
+        deployment,
+    ]
+    backend = Mock(return_value={"id": "a" * 32, "url": "https://play.example/p/" + "a" * 32})
+    preview_ci.publish(github, REPO, 500, "https://play.example", "token", backend=backend)
+    assert not any(path.endswith("/deployments") for path, _ in github.writes)
+    assert any(path.endswith("/deployments/88/statuses") for path, _ in github.writes)
 
 
 @pytest.mark.parametrize(
@@ -974,7 +998,9 @@ def test_build_command_invokes_cargo_once_for_the_selected_batch(
     commands = Mock(return_value=subprocess.CompletedProcess([], 0, "\0".join(paths) + "\0"))
     monkeypatch.setattr(subprocess, "run", commands)
     monkeypatch.setattr(preview_ci, "ROOT", tmp_path)
-    monkeypatch.setattr(preview_ci, "affected_packages", lambda root, base, head, paths: set(names))
+    monkeypatch.setattr(
+        "cli_check.affected.affected_packages", lambda root, base, head, paths: set(names)
+    )
     monkeypatch.setattr(
         preview_ci, "discover", lambda: {name: f"buildins/{name}" for name in [*names, "unused"]}
     )

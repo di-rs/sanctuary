@@ -54,6 +54,7 @@ def add_cli(
         + test_targets,
     )
     write(root, f"{directory}/src/main.rs", "fn main() {}\n")
+    write(root, f"{directory}/tests/browser.json", '{"cases":[{"args":[]}]}')
     write(root, f"{directory}/tests/cli.rs", "#[test]\nfn checks_cli() {}\n")
 
 
@@ -78,6 +79,7 @@ def test_helper_cli_uses_its_own_library_without_a_self_dependency(
         '[package]\nname = "cli-testing"\nversion = "0.1.0"\nedition = "2024"\n',
     )
     write(tmp_path, "tools/cli-testing/src/main.rs", "fn main() {}\n")
+    write(tmp_path, "tools/cli-testing/tests/browser.json", '{"cases":[{"args":[]}]}')
     write(tmp_path, "tools/cli-testing/tests/cli.rs", "#[test]\nfn cli_contract() {}\n")
     if library:
         write(tmp_path, "tools/cli-testing/src/lib.rs", "pub fn helper() {}\n")
@@ -278,8 +280,12 @@ def run_check(root: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
 def workspace(tmp_path: Path) -> Path:
     write(tmp_path, "Cargo.toml", '[workspace]\nmembers = ["buildins/*", "utils/*"]\n')
     add_cli(tmp_path)
-    write(tmp_path, "README.md", "[echo](buildins/echo/README.md)\n")
-    write(tmp_path, "buildins/echo/README.md", "# echo\nPrint arguments.\n")
+    write(tmp_path, "README.md", "# Tools\n\nTry [echo](buildins/echo/README.md).\n")
+    write(
+        tmp_path,
+        "buildins/echo/README.md",
+        "# echo\nPrint arguments.\n\n## Try it\n\n```sh\necho hello\n```\n",
+    )
     write(
         tmp_path,
         "buildins/echo/benches/cli-bench.toml",
@@ -400,7 +406,7 @@ def test_docs_leave_general_links_to_lychee(workspace: Path) -> None:
     write(
         workspace,
         "buildins/echo/README.md",
-        "# echo\n[details][guide]\n\n[guide]: a%20b.md#details\n\n"
+        "# echo\nPrint arguments.\n\n## Try it\n\n```sh\necho hello\n```\n\n[details][guide]\n\n[guide]: a%20b.md#details\n\n"
         "![logo](logo.svg)\n[web](https://example.invalid)\n[section](#echo)\n"
         "```md\n[ignored](missing.md)\n```\n",
     )
@@ -467,7 +473,7 @@ def test_root_cli_readme_is_already_indexed(tmp_path: Path) -> None:
     add_cli(root, directory=".")
     manifest = root / "Cargo.toml"
     manifest.write_text(manifest.read_text() + "\n[workspace]\nmembers = []\n")
-    write(root, "README.md", "# echo\nPrint arguments.\n")
+    write(root, "README.md", "# echo\nPrint arguments.\n\n## Try it\n\n```sh\necho hello\n```\n")
     write(root, "benches/basic.toml", 'binary = "echo"\n[[cases]]\nname = "basic"\nargs = []\n')
     result = run_check(root)
     assert result.returncode == 0, result.stderr
@@ -535,7 +541,11 @@ def test_missing_cargo_is_actionable(tmp_path: Path) -> None:
 
 
 def test_root_index_resolves_reference_links_and_encoded_paths(workspace: Path) -> None:
-    write(workspace, "README.md", "[echo][cli]\n\n[cli]: buildins/%65cho/README.md#echo\n")
+    write(
+        workspace,
+        "README.md",
+        "# Tools\n\nTry [echo][cli].\n\n[cli]: buildins/%65cho/README.md#echo\n",
+    )
     result = run_check(workspace, "docs")
     assert result.returncode == 0, result.stderr
     assert not (workspace / "Cargo.lock").exists()
@@ -580,3 +590,16 @@ def test_catalog_registration_only(tmp_path: Path, target: str, catalog: bool, v
     assert (result.returncode == 0) is valid, result.stderr
     if not valid:
         assert "catalog" in result.stderr
+
+
+def test_readme_requires_user_purpose_and_first_use(workspace: Path) -> None:
+    write(
+        workspace,
+        "buildins/echo/README.md",
+        "# Notes\n\n## Maintenance\n\n```sh\ncargo test\n```\n",
+    )
+    result = run_check(workspace, "docs", "-p", "echo")
+    assert result.returncode == 1
+    assert "use the CLI name" in result.stderr
+    assert "introduce the component" in result.stderr
+    assert "runnable shell example" in result.stderr

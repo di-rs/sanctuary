@@ -31,6 +31,9 @@ def check(root: Path, packages: list[Package]) -> list[Diagnostic]:
             package.manifest.get("dev-dependencies", {})
         ):
             error("Cargo.toml", "helper", "requires cli-testing in [dev-dependencies]")
+        browser = package.directory / "tests/browser.json"
+        if not browser.is_file() or not browser.read_bytes().strip():
+            error("tests/browser.json", "browser", "requires browser examples for the CLI")
         catalog = package.directory / "tests/cases.toml"
         runner = package.directory / "tests/catalog.rs"
         if catalog.exists() or runner.exists():

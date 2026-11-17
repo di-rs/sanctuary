@@ -3,7 +3,7 @@ name = "local-dev"
 version = "0.1.0"
 description = "Worktree-scoped local Sanctuary development stack"
 requires-python = ">=3.15"
-dependencies = []
+dependencies = ["cli-check"]
 
 [project.scripts]
 local-dev = "local_dev.command:main"

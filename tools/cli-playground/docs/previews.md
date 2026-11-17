@@ -41,7 +41,12 @@ Replace the example origin and file path. The
 uses the automatic GitHub token with `contents: read`, `actions: read`,
 `pull-requests: write` and `deployments: write`; no personal access token is needed
 by either publisher. PR builds receive neither the preview token nor host SSH
-credentials. If the environment requires approval, publication waits for it.
+credentials. The controller uses `deployment: false` for its credential
+environment. A successful hosted upload creates the deployment for
+`cli-playground/pr-N`. Replaying publication for the same PR commit updates its existing deployment status. Build progress, empty builds and lifecycle reconciliation
+use the environment without creating deployment records. GitHub supports
+required reviewers with this mode. Custom deployment protection rules are
+incompatible with it.
 
 ### Verify publication
 

@@ -12,6 +12,17 @@ on:
   pull_request:
     branches: [master]
     types: [opened, synchronize, reopened, ready_for_review, labeled]
+    paths:
+      - '**/src/**'
+      - '**/build.rs'
+      - '**/Cargo.toml'
+      - 'Cargo.lock'
+      - 'rust-toolchain.toml'
+      - '.cargo/**'
+      - '!**/*.md'
+      - '!**/*.py'
+      - '!**/*.pyi'
+      - '!tools/cli-playground/**'
 
 permissions:
   contents: read

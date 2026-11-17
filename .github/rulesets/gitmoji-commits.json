@@ -30,6 +30,10 @@
       "parameters": {
         "required_status_checks": [
           {
+            "context": "Sanctuary validation",
+            "integration_id": 15368
+          },
+          {
             "context": "git-policy",
             "integration_id": 15368
           }

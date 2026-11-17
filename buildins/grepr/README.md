@@ -2,6 +2,16 @@
 
 `grepr` searches UTF-8 text for lines matching a Rust regular expression.
 
+## Find matching lines
+
+From the repository root:
+
+```sh
+printf 'red\nblue\n' | cargo run -q -p grepr -- blue
+```
+
+The output is `blue`.
+
 ## Arguments and options
 
 | Argument or option | Meaning |

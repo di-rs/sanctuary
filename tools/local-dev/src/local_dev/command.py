@@ -2,6 +2,8 @@
 
 import argparse
 import hashlib
+import json
+import os
 import re
 import shlex
 import shutil
@@ -9,6 +11,9 @@ import subprocess
 import sys
 from pathlib import Path
 from urllib.request import urlopen
+from uuid import uuid4
+
+from .recording import recording_packages
 
 
 class DevError(Exception):
@@ -33,9 +38,9 @@ def project_name(root: Path) -> str:
 
 
 class Stack:
-    def __init__(self, root: Path) -> None:
+    def __init__(self, root: Path, *, suffix: str = "") -> None:
         self.root = root
-        self.project = project_name(root)
+        self.project = project_name(root) + suffix
         self.base = [
             "docker",
             "compose",
@@ -66,10 +71,11 @@ class Stack:
             raise DevError("No loopback playground port found. Run local-dev start first.")
         return f"http://127.0.0.1:{match[1]}/"
 
-    def start(self, *, build: bool) -> None:
+    def start(self, *, build: bool, packages: list[str] | None = None) -> None:
         print(f"Worktree: {self.root}\nCompose project: {self.project}", flush=True)
         if build:
-            self.run("--progress", "plain", "build")
+            options = ["--build-arg", "CLI_PACKAGES=" + " ".join(packages)] if packages else []
+            self.run("--progress", "plain", "build", *options)
         try:
             self.run("up", "-d", "--wait", "--wait-timeout", "180")
         except subprocess.CalledProcessError:
@@ -121,13 +127,59 @@ def parser() -> argparse.ArgumentParser:
         ("doctor", "check Docker, context, and Compose configuration"),
     ]:
         sub.add_parser(name, help=help_text)
+    record = sub.add_parser(
+        "record", help="record real CLI examples in a disposable browser terminal"
+    )
+    selection = record.add_mutually_exclusive_group(required=True)
+    selection.add_argument("-p", "--package", action="append", help="select a CLI (repeatable)")
+    selection.add_argument("--all", action="store_true", help="select all workspace CLIs")
+    selection.add_argument("--base", help="select CLI changes since the merge base with --head")
+    record.add_argument("--head", default="HEAD")
+    record.add_argument(
+        "--list", action="store_true", help="print selected CLI names as JSON and exit"
+    )
+    record.add_argument("--output", type=Path, help="new directory for the browser videos")
     return command
+
+
+def record(root: Path, args: argparse.Namespace) -> None:
+    packages = recording_packages(root, args.package, args.base, args.head)
+    if args.list:
+        print(json.dumps(list(packages)))
+        return
+    if not packages:
+        print("No CLI recordings selected.")
+        return
+    docker_ready(daemon=True)
+    run_id = uuid4().hex[:12]
+    output = (args.output or root / "target" / "cli-recordings" / run_id).resolve()
+    output.mkdir(exist_ok=False, parents=True)
+    stack = Stack(root, suffix="-record-" + run_id)
+    try:
+        stack.start(build=True, packages=list(packages))
+        subprocess.run(
+            ["pnpm", "exec", "playwright", "test", "--config", "playwright.record.config.ts"],
+            cwd=root / "tools/cli-playground/frontend",
+            env=dict(
+                os.environ,
+                CLI_RECORD_URL=stack.url(),
+                CLI_RECORD_OUTPUT=str(output),
+                CLI_RECORD_PACKAGES=json.dumps(packages),
+            ),
+            check=True,
+        )
+        print(f"CLI recordings: {output}")
+    finally:
+        stack.run("down", "--volumes", "--rmi", "local")
 
 
 def main() -> int:
     args = parser().parse_args()
     try:
         stack = Stack(repository(args.root))
+        if args.action == "record":
+            record(stack.root, args)
+            return 0
         docker_ready(daemon=args.action != "config")
         match args.action:
             case "up" | "start":
@@ -148,7 +200,7 @@ def main() -> int:
             case "url":
                 print(stack.url())
             case "down":
-                stack.run("down")
+                stack.run("down", "--volumes")
             case "config":
                 stack.run("config")
             case "doctor":
@@ -163,6 +215,6 @@ def main() -> int:
             file=sys.stderr,
         )
         return 130
-    except (DevError, OSError, subprocess.CalledProcessError) as error:
+    except (DevError, OSError, ValueError, subprocess.CalledProcessError) as error:
         print(f"local-dev: {error}", file=sys.stderr)
         return 1

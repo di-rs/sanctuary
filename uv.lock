@@ -703,6 +703,12 @@ wheels = [
 name = "local-dev"
 version = "0.1.0"
 source = { editable = "tools/local-dev" }
+dependencies = [
+    { name = "cli-check" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "cli-check", editable = "tools/cli-check" }]
 
 [[package]]
 name = "mako"

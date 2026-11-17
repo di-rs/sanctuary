@@ -258,7 +258,7 @@ def test_preview_controller_keeps_privileged_code_on_the_default_branch() -> Non
     assert preview["permissions"] == {}
     assert set(preview["jobs"]) == {"publish", "lifecycle"}
     for job in preview["jobs"].values():
-        assert job["environment"] == "cli-playground-preview"
+        assert job["environment"] == {"name": "cli-playground-preview", "deployment": "false"}
         checkout = job["steps"][0]
         assert checkout["with"] == {
             "ref": "${{ github.event.repository.default_branch }}",

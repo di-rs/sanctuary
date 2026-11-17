@@ -45,7 +45,10 @@ def main() -> int:
                 print("\n".join(p.name for p in packages))
             return 0
         selected = [CHECKS[args.group]] if args.group else list(CHECKS.values())
-        errors = sorted(error for check in selected for error in check(root, packages))
+        errors = [error for check in selected for error in check(root, packages)]
+        if docs.check in selected and not args.package:
+            errors.extend(docs.component_docs(root, packages))
+        errors.sort()
     except (OSError, ValueError, KeyError, TypeError) as error:
         if args.json:
             failure("operation", str(error))

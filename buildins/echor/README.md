@@ -2,6 +2,16 @@
 
 `echor` prints its text arguments separated by spaces.
 
+## Print a greeting
+
+From the repository root:
+
+```sh
+cargo run -q -p echor -- hello world
+```
+
+The output is `hello world` followed by a newline.
+
 ## Arguments and options
 
 | Argument or option | Meaning |

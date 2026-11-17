@@ -1,0 +1,8 @@
+{
+  "cases": [
+    {"args": ["--posix", "-c", "printf hello"], "contains": "hello"},
+    {"args": ["--bash", "-s"], "contains": "hello", "stdin": "printf hello"},
+    {"args": ["-n", "-c", "printf unchecked"]},
+    {"args": ["-i", "-c", "echo $-"], "stdin": "", "contains": "i"}
+  ]
+}

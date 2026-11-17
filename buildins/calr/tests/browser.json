@@ -1,0 +1,6 @@
+{
+  "cases": [
+    {"args": ["-m", "3", "2025"], "contains": "March"},
+    {"args": ["--year"], "contains": "January"}
+  ]
+}

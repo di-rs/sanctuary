@@ -2,6 +2,16 @@
 
 `calr` prints a month or year as a Sunday-first text calendar.
 
+## Print a calendar
+
+From the repository root:
+
+```sh
+cargo run -q -p calr -- -m 3 2025
+```
+
+The output starts with the March 2025 calendar.
+
 ## Arguments and options
 
 | Argument or option | Meaning |

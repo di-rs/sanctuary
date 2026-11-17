@@ -1,0 +1,5 @@
+{
+  "cases": [
+    {"args": ["-n", "--", "hello", "sanctuary"], "contains": "hello sanctuary"}
+  ]
+}

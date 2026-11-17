@@ -1,7 +1,7 @@
 # Kara
 
 Kara 0.2 is a small modal terminal text editor based on
-[Philipp Flenker's Hecto guide](https://philippflenker.com/hecto/). It preserves
+[Philipp Flenker's Hecto tutorial](https://github.com/pflenker/hecto-tutorial). It preserves
 Kara's navigation keys and adds literal search and Rust syntax highlighting.
 
 ## Edit a file

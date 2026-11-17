@@ -3,15 +3,23 @@
 from pathlib import Path
 
 from cli_check.diagnostics import Diagnostic
-from cli_check.workspace import Package
+from cli_check.workspace import Package, load_toml, table
 
 
 def check(root: Path, packages: list[Package]) -> list[Diagnostic]:
     errors: list[Diagnostic] = []
+    workspace = table(load_toml(root / "Cargo.toml").get("workspace", {}))
     for package in packages:
+        manifest = (package.directory / "Cargo.toml").relative_to(root).as_posix()
+        if (
+            "lints" in workspace
+            and table(package.manifest.get("lints", {})).get("workspace") is not True
+        ):
+            errors.append(
+                Diagnostic(manifest, "layout", "lints", "inherit [lints] workspace = true")
+            )
         if not package.is_cli:
             continue
-        manifest = (package.directory / "Cargo.toml").relative_to(root).as_posix()
         if len(package.binaries) != 1:
             errors.append(
                 Diagnostic(manifest, "layout", "single-binary", "must define exactly one binary")

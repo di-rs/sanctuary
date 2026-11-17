@@ -2,22 +2,16 @@ FROM rust:slim-bookworm AS clis
 WORKDIR /src
 COPY rust-toolchain.toml ./
 RUN rustup show
-COPY Cargo.toml Cargo.lock ./
-COPY buildins/ buildins/
-COPY packages/biggie/ packages/biggie/
-COPY packages/kara/ packages/kara/
-COPY packages/parsu/ packages/parsu/
-COPY packages/shish/ packages/shish/
-COPY utils/ utils/
-COPY tools/cli-testing/ tools/cli-testing/
-ENV CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_DEV_STRIP=symbols
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/src/target \
-    cargo build --locked --workspace --bins && mkdir /out && \
-    for manifest in buildins/*/Cargo.toml packages/*/Cargo.toml tools/cli-testing/Cargo.toml; do \
-      name=$(sed -n 's/^name = "\([^"]*\)"/\1/p' "$manifest" | head -1); \
-      cp "target/debug/$name" /out/; \
-    done
+ARG CLI_PACKAGES
+ENV CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_DEV_STRIP=symbols CARGO_TARGET_DIR=/build
+RUN --mount=type=bind,target=/src \
+    --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/build \
+    set -ef; set -- --workspace; \
+    if [ -n "$CLI_PACKAGES" ]; then \
+      set --; for name in $CLI_PACKAGES; do set -- "$@" --package "$name"; done; \
+    fi; \
+    cargo -Z unstable-options build --locked --bins "$@" --artifact-dir /out
 
 FROM ghcr.io/voidzero-dev/vite-plus:1.2.0 AS frontend
 WORKDIR /frontend
@@ -40,5 +34,6 @@ COPY --from=clis /out/ /opt/artifact/
 COPY --from=frontend /frontend/dist/ /app/tools/cli-playground/src/cli_playground/static/
 COPY packages/boxie/sandbox/fixtures/ /opt/fixtures/
 ENV PATH="/app/.venv/bin:/usr/local/bin:/usr/bin:/bin" PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+RUN install -d -o 1000 -g 1000 -m 0700 /var/lib/playground-sessions
 USER 1000:1000
 CMD ["python", "-m", "tests.dev_server"]

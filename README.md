@@ -112,10 +112,8 @@ explains sessions, sample files, and switching builds.
 
 ## Make a change
 
-Read the owning package's README first. Run checks for the affected package, for
-example `uv run cli-check -p echor` for repository conventions.
-The [CLI testing skill](.agents/skills/cli-testing/SKILL.md) explains behavioral
-tests and reference fixtures; [AGENTS.md](AGENTS.md) records repository rules.
+The [CLI development guide](docs/cli-development.md) covers package layout,
+test fixtures, local checks and browser recordings for pull requests.
 Deployment instructions live in the [shared-host guide](infra/README.md).
 See [dependency maintenance](docs/dependency-updates.md) for automated coverage
 and pins that need manual updates.

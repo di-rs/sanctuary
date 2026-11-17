@@ -1,0 +1,6 @@
+{
+  "cases": [
+    {"args": ["--number", "--squeeze-blank", "--unbuffered", "welcome.txt"], "contains": "Hello, sandbox."},
+    {"args": ["--number-nonblank", "welcome.txt"], "contains": "1"}
+  ]
+}

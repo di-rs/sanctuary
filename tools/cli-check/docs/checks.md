@@ -16,14 +16,10 @@ command-line options.
 
 ## What passing establishes
 
-The inventory expands the root Cargo workspace's declared `members` globs and
-`exclude` patterns and includes a root package. It recognizes explicit binary
-targets and automatic `src/main.rs` and `src/bin/` targets, respecting `autobins`.
-A CLI can also expose a library; library-only packages need no CLI-specific
-tests, README registration or benchmark suite. Cargo validates manifests and the
-complete target graph separately. Declare repository packages in the root
-members list: implicit members introduced only through path dependencies are
-outside this inventory's scope.
+The inventory comes from `cargo metadata --locked --no-deps` and includes Cargo's
+resolved workspace members and enabled targets. CLI packages have one matching
+binary in `src/main.rs` and can also expose a library. All members inherit the
+workspace lint configuration when the root declares one.
 
 The tests group requires the shared `cli-testing` development dependency; the
 `cli-testing` CLI itself uses its own library without a self-dependency. It checks
@@ -40,7 +36,13 @@ completeness, assertion quality or reference correctness. The
 catalog execution and byte fixture loading; the [testing skill](../../../.agents/skills/cli-testing/SKILL.md)
 describes how to write behavioral tests.
 
-The docs group parses Markdown links, images and reference links while ignoring
+Every CLI needs a nonempty `tests/browser.json`. The recorder checks its cases
+against the built binary's schema and runs them through the playground.
+
+The docs group checks a single level-one title and introductory prose in component
+READMEs. Each Cargo CLI uses its own name as the title and a fenced shell example
+in its first section. The full workspace check includes the root, infrastructure,
+and direct service, library and tool READMEs. The group parses Markdown links, images and reference links while ignoring
 code blocks. It resolves local paths relative to their document, including
 URL-encoded filenames. It skips external URLs and fragment-only links; links
 with a filename and fragment validate the filename only. Existing link, spelling

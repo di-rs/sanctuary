@@ -104,7 +104,7 @@ def test_shared_configs_select_only_their_language(workspace: Path) -> None:
         "apps/client/tests",
         "apps/other/tests",
     ]
-    assert plan(workspace, "cli-check", "README.md")[0].count("-p") == 3
+    assert plan(workspace, "cli-check", "README.md") == [["uv", "run", "cli-check"]]
     assert plan(workspace, "cargo-fmt", "crates/one/src/lib.rs") == [
         ["cargo", "fmt", "-p", "one", "--", "--check"]
     ]
@@ -122,7 +122,6 @@ def test_real_repository_reset_test_is_isolated() -> None:
 @pytest.mark.parametrize(
     "path",
     [
-        "README.md",
         "pyproject.toml",
         "uv.lock",
         "tools/cli-check/src/cli_check/workspace.py",

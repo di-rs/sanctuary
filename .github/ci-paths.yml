@@ -15,7 +15,7 @@ rust:
   # Include fixtures, test catalogs, embedded assets, and build inputs.
   - 'buildins/**'
   - 'utils/**'
-  - 'packages/{biggie,kara,parsu,shish}/**'
+  - 'packages/!(boxie)/**'
   - 'tools/cli-testing/**'
 
 python:

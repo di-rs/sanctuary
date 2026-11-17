@@ -2,6 +2,16 @@
 
 `lsr` lists files and immediate directory contents on Unix systems.
 
+## List a directory
+
+From the repository root:
+
+```sh
+cargo run -q -p lsr -- buildins/lsr/src
+```
+
+The listing includes `main.rs`.
+
 ## Arguments and options
 
 | Argument or option | Meaning |

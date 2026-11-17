@@ -24,9 +24,10 @@ URL. The root redirects to the local preview with the command explorer and
 terminal. Type `biggie --help` or choose a CLI in the sidebar.
 
 Logs continue in the console. Ctrl+C stops following logs and leaves the stack
-running. Stop and remove it with `uv run local-dev down`. PostgreSQL uses temporary
-storage: removing or recreating its container discards preview data. Recreating
-the playground container discards terminal sessions and files.
+running. Stop and remove it with `uv run local-dev down`. PostgreSQL uses temporary storage. Recreating its container discards preview data.
+Recreating the playground starts fresh sessions. Session files use a private
+Docker volume that supports Linux access ACLs, including Kara's atomic saves.
+`down` removes that volume and this worktree's disposable data.
 
 ## Commands
 
@@ -51,6 +52,9 @@ Run these from the checkout root:
 `up` also accepts `--no-build`. Source files are copied into images; there is no
 live reload or host source mount. After edits, run `start` again and reload the
 browser using the printed URL. A recreated container may receive a different port.
+
+For local CLI verification and reviewable WebM videos, follow the
+[CLI recording guide](cli-development.md#record-the-public-flags).
 
 ## Multiple worktrees
 
@@ -127,14 +131,13 @@ pnpm --dir tools/cli-playground/frontend test
 pnpm --dir tools/cli-playground/frontend build
 ```
 
-Run affected packages' checks directly. The playground browser suite uses port
-8765 and its own PostgreSQL test database, so stop the development stack first:
+Run affected packages' checks directly. The playground browser integration suite
+uses host port 8765 and a separate PostgreSQL test database. The worktree stack
+uses a dynamically assigned port.
 
 ```sh
-uv run local-dev down
 uv run --all-packages pytest -m integration \
   tools/cli-playground/tests/test_browser.py -q
-uv run local-dev start
 ```
 
 Build the frontend before that browser test; it serves the compiled assets.

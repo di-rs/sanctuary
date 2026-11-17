@@ -2,6 +2,16 @@
 
 `cutr` selects fields, Unicode characters, or bytes from text input.
 
+## Select a field
+
+From the repository root:
+
+```sh
+printf 'Ada,Rust\n' | cargo run -q -p cutr -- -d , -f 2
+```
+
+The output is `Rust`.
+
 ## Arguments and options
 
 | Argument or option | Meaning |

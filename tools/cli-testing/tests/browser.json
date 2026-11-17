@@ -1,0 +1,15 @@
+{
+  "setup": "mkdir -p demo/tests/expected demo/tests/inputs && printf '%s\\n' '[package]' 'name = \"probe\"' > demo/Cargo.toml && printf '%s\\n' 'schema = 1' 'binary = \"probe\"' 'reference = \"echo\"' '[references.echo]' 'program = \"/bin/echo\"' 'platform = \"linux\"' '[[cases]]' 'name = \"sample\"' 'args = [\"hello\"]' 'expect = { exit = 0 }' 'origin = { reference = \"echo\", args = [\"-n\", \"hello\"], reason = \"printf emits no final newline.\" }' > demo/tests/cases.toml && printf hello > demo/tests/expected/sample.out",
+  "cases": [
+    {"args": ["doctor", "--json"], "contains": "\"ok\""},
+    {"args": ["discover", "--root", "demo", "--limit", "1", "--offset", "0"], "contains": "cases.toml"},
+    {"args": ["list", "--suite", "demo/tests/cases.toml", "--limit", "1", "--offset", "0"], "contains": "sample"},
+    {"args": ["resolve", "sample", "--suite", "demo/tests/cases.toml"], "contains": "sample"},
+    {"args": ["explain", "sample", "--suite", "demo/tests/cases.toml"], "contains": "sample"},
+    {"args": ["catalog", "--suite", "demo/tests/cases.toml"], "contains": "sample"},
+    {"args": ["validate", "--suite", "demo/tests/cases.toml"]},
+    {"args": ["compare", "--suite", "demo/tests/cases.toml", "--candidate", "/usr/bin/printf", "--case", "sample"]},
+    {"args": ["record", "--suite", "demo/tests/cases.toml", "--output", "recording"]},
+    {"args": ["apply", "recording", "--suite", "demo/tests/cases.toml", "--dry-run"]}
+  ]
+}

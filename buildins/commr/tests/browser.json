@@ -1,0 +1,6 @@
+{
+  "cases": [
+    {"args": ["-1", "-2", "--insensitive", "--output-delimiter", ":", "duplicates.txt", "duplicates.txt"], "contains": "apple"},
+    {"args": ["-3", "duplicates.txt", "duplicates.txt"]}
+  ]
+}

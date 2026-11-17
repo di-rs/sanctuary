@@ -2,6 +2,16 @@
 
 `wcr` counts lines, words, characters, and bytes in UTF-8 text.
 
+## Count words
+
+From the repository root:
+
+```sh
+printf 'red blue\n' | cargo run -q -p wcr -- -w
+```
+
+The word count is two.
+
 ## Arguments and options
 
 | Argument or option | Meaning |

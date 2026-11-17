@@ -1,0 +1,5 @@
+{
+  "cases": [
+    {"args": ["-p", "one/two"], "check": "test -d one/two"}
+  ]
+}

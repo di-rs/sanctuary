@@ -2,6 +2,17 @@
 
 `mkdirr` creates directories, including missing parent directories by default.
 
+## Create a directory tree
+
+From the repository root:
+
+```sh
+work=$(mktemp -d)
+cargo run -q -p mkdirr -- -p "$work/one/two"
+```
+
+Both `one` and `two` now exist under the temporary directory.
+
 ## Arguments and options
 
 | Argument or option | Meaning |
