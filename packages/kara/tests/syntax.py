@@ -117,6 +117,12 @@ def main() -> None:
         assert colored_text(output, 1) == b"4243"
         assert colored_text(output, (0, 128, 0)) == b"// actual comment"
 
+        source = b'/* outer " /* inner */\n  still outer "// */ let n = 44; // real comment\n'
+        (directory / "original").write_bytes(source)
+        output = session(binary, directory, [b":w nested_quotes.rs\r", b"\x11"])
+        assert colored_text(output, 1) == b"44"
+        assert colored_text(output, (0, 128, 0)).endswith(b"// real comment")
+
 
 if __name__ == "__main__":
     main()

@@ -20,6 +20,7 @@ pub struct Annotation {
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct LexState {
     string: Option<StringDelimiter>,
+    block_depth: usize,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -34,6 +35,10 @@ pub fn line(text: &str, mut state: LexState) -> (Vec<Annotation>, LexState) {
     while let Some(remaining) = text.get(byte..) {
         if remaining.is_empty() {
             break;
+        }
+        if state.block_depth > 0 || (state.string.is_none() && remaining.starts_with("/*")) {
+            byte = byte.saturating_add(block_length(remaining, &mut state));
+            continue;
         }
         if let Some(length) = string_length(remaining, &mut state) {
             byte = byte.saturating_add(length);
@@ -140,6 +145,26 @@ fn string_length(text: &str, state: &mut LexState) -> Option<usize> {
         None
     };
     Some(closing.map_or(text.len(), |end| opening.saturating_add(end)))
+}
+
+fn block_length(text: &str, state: &mut LexState) -> usize {
+    let mut byte = 0;
+    while byte < text.len() {
+        let remaining = text.as_bytes().get(byte..).unwrap_or_default();
+        if remaining.starts_with(b"/*") {
+            state.block_depth = state.block_depth.saturating_add(1);
+            byte = byte.saturating_add(2);
+        } else if remaining.starts_with(b"*/") {
+            state.block_depth = state.block_depth.saturating_sub(1);
+            byte = byte.saturating_add(2);
+            if state.block_depth == 0 {
+                return byte;
+            }
+        } else {
+            byte = byte.saturating_add(1);
+        }
+    }
+    byte
 }
 
 // Rust punctuation separates tokens even where Unicode word boundaries do
