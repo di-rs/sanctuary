@@ -16,6 +16,8 @@ import termios
 import time
 from pathlib import Path
 
+from vt import screen_text
+
 
 def acl(path: Path) -> bytes:
     if sys.platform == "darwin":
@@ -90,7 +92,7 @@ def session(binary: str, directory: Path, keys: list[bytes]) -> bytes:
         assert captured.rfind(b"\x1b[?7h") > captured.rfind(b"\x1b[?7l"), (
             "line wrapping not restored"
         )
-        return bytes(captured)
+        return bytes(captured) + b"\n" + screen_text(captured)
     finally:
         if not reaped:
             os.kill(pid, signal.SIGKILL)
