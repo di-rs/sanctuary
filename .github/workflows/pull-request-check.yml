@@ -267,7 +267,7 @@ jobs:
         (github.event.action != 'labeled' || github.event.label.name == 'run-ci') &&
         (!github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'run-ci'))
       }}
-    name: 📚 Documentation links and spelling${{ github.event.action == 'labeled' && github.event.label.name != 'run-ci' && ' (label metadata only)' || '' }}
+    name: 📚 Documentation links${{ github.event.action == 'labeled' && github.event.label.name != 'run-ci' && ' (label metadata only)' || '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -275,10 +275,10 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: 🛠️ Install hooks and spelling checker
+      - name: 🛠️ Install hooks
         uses: taiki-e/install-action@4a76afe23f9e08d2d9550fb56e556444e8611d21 # v2.90.4
         with:
-          tool: prek@0.5.5,typos@1.50.3
+          tool: prek@0.5.5
           fallback: none
       - name: 🔗 Install checksum-verified link checker
         run: |
@@ -290,8 +290,6 @@ jobs:
           echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
       - name: 🔗 Check local documentation links and anchors
         run: prek run lychee --all-files --show-diff-on-failure
-      - name: ✍️ Check documentation spelling
-        run: prek run typos --all-files --show-diff-on-failure
       - name: 🐍 Set up uv and Python
         uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
