@@ -1,11 +1,11 @@
-FROM ghcr.io/voidzero-dev/vite-plus:1.2.0 AS frontend
+FROM ghcr.io/voidzero-dev/vite-plus:1.7.0 AS frontend
 WORKDIR /frontend
 COPY --chown=vp:vp tools/cli-playground/frontend/package.json tools/cli-playground/frontend/pnpm-lock.yaml tools/cli-playground/frontend/pnpm-workspace.yaml tools/cli-playground/frontend/.node-version ./
 RUN vp install
 COPY --chown=vp:vp tools/cli-playground/frontend/ ./
 RUN vp build --outDir /frontend/dist
 
-FROM ghcr.io/astral-sh/uv:0.13.0 AS uv
+FROM ghcr.io/astral-sh/uv:0.13.9 AS uv
 FROM python:3.15-slim AS build
 COPY --from=uv /uv /usr/local/bin/uv
 WORKDIR /app

@@ -1,0 +1,6 @@
+{
+  "victoriametrics-logs-datasource": {
+    "url": "https://github.com/VictoriaMetrics/victorialogs-datasource/releases/download/v0.32.0/victoriametrics-logs-datasource-v0.32.0.zip",
+    "sha256": "8204d097b17f53b1c3a71761047734b7980bd983710c6cfcef8d938abe5eeef0"
+  }
+}

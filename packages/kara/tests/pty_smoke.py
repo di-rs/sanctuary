@@ -4,7 +4,6 @@ import errno
 import fcntl
 import os
 import pty
-import pwd
 import select
 import signal
 import socket
@@ -16,6 +15,8 @@ import tempfile
 import termios
 import time
 from pathlib import Path
+
+from vt import screen_text
 
 
 def acl(path: Path) -> bytes:
@@ -32,7 +33,9 @@ def acl(path: Path) -> bytes:
 
 def restrict_acl(path: Path) -> None:
     if sys.platform == "darwin":
-        subprocess.run(["chmod", "+a", "user:nobody deny read", str(path)], check=True)
+        # Use a well-known principal so ACL comparisons avoid account-name lookup.
+        # Denying execution leaves the editor's read/write access intact.
+        subprocess.run(["chmod", "+a", "everyone deny execute", str(path)], check=True)
     else:
         entries = [
             (1, 6, 0xFFFFFFFF),
@@ -67,7 +70,12 @@ def session(binary: str, directory: Path, keys: list[bytes]) -> bytes:
 
     reaped = False
     try:
-        drain()
+        # The first rendered caret follows raw-mode setup. Sending keys before
+        # that point can let terminal line discipline consume control characters.
+        deadline = time.monotonic() + 5
+        while b"\x1b[?25h" not in captured and time.monotonic() < deadline:
+            drain()
+        assert b"\x1b[?25h" in captured, f"editor did not become ready: {bytes(captured)!r}"
         for key in keys:
             os.write(fd, key)
             drain()
@@ -84,7 +92,7 @@ def session(binary: str, directory: Path, keys: list[bytes]) -> bytes:
         assert captured.rfind(b"\x1b[?7h") > captured.rfind(b"\x1b[?7l"), (
             "line wrapping not restored"
         )
-        return bytes(captured)
+        return bytes(captured) + b"\n" + screen_text(captured)
     finally:
         if not reaped:
             os.kill(pid, signal.SIGKILL)
@@ -132,7 +140,10 @@ def main() -> None:
             before.st_gid,
             stat.S_IMODE(before.st_mode),
         ), "save changed file ownership or mode"
-        assert acl(secured) == before_acl, "save changed the access ACL"
+        after_acl = acl(secured)
+        assert after_acl == before_acl, (
+            f"save changed the access ACL: before={before_acl!r}, after={after_acl!r}"
+        )
         link = directory / "secured-link"
         link.symlink_to(secured)
         session(binary, directory, [b":w secured-link\r", b"\x11"])
@@ -168,11 +179,17 @@ def main() -> None:
         if sys.platform == "darwin":
             denied = directory / "denied"
             denied.write_bytes(b"KEEP\n")
-            user = pwd.getpwuid(os.getuid()).pw_name
-            subprocess.run(
-                ["chmod", "+a", f"user:{user} deny write,append", str(denied)], check=True
-            )
+            # Avoid directory-service resolution of a named user's ACL identity.
+            # The well-known everyone principal must deny the editor's write open.
+            subprocess.run(["chmod", "+a", "everyone deny write,append", str(denied)], check=True)
             try:
+                try:
+                    descriptor = os.open(denied, os.O_WRONLY)
+                except PermissionError:
+                    pass
+                else:
+                    os.close(descriptor)
+                    raise AssertionError("write-deny ACL fixture still permits writing")
                 captured = session(binary, directory, [b":w denied\r", b"iD\x1b", b"\x13", b"\x11"])
                 assert denied.read_bytes() == b"KEEP\n", "save bypassed the write ACL"
                 assert original.read_bytes() == b"Doriginal\n", (
