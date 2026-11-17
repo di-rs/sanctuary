@@ -8,7 +8,7 @@ dependencies = ["pydantic>=2.14.3,<3", "cli-check"]
 cli-bench = "cli_bench.command:main"
 
 [build-system]
-requires = ["uv_build==0.13.0"]
+requires = ["uv_build==0.13.8"]
 build-backend = "uv_build"
 
 [tool.uv.sources]
