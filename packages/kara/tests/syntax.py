@@ -9,8 +9,8 @@ from pathlib import Path
 from pty_smoke import session
 
 
-def colored_text(output: bytes, color: int) -> bytes:
-    """Observe text in an indexed color, allowing combined SGR codes and cursor-only updates."""
+def colored_text(output: bytes, color: int | tuple[int, int, int]) -> bytes:
+    """Observe text in a foreground color, allowing combined SGR codes and cursor-only updates."""
     active = False
     cursor = 0
     rendered = bytearray()
@@ -25,7 +25,7 @@ def colored_text(output: bytes, color: int) -> bytes:
             while index < len(codes):
                 code = codes[index]
                 if code in (0, 39) or 30 <= code <= 37 or 90 <= code <= 97:
-                    active = code == 30 + color
+                    active = isinstance(color, int) and code == 30 + color
                 elif code in (38, 48, 58) and index + 2 < len(codes):
                     if codes[index + 1] == 5:
                         if code == 38:
@@ -33,7 +33,7 @@ def colored_text(output: bytes, color: int) -> bytes:
                         index += 2
                     elif codes[index + 1] == 2 and index + 4 < len(codes):
                         if code == 38:
-                            active = False
+                            active = tuple(codes[index + 2 : index + 5]) == color
                         index += 4
                 index += 1
         cursor = control.end()
@@ -69,6 +69,13 @@ def main() -> None:
             output = session(binary, directory, [b":w numeric.rs\r", b"\x11"])
             assert colored_text(output, 1) == expected_red, repr(colored_text(output, 1))
             assert (directory / "numeric.rs").read_bytes() == source
+
+        literals = (b"'a'", rb"'\''", rb"'\\'")
+        source = b"; ".join(literals)
+        (directory / "original").write_bytes(source)
+        output = session(binary, directory, [b":w escaped_chars.rs\r", b"\x11"])
+        assert colored_text(output, (255, 191, 0)) == b"".join(literals)
+        assert (directory / "escaped_chars.rs").read_bytes() == source
 
         source = b"macro_rules! raw safe"
         (directory / "original").write_bytes(source)
