@@ -94,7 +94,7 @@ export function createBrowserTerminal(
     input = createInputIntent(terminal);
     draftInput = input.onInput(({ data, source }) => {
       // eslint-disable-next-line no-control-regex
-      if (source === "user" && /[\r\n\x03\x04]/u.test(data)) draft.invalidate();
+      if (source === "user" && /[\r\n\x03]/u.test(data)) draft.invalidate();
     });
     terminal.loadAddon(fitAddon);
     terminal.open(host);

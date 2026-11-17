@@ -64,3 +64,19 @@ describe("terminal-driven command choices", () => {
     ]);
   });
 });
+
+test("end-of-options stops flag and command suggestions", () => {
+  for (const text of ["biggie text --", "biggie text '--'", "biggie --"]) {
+    const result = context(text);
+    expect(result.endOfOptions).toBe(true);
+    expect(result.flags).toEqual([]);
+    expect(result.choices).toEqual([]);
+  }
+  const withOperand = catalog("a".repeat(40), ["echor"]);
+  withOperand.clis[0].head.command.args.push(
+    argument({ id: "text", short: null, long: null, index: 1 }),
+  );
+  expect(commandContext("echor -- hello", ["echor"], withOperand).flags).toEqual([]);
+  expect(context("biggie text --lines --").endOfOptions).toBe(false);
+  expect(context("biggie text --lines=--").flags.length).toBeGreaterThan(0);
+});

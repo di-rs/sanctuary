@@ -64,6 +64,7 @@ export interface Context {
   choices: Suggestion[];
   flags: ArgumentView[];
   used: string[];
+  endOfOptions?: boolean;
   pending?: ArgumentView;
 }
 export function commandContext(text: string, names: string[], catalog: Catalog | null): Context {
@@ -111,6 +112,7 @@ export function commandContext(text: string, names: string[], catalog: Catalog |
   let pending: ArgumentView | undefined;
   let remaining = 0;
   let operands = false;
+  let endOfOptions = false;
   const used: string[] = [];
   let partial: Token | undefined;
   let kind: Context["kind"] = "commands";
@@ -122,6 +124,7 @@ export function commandContext(text: string, names: string[], catalog: Catalog |
     }
     if (token.value === "--") {
       operands = true;
+      endOfOptions = true;
       continue;
     }
     const flags = node.args.filter((row) => row.change !== "removed");
@@ -169,11 +172,12 @@ export function commandContext(text: string, names: string[], catalog: Catalog |
     break;
   }
   const flags = node.args.filter(
-    (row) => row.change !== "removed" && (row.argument.short || row.argument.long),
+    (row) => !endOfOptions && row.change !== "removed" && (row.argument.short || row.argument.long),
   );
   const query = partial?.value ?? "";
   const children = node.children.filter(
     (child) =>
+      !endOfOptions &&
       child.change !== "removed" &&
       (!query ||
         [child.command.name, ...child.command.aliases].some((name) => name.includes(query))),
@@ -217,5 +221,5 @@ export function commandContext(text: string, names: string[], catalog: Catalog |
   }
   choices = choices.filter((choice) => choice.value !== "");
   if (partial && (!choices.length || parsed.at(-1) !== partial)) kind = "missing";
-  return { cli, node, query, kind, choices, flags, used, pending };
+  return { cli, node, query, kind, choices, flags, used, pending, endOfOptions };
 }

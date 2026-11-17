@@ -161,6 +161,7 @@
           </div>
         {/if}
       {/if}
+      {#if context.endOfOptions}<p class="builder-note">Options end at <code>--</code>. Remove it to add flags.</p>{/if}
       {#if context.kind === "value"}
         <h2 class="builder-heading">
           Value for {context.pending?.argument.long

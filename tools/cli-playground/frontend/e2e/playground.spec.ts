@@ -684,3 +684,21 @@ test("shell history redraws and wrapped input update choices without another con
   expect(inputs(session)).toEqual([]);
   expect(session.closed).toBe(false);
 });
+
+test("Ctrl+D editing leaves the builder active and -- hides flag insertion", async ({ page }) => {
+  const [session] = await openPlayground(page);
+  await page.locator(".xterm-helper-textarea").focus();
+  await page.keyboard.type("catr");
+  await page.keyboard.press("Control+a");
+  await page.keyboard.press("Control+d");
+  await expect.poll(() => inputs(session).join("")).toContain("\x04");
+  await openExplorer(page);
+  await expect(page.getByRole("button", { name: "All CLIs", exact: true })).toBeEnabled();
+  await expect(page.getByText("Waiting for a shell prompt…")).toHaveCount(0);
+  await page.getByRole("button", { name: "All CLIs", exact: true }).click();
+  await page.locator(".xterm-helper-textarea").focus();
+  await page.keyboard.type("catr --");
+  await openExplorer(page);
+  await expect(page.getByText("Options end at", { exact: false })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Insert --/ })).toHaveCount(0);
+});
