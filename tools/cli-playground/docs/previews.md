@@ -153,9 +153,17 @@ choices, requiredness, value counts, and global ownership are represented.
 
 ## Validation
 
-Build the real frontend before `uv run pytest
-packages/boxie/tests/test_packaging.py -m integration`. The required PR frontend job
-checks isolated packaging and static responses. The separate
+From the repository root, build the frontend and run the packaging checks with
+Docker and Compose available.
+
+```sh
+pnpm --dir tools/cli-playground/frontend install --frozen-lockfile
+pnpm --dir tools/cli-playground/frontend build
+uv run --locked pytest -m integration tools/cli-playground/tests/test_packaging.py
+```
+
+The PR frontend job checks the installed wheel, static responses and gateway
+Compose topology. The separate
 [shared-system lifecycle workflow](../../../.github/workflows/sanctuary-lifecycle.yml)
 checks native runsc security and both generic and product terminals through the
 private API. Missing runsc is a failure, never a successful runc substitute.

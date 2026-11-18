@@ -40,7 +40,8 @@ frontend:
   - 'tools/cli-playground/frontend/**/!(*.md|*.markdown)'
   # This job also owns packaging, database lifecycle, and browser integration tests.
   - 'tools/cli-playground/{src,tests,infra}/**/!(*.md|*.markdown)'
-  - 'packages/boxie/{src,tests,infra}/**/!(*.md|*.markdown)'
+  - 'packages/boxie/src/**/!(*.md|*.markdown)'
+  - 'packages/boxie/tests/support/**/!(*.md|*.markdown)'
   - '**/pyproject.toml'
   - 'uv.lock'
   - '.python-version'

@@ -186,18 +186,19 @@ validator checks configuration shape; it does not prove live Access authorizatio
 
 ## Validation
 
-Default tests require no Docker or frontend build. Integration checks require
-Docker Compose, uv and real built frontend assets; missing tools/assets fail.
+Run the packaging checks from the repository root. The integration command
+requires Docker and Compose and builds and installs the Boxie wheel from a
+temporary workspace containing only Boxie sources and the root build inputs.
 
 ```sh
-uv run pytest packages/boxie/tests/test_packaging.py
-pnpm --dir tools/cli-playground/frontend build
-uv run pytest packages/boxie/tests/test_packaging.py -m integration
+uv run --locked pytest packages/boxie/tests/test_packaging.py
+uv run --locked pytest -m integration packages/boxie/tests/test_packaging.py
 ```
 
-The optional native Linux [Boxie check](../../../.github/workflows/boxie-lifecycle.yml)
-starts PostgreSQL, Temporal, API and Supervisor without cli-playground. It checks
-process faults, the generic consumer API and container cleanup. The separate
+The [Boxie lifecycle workflow](../../../.github/workflows/boxie-lifecycle.yml)
+builds the service image in a Boxie-only context. Its optional native Linux test
+starts PostgreSQL, Temporal, API and Supervisor and checks process faults, the
+generic consumer API and container cleanup. The separate
 [shared-system check](../../../.github/workflows/sanctuary-lifecycle.yml) adds the
 application and browser to verify native CLIs, fixtures, pipes, resize and reconnect.
 Both require real Linux amd64/runsc; image builds and fake-daemon tests do not

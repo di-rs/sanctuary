@@ -1,12 +1,17 @@
-"""Independent service packaging and operator-owned topology contracts."""
+"""Boxie package, build context and standalone Compose contracts."""
 
 import json
+import os
+import shutil
+import subprocess
 from pathlib import Path
 from uuid import uuid4
 
 import pytest
+from boxie_test_support.packaging import check_installed_wheel, export_docker_context
 
 ROOT = Path(__file__).resolve().parents[3]
+BOXIE = ROOT / "packages/boxie"
 
 
 def test_operations_manifest_keeps_docker_socket_out_of_operator_jobs() -> None:
@@ -21,220 +26,112 @@ def test_operations_manifest_keeps_docker_socket_out_of_operator_jobs() -> None:
 
 
 @pytest.mark.integration
-@pytest.mark.parametrize(
-    "dockerfile",
-    [
-        "packages/boxie/infra/Boxie.Dockerfile",
-        "tools/cli-playground/infra/docker/CliPlayground.Dockerfile",
-    ],
-)
-def test_docker_context_excludes_generated_frontend_assets(tmp_path: Path, dockerfile: str) -> None:
-    import subprocess
-
+def test_docker_context_contains_boxie_without_consumer_sources(tmp_path: Path) -> None:
     context = tmp_path / "context"
-    source = Path("tools/cli-playground/src/cli_playground")
-    assets = context / source / "static"
-    assets.mkdir(parents=True)
-    (assets / "stale.js").write_text("stale local frontend")
-    (context / source / "__init__.py").write_text("# backend source\n")
-    own_source = context / "packages/boxie/src/boxie/__init__.py"
-    own_source.parent.mkdir(parents=True)
-    own_source.write_text("# Boxie source\n")
-    recipe = context / dockerfile
-    recipe.parent.mkdir(parents=True, exist_ok=True)
-    recipe.write_text("FROM scratch\nCOPY . /\n")
-    recipe.with_suffix(".Dockerfile.dockerignore").write_bytes(
-        (ROOT / (dockerfile + ".dockerignore")).read_bytes()
+    own_source = Path("packages/boxie/src/boxie/__init__.py")
+    consumer = Path("tools/cli-playground/src/cli_playground")
+    for source in (own_source, consumer / "__init__.py", consumer / "static/stale.js"):
+        (context / source).parent.mkdir(parents=True)
+        (context / source).write_text("# " + source.name)
+
+    output = export_docker_context(
+        ROOT / "packages/boxie/infra/Boxie.Dockerfile", context, tmp_path / "output"
     )
-    output = tmp_path / "output"
-    subprocess.run(
-        [
-            "docker",
-            "build",
-            "-f",
-            str(recipe),
-            "--output",
-            f"type=local,dest={output}",
-            str(context),
-        ],
-        check=True,
-        capture_output=True,
-        text=True,
-        timeout=60,
-    )
-    if dockerfile.startswith("packages/boxie/"):
-        assert not (output / "tools").exists()
-        assert (output / own_source.relative_to(context)).read_text() == "# Boxie source\n"
-    else:
-        assert (output / source / "__init__.py").read_text() == "# backend source\n"
-        assert not (output / source / "static").exists()
+    assert (output / own_source).read_text() == "# __init__.py"
+    assert not (output / "tools").exists()
 
 
 @pytest.mark.integration
-@pytest.mark.parametrize(
-    "package,module,forbidden",
-    [("boxie", "boxie", "cli_playground"), ("cli-playground", "cli_playground", "boxie")],
-)
-def test_real_isolated_installation(
-    tmp_path: Path, package: str, module: str, forbidden: str
-) -> None:
-    import os
-    import subprocess
-    import sys
+def test_real_isolated_installation(tmp_path: Path) -> None:
+    checkout = tmp_path / "checkout"
+    package = checkout / "packages/boxie"
+    package.mkdir(parents=True)
+    for name in ("pyproject.toml", "uv.lock", ".python-version"):
+        shutil.copyfile(ROOT / name, checkout / name)
+    for name in ("pyproject.toml", "alembic.ini"):
+        shutil.copyfile(BOXIE / name, package / name)
+    for name in ("src", "alembic"):
+        shutil.copytree(BOXIE / name, package / name)
 
-    service = ROOT / ("packages" if package == "boxie" else "tools") / package
-    if package == "cli-playground":
-        assert (service / "src/cli_playground/static/index.html").is_file(), (
-            "Build the real frontend first"
-        )
-    wheels = tmp_path / "wheels"
-    environment = {
-        key: value for key, value in os.environ.items() if key not in {"PYTHONPATH", "VIRTUAL_ENV"}
-    }
-    subprocess.run(
-        ["uv", "build", "--package", package, "--out-dir", str(wheels)],
-        cwd=ROOT,
-        env=environment,
-        check=True,
-    )
-    python = tmp_path / "venv/bin/python"
-    subprocess.run(
-        ["uv", "venv", "--python", sys.executable, str(python.parent.parent)],
-        env=environment,
-        check=True,
-    )
-    (wheel,) = wheels.glob("*.whl")
-    constraints = tmp_path / "constraints.txt"
-    subprocess.run(
-        [
-            "uv",
-            "export",
-            "--package",
-            package,
-            "--no-dev",
-            "--no-emit-workspace",
-            "--no-hashes",
-            "--output-file",
-            str(constraints),
-        ],
-        cwd=ROOT,
-        env=environment,
-        check=True,
-        stdout=subprocess.DEVNULL,
-    )
-    subprocess.run(
-        [
-            "uv",
-            "pip",
-            "install",
-            "--python",
-            str(python),
-            "--constraint",
-            str(constraints),
-            str(wheel),
-        ],
-        env=environment,
-        check=True,
-    )
-    probe = f"""
-import importlib, importlib.util, pathlib
-module = importlib.import_module({module!r})
-assert pathlib.Path(module.__file__).is_relative_to({str(python.parent.parent)!r})
-for name in ({forbidden!r}, 'cli-playground', 'cli_playground_infra', 'boxie_infra', 'cli_playground_infra', 'boxie_test_support', 'pulumi', 'pytest'):
-    assert importlib.util.find_spec(name) is None, name
-"""
-    if module == "boxie":
-        probe += (
-            "import boxie.bootstrap.api, boxie.bootstrap.supervisor, boxie.bootstrap.workers\n"
-            "import boxie.observability.process, boxie.sandbox.execution.sandbox\n"
-            "from boxie.bootstrap.api import ApiProcessConfig\n"
-            "from boxie.observability.telemetry.logging import LogDispatcher\n"
-            "from boxie.sandbox.execution.sandbox import SandboxExecution\n"
-            "from io import StringIO\n"
-            "from alembic import command\n"
-            "from boxie.persistence.migrate import migration_config\n"
-            "output = StringIO()\n"
-            "config = migration_config('postgresql://localhost/boxie')\n"
-            "config.output_buffer = output\n"
-            "assert pathlib.Path(config.get_main_option('script_location'), 'script.py.mako').is_file()\n"
-            "command.upgrade(config, 'head', sql=True)\n"
-            "assert 'CREATE TABLE sandboxes' in output.getvalue()\n"
-        )
-        probe += """
+    check_installed_wheel(
+        tmp_path,
+        checkout,
+        "boxie",
+        """
 import asyncio
+import importlib.util
+import sys
+from io import StringIO
+from pathlib import Path
+
+import boxie
+import boxie.bootstrap.api
+import boxie.bootstrap.supervisor
+import boxie.bootstrap.workers
+import boxie.observability.process
+import boxie.sandbox.execution.sandbox
+import httpx
+from alembic import command
 from boxie.api.app import ApiConfig, create_app
+from boxie.bootstrap.api import ApiProcessConfig
 from boxie.observability.telemetry.context import current_request_id
+from boxie.observability.telemetry.logging import LogDispatcher
+from boxie.persistence.migrate import migration_config
+from boxie.sandbox.execution.sandbox import SandboxExecution
+
+assert Path(boxie.__file__).is_relative_to(sys.prefix)
+for name in (
+    "cli_playground", "cli_playground_infra", "boxie_infra", "boxie_test_support", "pulumi", "pytest",
+):
+    assert importlib.util.find_spec(name) is None, name
+
+config = migration_config("postgresql://localhost/boxie")
+config.output_buffer = StringIO()
+assert Path(config.get_main_option("script_location"), "script.py.mako").is_file()
+command.upgrade(config, "head", sql=True)
+assert "CREATE TABLE sandboxes" in config.output_buffer.getvalue()
+
+
 class Ports:
-    async def ready(self): return True
+    async def ready(self):
+        return True
+
+
 ports = Ports()
-app = create_app(ApiConfig(release='isolated', consumers={'ordinary-client':b'isolated-secret'}), ports, ports, ports)
+app = create_app(
+    ApiConfig(release="isolated", consumers={"ordinary-client": b"isolated-secret"}),
+    ports,
+    ports,
+    ports,
+)
+
+
 async def run():
-    import httpx
-    async with httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url='http://standalone') as client:
-        for supplied in (None, '11111111-1111-1111-1111-111111111111'):
-            headers = {'Authorization':'Bearer isolated-secret'}
-            if supplied: headers['X-Request-ID'] = supplied
-            response = await client.get('/readyz', headers=headers)
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app), base_url="http://standalone"
+    ) as client:
+        for supplied in (None, "11111111-1111-1111-1111-111111111111"):
+            headers = {"Authorization": "Bearer isolated-secret"}
+            if supplied:
+                headers["X-Request-ID"] = supplied
+            response = await client.get("/readyz", headers=headers)
             assert response.status_code == 200
-            selected = response.headers['x-request-id']
+            selected = response.headers["x-request-id"]
             assert selected == supplied if supplied else len(selected) == 36
             assert current_request_id() is None
+
+
 asyncio.run(run())
-"""
-    else:
-        # Real installed assets via ASGI HTTP, without pytest/httpx or source imports.
-        probe += """
-import asyncio, json, re
-from cli_playground.app import create_app, STATIC_DIR
-from cli_playground.config import Settings
-secret = pathlib.Path('consumer.secret'); secret.write_text('isolated-consumer-secret'); secret.chmod(0o600)
-from alembic.config import Config
-from alembic import command
-from io import StringIO
-config = Config(); config.set_main_option('script_location', 'cli_playground:alembic')
-config.set_main_option('sqlalchemy.url', 'postgresql+psycopg://localhost/cli_playground'); config.output_buffer = StringIO()
-command.upgrade(config, 'head', sql=True)
-assert 'CREATE TABLE preview' in config.output_buffer.getvalue()
-app = create_app(Settings(database_url="postgresql+psycopg://localhost/cli_playground", data_dir=pathlib.Path.cwd()/'data', public_url='http://localhost', deploy_token='local-token', boxie_url='http://127.0.0.1:1', boxie_credential_file=secret.absolute()))
-async def request(path):
-    sent = []
-    received = False
-    async def receive():
-        nonlocal received
-        if not received:
-            received = True
-            return {'type':'http.request', 'body':b'', 'more_body':False}
-        await asyncio.Event().wait()
-        raise AssertionError('unreachable')
-    async def send(message): sent.append(message)
-    await app({'type':'http','asgi':{'version':'3.0'},'http_version':'1.1','method':'GET','scheme':'http','path':path,'raw_path':path.encode(),'query_string':b'','headers':[(b'host',b'localhost')],'server':('localhost',80),'client':('127.0.0.1',123)}, receive, send)
-    assert sent[0]['status'] == 200, sent
-    return b''.join(m.get('body',b'') for m in sent)
-async def run():
-    html = await request('/p/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')
-    assert html == (STATIC_DIR/'index.html').read_bytes()
-    paths = re.findall(rb'(?:src|href)="(/static/[^\"]+)"', html)
-    assert paths
-    for path in paths:
-        body = await request(path.decode())
-        assert len(body) > 1000
-    assert (STATIC_DIR/'licenses.md').stat().st_size > 1000
-    await app.state.service.boxie.close()
-asyncio.run(run())
-"""
-    subprocess.run([str(python), "-I", "-c", probe], cwd=tmp_path, env=environment, check=True)
+""",
+    )
 
 
 @pytest.mark.integration
-@pytest.mark.parametrize("service", ["boxie", "cli-playground"])
 @pytest.mark.parametrize("manifest", ["compose.yml", "compose.production.yml"])
 @pytest.mark.parametrize("project_override", [False, True])
 def test_resolved_compose_isolated_topology(
-    tmp_path: Path, service: str, manifest: str, project_override: bool
+    tmp_path: Path, manifest: str, project_override: bool
 ) -> None:
-    import os
-    import subprocess
-
     values = {
         "BOXIE_IMAGE": "boxie:test",
         "BOXIE_API_CONFIG": str(tmp_path / "api.json"),
@@ -251,83 +148,43 @@ def test_resolved_compose_isolated_topology(
         "BOXIE_DATA_DIR": str(tmp_path / "data"),
         "BOXIE_CONSUMER_NETWORK": "test-consumers",
         "BOXIE_CONTROL_NETWORK": "test-control",
-        "CLI_PLAYGROUND_IMAGE": "cli-playground:test",
-        "CLI_PLAYGROUND_DATABASE_URL_FILE": str(tmp_path / "playground-dsn.secret"),
-        "CLI_PLAYGROUND_DATABASE_NETWORK": "test-database",
-        "CLI_PLAYGROUND_BOXIE_URL": "http://independent-boxie:8090",
-        "CLI_PLAYGROUND_BOXIE_CREDENTIAL_FILE": str(tmp_path / "consumer.secret"),
-        "CLI_PLAYGROUND_CONSUMER_NETWORK": "test-consumers",
-        "CLI_PLAYGROUND_PROXY_NETWORK": "test-proxy",
-        "CLI_PLAYGROUND_DATA_VOLUME": "test-product-data",
-        "CLI_PLAYGROUND_CERTIFICATES_VOLUME": "test-certificates",
-        "CLI_PLAYGROUND_DEPLOY_TOKEN": "test-token",
-        "CLI_PLAYGROUND_DOMAIN": "play.example.com",
-        "ACME_EMAIL": "test@example.com",
-        "CLOUDFLARE_DNS_API_TOKEN": "test-dns-token",
     }
+    if project_override:
+        values["BOXIE_PROJECT_NAME"] = "operator-boxie"
     environment = {
         key: value
         for key, value in os.environ.items()
-        if not key.startswith("COMPOSE_")
-        and key not in {"BOXIE_PROJECT_NAME", "CLI_PLAYGROUND_PROJECT_NAME"}
+        if not key.startswith(("COMPOSE_", "BOXIE_"))
     }
-    if project_override:
-        values.update(
-            BOXIE_PROJECT_NAME="operator-boxie",
-            CLI_PLAYGROUND_PROJECT_NAME="operator-cli-playground",
-        )
     result = subprocess.run(
         [
             "docker",
             "compose",
+            "--env-file",
+            os.devnull,
             "-f",
-            str(
-                ROOT
-                / ("packages" if service == "boxie" else "tools")
-                / service
-                / "infra"
-                / manifest
-            ),
+            str(BOXIE / "infra" / manifest),
             "config",
             "--format",
             "json",
         ],
         env={**environment, **values},
-        capture_output=True,
+        stdout=subprocess.PIPE,
         text=True,
         check=True,
     )
     config = json.loads(result.stdout)
-    expected_project = (
-        {"boxie": "operator-boxie", "cli-playground": "operator-cli-playground"}[service]
-        if project_override
-        else service
-    )
-    assert config["name"] == expected_project
+    assert config["name"] == values.get("BOXIE_PROJECT_NAME", "boxie")
+    assert set(config["services"]) == {"api", "supervisor"}
     for name, entry in config["services"].items():
-        sockets = [v for v in entry.get("volumes", []) if v["target"] == "/var/run/docker.sock"]
-        assert bool(sockets) == (service == "boxie" and name == "supervisor")
-        if service == "boxie":
-            assert not entry.get("ports")
+        targets = {v["target"]: v["source"] for v in entry.get("volumes", [])}
+        assert ("/var/run/docker.sock" in targets) == (name == "supervisor")
+        assert not entry.get("ports")
         if name == "supervisor":
-            mount = next(v for v in entry["volumes"] if v["target"] == values["BOXIE_DATA_DIR"])
-            assert mount["source"] == mount["target"]
+            assert targets[values["BOXIE_DATA_DIR"]] == values["BOXIE_DATA_DIR"]
             assert set(entry["networks"]) == {"control"}
-        if name == "api":
-            assert not any(v["target"] == values["BOXIE_DATA_DIR"] for v in entry["volumes"])
-        if name == "backend":
-            assert set(entry["networks"]) == (
-                {"consumer", "database", "proxy"}
-                if manifest == "compose.production.yml"
-                else {"consumer", "database"}
-            )
-            assert config["networks"]["database"]["name"] == "test-database"
-            assert not entry.get("depends_on")
-            assert (
-                entry["environment"]["CLI_PLAYGROUND_BOXIE_URL"]
-                == values["CLI_PLAYGROUND_BOXIE_URL"]
-            )
-            assert not any("BOXIE_DATA" in v["source"] for v in entry["volumes"])
+        else:
+            assert values["BOXIE_DATA_DIR"] not in targets
     assert all(net["external"] for net in config["networks"].values())
     assert all(volume["external"] for volume in config.get("volumes", {}).values())
 
@@ -403,36 +260,3 @@ def test_supervisor_configuration_rejects_unsupported_capacity(
     )
     with pytest.raises(ValueError, match="extra_forbidden"):
         SupervisorConfig.from_file(config)
-
-
-@pytest.mark.integration
-def test_postgres_exposes_only_database_on_playground_network(tmp_path: Path) -> None:
-    import os
-    import subprocess
-
-    result = subprocess.run(
-        [
-            "docker",
-            "compose",
-            "-f",
-            str(ROOT / "packages/boxie/infra/postgres/compose.yml"),
-            "config",
-            "--format",
-            "json",
-        ],
-        env={
-            **os.environ,
-            "BOXIE_CONTROL_NETWORK": "test-control",
-            "POSTGRES_PASSWORD": "test",
-            "BOXIE_DB_PASSWORD": "test",
-            "TEMPORAL_DB_PASSWORD": "test",
-            "VISIBILITY_DB_PASSWORD": "test",
-        },
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    config = json.loads(result.stdout)
-    assert config["networks"]["playground"]["internal"] is True
-    assert set(config["services"]) == {"postgres"}
-    assert set(config["services"]["postgres"]["networks"]) == {"control", "playground"}

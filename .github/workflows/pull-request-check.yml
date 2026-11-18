@@ -127,6 +127,8 @@ jobs:
         run: prek run ruff --all-files --show-diff-on-failure
       - name: 🎨 Check Python formatting
         run: prek run ruff-format --all-files --show-diff-on-failure
+      - name: 🐘 Verify shared-host database topology
+        run: uv run --locked pytest -m integration infra/environments/single-host/tests/test_database_topology.py
       - name: ♻️ Cache incremental Python type analysis
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -187,11 +189,11 @@ jobs:
       - name: 🐳 Build the cli-playground deployment image
         working-directory: .
         run: docker build --file tools/cli-playground/infra/docker/CliPlayground.Dockerfile .
-      - name: 📦 Verify isolated service packages and Compose topology
+      - name: 📦 Verify the Playground wheel, assets and Compose topology
         working-directory: .
         run: |
           uv sync --locked --all-packages
-          uv run pytest packages/boxie/tests/test_packaging.py -m integration
+          uv run --locked pytest -m integration tools/cli-playground/tests/test_packaging.py
       - name: 🌐 Install headless Chromium
         # The hosted runner supplies the system libraries used by headless Chromium.
         run: pnpm exec playwright install --only-shell chromium

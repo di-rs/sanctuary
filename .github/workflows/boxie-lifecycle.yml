@@ -56,12 +56,21 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         run: |
           docker build -f packages/boxie/sandbox/Dockerfile -t boxie-sandbox:lifecycle .
-      - name: 🐳 Build Boxie image
-        run: |
-          docker build -f packages/boxie/infra/Boxie.Dockerfile -t boxie:lifecycle .
       - name: 📦 Install locked Python workspace dependencies
         run: |
-          uv sync --package sanctuary-tools --package boxie --package boxie-infra
+          uv sync --locked --package sanctuary-tools --package boxie --package boxie-infra
+      - name: 📦 Build and test Boxie without Playground sources
+        shell: bash
+        run: |
+          context=$(mktemp -d "$RUNNER_TEMP/boxie-context.XXXXXX")
+          trap 'rm -rf -- "$context"' EXIT
+          git archive HEAD pyproject.toml uv.lock .python-version packages/boxie | tar -x -C "$context"
+          docker build -f "$context/packages/boxie/infra/Boxie.Dockerfile" -t boxie:lifecycle "$context"
+          cd "$context"
+          # Use the validated root lock without resolving workspace members omitted from this tree.
+          uv sync --frozen --only-dev
+          uv sync --frozen --inexact --no-dev --package boxie-infra
+          uv run --no-sync pytest -m '' packages/boxie/tests/test_packaging.py
       - name: Verify packaged job capture executables
         run: |
           uv run --no-project packages/boxie/sandbox/build-capture.py --check
