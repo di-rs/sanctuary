@@ -509,6 +509,61 @@ def preview_deployment(
     return positive(created.get("id"))
 
 
+def summarize_build(
+    api: GitHub[TokenAuthStrategy], base: str, run_id: int, run: dict[str, object]
+) -> tuple[str, dict[str, object] | None, list[str]]:
+    if run.get("status") != "completed":
+        return "building", None, ["**Building:** this revision is not ready yet."]
+
+    artifacts = [
+        item
+        for item in github_pages(api, f"{base}/actions/runs/{run_id}/artifacts", "artifacts")
+        if item.get("name") == ARTIFACT_NAME
+    ]
+    artifact = max(
+        (item for item in artifacts if not item.get("expired")),
+        key=lambda item: positive(item.get("id")),
+        default=None,
+    )
+    conclusion = run.get("conclusion")
+    if conclusion == "success":
+        # An upload sets the ready state. A bundle that could not be published is failed.
+        state = "failed" if artifacts else "empty"
+        notes: list[str] = []
+    elif conclusion == "cancelled":
+        state = "cancelled"
+        notes = ["**Build cancelled:** no new live preview was published."]
+    else:
+        state = "failed"
+        notes = ["**Build failed:** no new live previews were published. Check the build logs."]
+    if artifact is None:
+        notes.append(
+            "**Artifacts expired; rerun build** to restore this preview."
+            if artifacts
+            else "No CLI binary artifacts were produced for this run."
+        )
+    return state, artifact, notes
+
+
+def validate_artifact_run(
+    artifact: dict[str, object], run: dict[str, object], attempt: int
+) -> None:
+    positive(artifact.get("size_in_bytes"), MAX_ARCHIVE)
+    associated = table(artifact.get("workflow_run"))
+    if associated.get("id") != run["id"] or associated.get("head_sha") != run["head_sha"]:
+        raise ValueError("artifact belongs to another run")
+    if attempt <= 1:
+        return
+    created_at = artifact.get("created_at")
+    started_at = run.get("run_started_at")
+    if (
+        not isinstance(created_at, str)
+        or not isinstance(started_at, str)
+        or created_at < started_at
+    ):
+        raise ValueError("artifact belongs to an earlier run attempt")
+
+
 def publish(
     api: GitHub[TokenAuthStrategy],
     repo: str,
@@ -576,64 +631,17 @@ def publish(
             "`CLI_PLAYGROUND_DEPLOY_TOKEN` after deploying the backend. "
             "Live previews are unavailable; binaries can be downloaded below."
         )
-    completed = run.get("status") == "completed"
-    state = (
-        "building"
-        if not completed
-        else "cancelled"
-        if run.get("conclusion") == "cancelled"
-        else "failed"
-    )
-    if not completed:
-        paragraphs.append("**Building:** this revision is not ready yet.")
-    elif state == "cancelled":
-        paragraphs.append("**Build cancelled:** no new live preview was published.")
-    elif run.get("conclusion") != "success":
-        paragraphs.append(
-            "**Build failed:** no new live previews were published. Check the build logs."
-        )
-    artifacts = (
-        github_pages(api, f"{base}/actions/runs/{run_id}/artifacts", "artifacts")
-        if completed
-        else []
-    )
-    artifact = max(
-        (
-            item
-            for item in artifacts
-            if item.get("name") == ARTIFACT_NAME and not item.get("expired")
-        ),
-        key=lambda item: positive(item.get("id")),
-        default=None,
-    )
+    state, artifact, build_notes = summarize_build(api, base, run_id, run)
+    paragraphs.extend(build_notes)
     publish_failed = False
     url: str | None = None
     binary_digests: dict[str, str] = {}
-    if artifact is None:
-        expired = any(
-            item.get("name") == ARTIFACT_NAME and item.get("expired") for item in artifacts
-        )
-        if expired:
-            paragraphs.append("**Artifacts expired; rerun build** to restore this preview.")
-        elif completed:
-            paragraphs.append("No CLI binary artifacts were produced for this run.")
-        if completed and run.get("conclusion") == "success":
-            state = "failed" if expired else "empty"
-    else:
+    if artifact is not None:
         artifact_id = positive(artifact.get("id"))
         paragraphs.append(f"[Download binaries]({run_url}/artifacts/{artifact_id})")
         if configured and run.get("conclusion") == "success":
             try:
-                positive(artifact.get("size_in_bytes"), MAX_ARCHIVE)
-                associated = table(artifact.get("workflow_run"))
-                if associated.get("id") != run_id or associated.get("head_sha") != sha:
-                    raise ValueError("artifact belongs to another run")
-                if revision[1] > 1 and (
-                    not isinstance(artifact.get("created_at"), str)
-                    or not isinstance(run.get("run_started_at"), str)
-                    or str(artifact["created_at"]) < str(run["run_started_at"])
-                ):
-                    raise ValueError("artifact belongs to an earlier run attempt")
+                validate_artifact_run(artifact, run, revision[1])
                 bundle = github_request(
                     api, f"{base}/actions/artifacts/{artifact_id}/zip", limit=MAX_ARCHIVE
                 )
@@ -642,7 +650,6 @@ def publish(
                     name: hashlib.sha256(binary).hexdigest() for name, binary in binaries.items()
                 }
                 archive_catalog(bundle, sha, binary_digests)
-                count = len(binaries)
                 response = upload(
                     api,
                     repo,
@@ -660,7 +667,9 @@ def publish(
                 if response is None:
                     return None
                 url = preview_url(base_url, response, number)
-                paragraphs.append(f"[Open playground]({url}) · {count} CLIs in one shared shell.")
+                paragraphs.append(
+                    f"[Open playground]({url}) · {len(binary_digests)} CLIs in one shared shell."
+                )
             except OSError, ValueError, KeyError, zipfile.BadZipFile, subprocess.SubprocessError:
                 publish_failed = True
                 paragraphs.append(
