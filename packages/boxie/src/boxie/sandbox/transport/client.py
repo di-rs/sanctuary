@@ -155,7 +155,7 @@ class SupervisorClient:
         )
 
     async def resolve_admission(self, spec: SandboxSpec) -> ProfileSnapshot:
-        body = spec_wire(spec).model_dump(mode="json", exclude={"artifact_id"})
+        body = spec_wire(spec).model_dump(mode="json", exclude={"artifact_id", "is_job"})
         _status, response = await self._request("POST", "/v1/profiles/resolve", json=body)
         try:
             return SnapshotWire.model_validate_json(response).domain()

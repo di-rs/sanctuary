@@ -104,6 +104,46 @@ class Sandbox(SQLModel, table=True):
     cleanup_pending_since: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
 
 
+class Job(SQLModel, table=True):
+    """The owner/key receipt outlives sandbox metadata and the result bytes."""
+
+    __tablename__ = "jobs"
+    __table_args__ = (
+        UniqueConstraint("consumer_id", "idempotency_key"),
+        CheckConstraint(
+            column("state").in_(
+                [
+                    "queued",
+                    "starting",
+                    "running",
+                    "succeeded",
+                    "failed",
+                    "not_started",
+                    "outcome_unknown",
+                ]
+            ),
+            name="job_state",
+        ),
+    )
+
+    id: UUID = Field(primary_key=True)
+    consumer_id: str
+    idempotency_key: str
+    request_hash: str
+    state: str = "queued"
+    authorized_boot: UUID | None = None
+
+
+class JobResult(SQLModel, table=True):
+    __tablename__ = "job_results"
+
+    sandbox_id: UUID = Field(primary_key=True, foreign_key="sandboxes.id", ondelete="CASCADE")
+    exit_code: int
+    stdout: bytes = Field(repr=False)
+    stderr: bytes = Field(repr=False)
+    truncated: bool
+
+
 class CapacitySlot(SQLModel, table=True):
     __tablename__ = "capacity_slots"
     __table_args__ = (CheckConstraint(column("slot").between(1, 8), name="capacity_range"),)

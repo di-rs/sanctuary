@@ -32,7 +32,11 @@ Advisory secret scans must not publish credential values and run without credent
 - **Playground to Boxie:** The [private API](../packages/boxie/README.md) derives
   consumer identity from credentials and enforces resource ownership. Keep
   consumer and supervisor credentials separate and out of browser responses.
-  Operators own execution profiles; consumers select artifacts.
+  Operators own execution profiles. Job consumers select an owned artifact and
+  an exact approved command. Treat captured stdout and stderr as private
+  consumer data in PostgreSQL and backups. Enforce owner checks, byte limits and
+  expiry on result access. Preserve submission keys after result expiry and
+  require a new explicit submission when an authorized start has an unknown outcome.
 - **Artifacts to host storage:** ZIPs and executable bytes remain untrusted after
   admission. Preserve path/type validation and expanded-byte limits in
   [Boxie extraction](../packages/boxie/src/boxie/persistence/artifact_files.py)

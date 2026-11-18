@@ -10,7 +10,7 @@ from typing import cast
 from uuid import UUID, uuid4
 
 import psycopg
-from sqlalchemy import delete, func
+from sqlalchemy import delete, func, update
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.exc import TimeoutError as PoolTimeout
 from sqlmodel import col, select
@@ -23,6 +23,7 @@ from boxie.application.admission import (
 from boxie.application.ports import AdmissionProfileResolver
 from boxie.contracts.consumer import SpecWire, ViewWire, spec_wire
 from boxie.contracts.execution import SnapshotWire
+from boxie.contracts.jobs import JobResultView, JobView
 from boxie.domain.errors import BoxieError
 from boxie.domain.lifecycle import SandboxRequest, SupervisorObservation
 from boxie.domain.models import (
@@ -35,9 +36,12 @@ from boxie.domain.models import (
 from boxie.observability.events import DiagnosticSink, Transition, deliver, emit
 from boxie.observability.telemetry.context import current_request_id
 from boxie.persistence.database import SessionFactory
+from boxie.persistence.jobs import RETENTION, job_result, job_view, settle_interrupted
 from boxie.persistence.models import (
     Artifact,
     CapacitySlot,
+    Job,
+    JobResult,
     Outbox,
     Sandbox,
     SandboxArtifactRef,
@@ -127,6 +131,22 @@ class PostgresLifecycle:
     async def submit(
         self, principal: Principal, idempotency_key: str, spec: SandboxSpec
     ) -> SandboxView:
+        return await self.get(principal, await self._admit(principal, idempotency_key, spec))
+
+    async def submit_job(
+        self, principal: Principal, idempotency_key: str, spec: SandboxSpec
+    ) -> JobView:
+        return await self.get_job(principal, await self._admit(principal, idempotency_key, spec))
+
+    async def get_job(self, principal: Principal, identifier: UUID) -> JobView:
+        async with consumer_session(self.sessions) as session:
+            return await job_view(session, principal, identifier)
+
+    async def get_result(self, principal: Principal, identifier: UUID) -> JobResultView:
+        async with consumer_session(self.sessions) as session:
+            return await job_result(session, principal, identifier)
+
+    async def _admit(self, principal: Principal, idempotency_key: str, spec: SandboxSpec) -> UUID:
         if not 1 <= len(idempotency_key) <= 200:
             raise BoxieError(422, "invalid idempotency key")
         normalized = spec_wire(spec).model_dump(mode="json")
@@ -136,6 +156,18 @@ class PostgresLifecycle:
         try:
             async with consumer_session(self.sessions) as session:
                 await keyed_lock(session, json.dumps([principal.consumer_id, idempotency_key]))
+                receipt = (
+                    await session.exec(
+                        select(Job).where(
+                            Job.consumer_id == principal.consumer_id,
+                            Job.idempotency_key == idempotency_key,
+                        )
+                    )
+                ).one_or_none()
+                if receipt:
+                    if not spec.is_job or receipt.request_hash != digest:
+                        raise BoxieError(409, "idempotency key reused for different request")
+                    return receipt.id
                 old = (
                     await session.exec(
                         select(Sandbox).where(
@@ -147,7 +179,7 @@ class PostgresLifecycle:
                 if old:
                     if old.request_hash != digest:
                         raise BoxieError(409, "idempotency key reused for different request")
-                    return view(old)
+                    return old.id
                 if not await self._ready(session):
                     raise BoxieError(503, "orchestration not ready for new admission")
                 async with asyncio.timeout(self.readiness.dependency_timeout_seconds):
@@ -188,6 +220,15 @@ class PostgresLifecycle:
                     absolute_deadline=accepted + timedelta(seconds=spec.policy.max_seconds),
                 )
                 session.add(row)
+                if spec.is_job:
+                    session.add(
+                        Job(
+                            id=identifier,
+                            consumer_id=principal.consumer_id,
+                            idempotency_key=idempotency_key,
+                            request_hash=digest,
+                        )
+                    )
                 await session.flush()
                 slot.sandbox_id = identifier
                 session.add(SandboxArtifactRef(sandbox_id=identifier, artifact_id=spec.artifact_id))
@@ -202,7 +243,7 @@ class PostgresLifecycle:
                     request_id=row.creation_request_id,
                 ),
             )
-            return view(row)
+            return identifier
         except TimeoutError:
             raise BoxieError(503, "admission dependency timeout") from None
 
@@ -232,15 +273,26 @@ class PostgresLifecycle:
                 )
             )
 
-    async def get(self, principal: Principal, sandbox_id: UUID) -> SandboxView:
+    async def get(
+        self, principal: Principal, sandbox_id: UUID, *, include_jobs: bool = False
+    ) -> SandboxView:
         async with consumer_session(self.sessions) as session:
             row = await session.get(Sandbox, sandbox_id)
-            if row is None or row.consumer_id != principal.consumer_id:
+            if (
+                row is None
+                or row.consumer_id != principal.consumer_id
+                or (row.spec.get("is_job") and not include_jobs)
+            ):
                 raise BoxieError(404, "sandbox not found")
             return view(row)
 
     async def terminate(
-        self, principal: Principal, sandbox_id: UUID, reason: TerminationReason
+        self,
+        principal: Principal,
+        sandbox_id: UUID,
+        reason: TerminationReason,
+        *,
+        include_jobs: bool = False,
     ) -> SandboxView:
         async with consumer_session(self.sessions) as session:
             row = (
@@ -250,7 +302,7 @@ class PostgresLifecycle:
                     .with_for_update()
                 )
             ).one_or_none()
-            if row is None:
+            if row is None or (row.spec.get("is_job") and not include_jobs):
                 raise BoxieError(404, "sandbox not found")
             if row.cleaned_at is not None or row.desired_stop:
                 return view(row)
@@ -330,6 +382,16 @@ class PostgresLifecycle:
                 return False
             row.supervisor_boot_id = boot_id
             if expected_boot != boot_id:
+                if row.spec.get("is_job"):
+                    await session.exec(
+                        update(Job)
+                        .where(
+                            col(Job.id) == sandbox_id,
+                            col(Job.state).in_(("starting", "running")),
+                            col(Job.authorized_boot) != boot_id,
+                        )
+                        .values(state="outcome_unknown")
+                    )
                 await session.exec(
                     delete(SupervisorObservationRecord).where(
                         col(SupervisorObservationRecord.sandbox_id) == sandbox_id
@@ -440,6 +502,8 @@ class PostgresLifecycle:
                             )
                         )
             if item.removal_confirmed:
+                if row.spec.get("is_job"):
+                    await settle_interrupted(session, row.id)
                 slot = (
                     await session.exec(
                         select(CapacitySlot).where(CapacitySlot.sandbox_id == item.sandbox_id)
@@ -461,9 +525,21 @@ class PostgresLifecycle:
         return True
 
     async def purge_retained(self) -> int:
-        """Keep retry identity seven days after cleanup; never age out ownership."""
+        """Purge settled lifecycle data and expired results, keeping permanent job keys."""
         async with self.sessions() as session, session.begin():
-            cutoff = func.clock_timestamp() - timedelta(days=7)
+            cutoff = func.clock_timestamp() - RETENTION
+            # Pending outbox delivery can retain sandbox metadata beyond the
+            # result window. It does not need the consumer's output bytes.
+            expired_results = await session.exec(
+                delete(JobResult).where(
+                    col(JobResult.sandbox_id).in_(
+                        select(JobResult.sandbox_id)
+                        .join(Sandbox)
+                        .where(col(Sandbox.cleaned_at) <= cutoff)
+                        .limit(1000)
+                    )
+                )
+            )
             await session.exec(delete(Outbox).where(col(Outbox.delivered_at) < cutoff))
             rows = (
                 await session.exec(
@@ -487,4 +563,4 @@ class PostgresLifecycle:
                     await session.delete(observation)
                     await session.flush()
                 await session.delete(row)
-        return len(rows)
+        return max(len(rows), expired_results.rowcount)

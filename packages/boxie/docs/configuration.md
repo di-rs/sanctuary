@@ -123,6 +123,14 @@ are exact argument-vector allowlists; environment keys and values are allowlists
 The artifact mount must be a normalized path under `/opt/`. Optional `limits`
 may lower the defaults but cannot increase them.
 
+For a noninteractive job, add a profile such as `batch` using an approved image
+digest and an exact command entry such as
+`["/usr/bin/wc", "-c", "/opt/artifact/input.txt"]`. Tell the consumer the
+profile ID and argument vector. These approvals apply to authenticated consumers
+of this installation. Job requests supply an owned artifact and use
+the approved image environment. The profile's `limits.output_bytes` caps the
+combined stored stdout and stderr before base64 encoding.
+
 ### Reload profiles
 
 Send `SIGHUP` to validate and atomically reload all profiles. A failed reload keeps the last valid version.

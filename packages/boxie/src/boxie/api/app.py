@@ -12,9 +12,9 @@ from starlette.datastructures import Headers
 from starlette.middleware.base import RequestResponseEndpoint
 
 from boxie.api.auth import ConsumerAuth
-from boxie.api.routes import routes
+from boxie.api.routes import job_routes, routes
 from boxie.api.terminal import terminal_routes
-from boxie.application.ports import ArtifactAccess, ReadyLifecycle, TerminalAccess
+from boxie.application.ports import ArtifactAccess, JobAccess, ReadyLifecycle, TerminalAccess
 from boxie.domain.errors import BoxieError
 from boxie.observability.logging import RequestLogging
 
@@ -37,6 +37,7 @@ def create_app(
     artifacts: ArtifactAccess,
     terminal: TerminalAccess,
     *,
+    jobs: JobAccess | None = None,
     deliver: Callable[[UUID], Awaitable[None]] | None = None,
     request_completed: Callable[[str, str, str, float], None] | None = None,
 ) -> FastAPI:
@@ -93,6 +94,8 @@ def create_app(
         )
 
     app.include_router(routes(lifecycle, artifacts, deliver))
+    if jobs is not None:
+        app.include_router(job_routes(jobs, deliver))
     app.include_router(terminal_routes(lifecycle, terminal, auth))
     app.add_middleware(
         RequestLogging,

@@ -2,7 +2,7 @@
 
 from urllib.parse import quote
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from boxie.domain.models import SupervisorIdentity
 
@@ -18,6 +18,7 @@ class LifecycleFacts(WorkflowPayload):
     desired_stop: bool
     cleaned: bool
     next_deadline: float | None = None
+    is_job: bool = Field(default=False, exclude_if=lambda value: not value)
 
 
 class LifecycleResult(WorkflowPayload):

@@ -93,6 +93,17 @@ class DockerBackend:
     async def start(self, name: str) -> None:
         await self._client().containers.container(name).start()
 
+    async def attach_job(self, identifier: str) -> Stream:
+        stream = self._client().containers.container(identifier).attach(stdout=True, stderr=True)
+        return await stream.__aenter__()
+
+    async def job_exit_code(self, identifier: str) -> int:
+        result = await self._client().containers.container(identifier).wait()
+        code = result.get("StatusCode")
+        if result.get("Error") or type(code) is not int or code < 0:
+            raise RuntimeError("container exit status unavailable")
+        return code
+
     async def inspect(self, name: str) -> ContainerInfo | None:
         try:
             data = await self._client().containers.container(name).show()
@@ -123,7 +134,7 @@ class DockerBackend:
 
 
 def container_config(
-    snapshot: ProfileSnapshot, artifact: Path, labels: dict[str, str]
+    snapshot: ProfileSnapshot, artifact: Path, labels: dict[str, str], *, terminal: bool = True
 ) -> dict[str, Any]:
     limits = snapshot.limits
     return {
@@ -134,9 +145,9 @@ def container_config(
         "WorkingDir": "/workspace",
         "Env": [f"{key}={value}" for key, value in sorted(snapshot.env.items())],
         "Labels": labels,
-        "Tty": True,
-        "OpenStdin": True,
-        "AttachStdin": True,
+        "Tty": terminal,
+        "OpenStdin": terminal,
+        "AttachStdin": terminal,
         "AttachStdout": True,
         "AttachStderr": True,
         "HostConfig": {

@@ -9,8 +9,9 @@ from fastapi import APIRouter, Header, Request, Response
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 
-from boxie.application.ports import ArtifactAccess, Lifecycle
+from boxie.application.ports import ArtifactAccess, JobAccess, Lifecycle
 from boxie.contracts.consumer import CreateSandboxWire, ViewWire
+from boxie.contracts.jobs import CreateJob, JobResultView, JobView
 from boxie.domain.models import Principal, TerminationReason
 
 
@@ -66,5 +67,31 @@ def routes(
         if deliver is not None:
             await deliver(view.id)
         return ViewWire.from_domain(view)
+
+    return router
+
+
+def job_routes(jobs: JobAccess, deliver: Callable[[UUID], Awaitable[None]] | None) -> APIRouter:
+    router = APIRouter(prefix="/v1/jobs")
+
+    @router.post("", status_code=202)
+    async def submit_job(
+        body: CreateJob,
+        request: Request,
+        idempotency_key: Annotated[str, Header(min_length=1, max_length=200)],
+    ) -> JobView:
+        job = await jobs.submit_job(principal(request), idempotency_key, body.domain())
+        if deliver is not None and job.state == "queued":
+            await deliver(job.id)
+        return job
+
+    @router.get("/{job_id}")
+    async def get_job(job_id: UUID, request: Request) -> JobView:
+        return await jobs.get_job(principal(request), job_id)
+
+    @router.get("/{job_id}/result")
+    async def get_result(job_id: UUID, request: Request, response: Response) -> JobResultView:
+        response.headers["Cache-Control"] = "no-store"
+        return await jobs.get_result(principal(request), job_id)
 
     return router

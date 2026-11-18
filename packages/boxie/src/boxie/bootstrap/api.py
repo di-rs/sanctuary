@@ -112,6 +112,7 @@ def _main(metrics: Metrics, config_path: Path) -> None:
                 lifecycle,
                 supervisor,
                 supervisor,
+                jobs=lifecycle,
                 request_completed=metrics.http_completed,
                 deliver=CommandDelivery(
                     PostgresOutbox(sessions, config.identity),

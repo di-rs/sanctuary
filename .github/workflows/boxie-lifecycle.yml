@@ -40,7 +40,6 @@ jobs:
           cache-dependency-glob: uv.lock
           cache-suffix: ${{ github.job }}
       - name: 🛡️ Install signed gVisor and configure sandbox runtime
-        if: github.event_name == 'workflow_dispatch'
         run: |
           sudo apt-get update
           sudo apt-get install -y apt-transport-https ca-certificates curl gnupg
@@ -87,6 +86,13 @@ jobs:
           PYTHON
           export BOXIE_TEST_SERVER="$RUNNER_TEMP/boxie-test-server"
           uv run pytest -m integration packages/boxie/tests/test_temporal_lifecycle.py -vv --durations=10
+      - name: 🧪 Recover noninteractive jobs across supervisor crashes
+        timeout-minutes: 6
+        env:
+          BOXIE_JOB_TEST_RUNTIME: runsc
+        run: >-
+          uv run --locked pytest -m integration packages/boxie/tests/integration/test_job_recovery.py
+          packages/boxie/tests/test_job_receipts.py -vv --durations=4
       - name: 🗂️ Enable persistent journal for the collector smoke
         run: |
           sudo mkdir -p /var/log/journal

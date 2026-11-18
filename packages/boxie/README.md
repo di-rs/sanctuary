@@ -11,6 +11,10 @@ terminal, then stops the sandbox when finished. Start with the
 [consumer API guide](docs/consumer-api.md) for the request sequence and terminal
 protocol. You need a private API URL and consumer credential from the operator.
 
+For batch work, [submit a job](docs/consumer-api.md#submit-a-job-and-retrieve-its-result)
+with an approved command and artifact. Save the job ID to retrieve the outcome
+and bounded output after a supervisor restart.
+
 The default sandbox provides Bash and sample files. It has no network and limits
 CPU, memory, disk, and lifetime. Consumers select uploaded files; they cannot
 choose arbitrary commands, environment settings, or isolation profiles.

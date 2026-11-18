@@ -24,6 +24,8 @@ class ExecutionRecord(WireModel):
     accepted_at: datetime
     absolute_deadline: datetime
     boot_id: UUID
+    # A recovered pre-start job keeps the label used by its first Docker create.
+    container_boot_id: UUID | None = Field(default=None, exclude_if=lambda value: value is None)
     event_version: int = 1
     state: SandboxState = SandboxState.ACCEPTED
     reason: TerminationReason | None = None
@@ -43,6 +45,15 @@ class ExecutionRecord(WireModel):
     output_bytes: int = 0
 
     @property
+    def queued_job(self) -> bool:
+        return (
+            self.spec.is_job
+            and not self.start_uncertain
+            and not self.cleanup_pending
+            and self.state in (SandboxState.ACCEPTED, SandboxState.PROVISIONING)
+        )
+
+    @property
     def ref(self) -> SandboxRef:
         return SandboxRef(self.id, self.generation)
 
@@ -60,7 +71,7 @@ class ExecutionRecord(WireModel):
             "boxie.consumer": self.consumer_id,
             "boxie.deadline": self.absolute_deadline.isoformat(),
             "boxie.artifact": str(self.spec.artifact_id),
-            "boxie.boot": str(self.boot_id),
+            "boxie.boot": str(self.container_boot_id or self.boot_id),
         }
 
     def request(self) -> EnsureRequest:

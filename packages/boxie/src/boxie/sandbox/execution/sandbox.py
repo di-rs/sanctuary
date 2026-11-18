@@ -40,6 +40,7 @@ class SandboxExecution:
     create: asyncio.Task[None] | None = None
     terminal: ExecutionTerminal | None = None
     terminal_reader: asyncio.Task[None] | None = None
+    job_task: asyncio.Task[None] | None = None
     reconciliation: asyncio.Task[None] | None = None
     sessions: int = 0
     persisted_version: int = 0
@@ -71,7 +72,13 @@ class SandboxExecution:
             and self.sessions == 0
             and all(
                 task is None or task.done()
-                for task in (self.create, self.activity, self.reconciliation, self.terminal_reader)
+                for task in (
+                    self.create,
+                    self.activity,
+                    self.reconciliation,
+                    self.terminal_reader,
+                    self.job_task,
+                )
             )
             and not self.lock.locked()
             and not self.cleanup_lock.locked()
@@ -130,6 +137,11 @@ class SandboxExecution:
             owner._changed(record)
             if not owner._live(record):
                 await owner.remove(record.ref, owner._expiry(record) or TerminationReason.REQUESTED)
+                return
+            if record.spec.is_job:
+                if owner.jobs is None or info.running:
+                    raise RuntimeError("job launch unavailable")
+                await owner.jobs.launch(self, info.id)
                 return
             terminal = self.terminal
             if terminal is None:
@@ -192,7 +204,10 @@ async def _create(
 ) -> None:
     try:
         await docker.create(
-            record.name, container_config(record.snapshot.domain(), artifact, record.labels)
+            record.name,
+            container_config(
+                record.snapshot.domain(), artifact, record.labels, terminal=not record.spec.is_job
+            ),
         )
     except CreateRejected:
         record.creation_uncertain = False

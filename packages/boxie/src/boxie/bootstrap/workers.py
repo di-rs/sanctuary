@@ -57,7 +57,9 @@ async def embedded_workers(
     maintenance = MaintenanceActivities(delivery, repository, supervisor, artifacts)
 
     async def project(observation: SupervisorObservation) -> None:
-        before = await repository.get(observation.principal, observation.sandbox_id)
+        before = await repository.get(
+            observation.principal, observation.sandbox_id, include_jobs=True
+        )
         accepted = await repository.record_observation(observation)
         request = await repository.load_request(observation.sandbox_id)
         if not accepted or request.desired_stop or before.state == observation.state:

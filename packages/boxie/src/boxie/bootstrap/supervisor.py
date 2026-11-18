@@ -85,9 +85,11 @@ def _main(metrics: Metrics, config_path: Path) -> None:
     )
     from boxie.observability.telemetry.logging import install_asyncio_handler, log_dispatcher
     from boxie.persistence.database import database
+    from boxie.persistence.jobs import JobReceipts
     from boxie.persistence.postgres import PostgresLifecycle
     from boxie.persistence.start_guard import PostgresStartGuard
     from boxie.sandbox.docker import DockerBackend
+    from boxie.sandbox.execution.job import JobRunner
     from boxie.sandbox.execution.ownership import acquire_owner_lock
     from boxie.sandbox.execution.supervisor import Supervisor
 
@@ -114,13 +116,15 @@ def _main(metrics: Metrics, config_path: Path) -> None:
             ) as telemetry_sessions,
         ):
             artifacts = PostgresArtifactStore(sessions, config.data_dir / "artifacts")
+            docker = DockerBackend(config.docker_timeout)
             supervisor = Supervisor(
                 config,
-                DockerBackend(config.docker_timeout),
+                docker,
                 artifacts.path,
                 PostgresStartGuard(sessions),
                 lambda: datetime.now(UTC),
                 time.monotonic,
+                jobs=JobRunner(docker, JobReceipts(sessions)),
                 diagnostics=metrics.transition,
             )
 

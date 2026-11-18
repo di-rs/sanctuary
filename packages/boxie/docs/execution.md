@@ -10,6 +10,7 @@ use the [consumer API](consumer-api.md); for process settings, use
 [configuration](configuration.md).
 
 - [Isolation and lifetime](#isolation-and-lifetime)
+- [Noninteractive job recovery](#noninteractive-job-recovery)
 - [Artifacts](#artifacts)
 - [Private protocol](#private-protocol)
 - [Embedded Temporal execution](#embedded-temporal-execution)
@@ -65,6 +66,45 @@ A timed-out create request is ambiguous: Docker may still create the container
 later. Until Boxie observes and removes that owned container, cleanup stays
 pending and holds its capacity slot and artifact references. This case can require
 operator investigation.
+
+## Noninteractive job recovery
+
+An authenticated app can rejoin an accepted job by ID after a supervisor restart
+on the same host with its PostgreSQL data and supervisor volume intact. The
+[job API](consumer-api.md#submit-a-job-and-retrieve-its-result) returns the
+command's recorded outcome independently of the client connection.
+
+| Interruption | Recovery under the original job ID |
+| --- | --- |
+| Before start authorization | A worker can continue the queued job under its original deadline and pinned profile. |
+| After authorization, including before Docker receives start | If completion is unconfirmed, the client sees `outcome_unknown`. Boxie can issue start only once. |
+| After the command changes external state but before result commit | The outcome is unknown. A fresh submission can repeat the effect and requires an explicit client decision. |
+| After result commit but before acknowledgement | The client can retrieve the recorded exit status and bounded output, including a nonzero exit. |
+
+Admission reserves the usual slot and artifact reference and records the job
+and outbox command in one SQL transaction. The supervisor attaches the two
+output streams without a PTY or stdin, commits a one-time start authorization,
+then starts the container under the existing SQL stop lock. Temporal redelivery
+must pass the same authorization check. The absolute deadline and control lease
+apply throughout execution. Idle and disconnect timers apply only to terminals.
+
+One SQL commit publishes exit status and result bytes. Container cleanup
+releases accounting independently. Operational logs and workflow history carry
+identifiers and lifecycle facts. The command output is available through the
+owner-authenticated result endpoint.
+
+The [restart test](../tests/integration/test_job_recovery.py) kills the supervisor
+at each boundary and checks an append counter outside the supervisor process.
+With Docker and the checksum-pinned `BOXIE_TEST_SERVER` described under
+[verification](#verification), run it from the repository root.
+
+```sh
+uv run --locked pytest -m integration packages/boxie/tests/integration/test_job_recovery.py
+```
+
+The test fixture uses Docker's `runc` locally. The
+[pull-request workflow](../../../.github/workflows/boxie-lifecycle.yml) runs the
+same cases with `runsc`.
 
 ## Artifacts
 
@@ -129,7 +169,8 @@ opaque resource IDs. Wire schemas reject extra object fields and invalid bounds.
 ### Admission and capacity
 
 The internal accepted `spec` records the resolved profile, command, environment
-and policy alongside the artifact ID. The public API does not expose those choices.
+and policy alongside the artifact ID. Interactive clients supply the artifact
+ID. Job clients also select an operator-approved profile and argument vector.
 A repeated consumer/idempotency key returns the same ID only for the exact
 canonical specification; changed requests return 409. Capacity is eight sandboxes
 by default, including uncertain creation and pending deletion. The
