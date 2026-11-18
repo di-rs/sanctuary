@@ -1,0 +1,59 @@
+{
+  "MIT Kerberos 1.22.2": {
+    "notices": {
+      "Kerberos-1.22.2.NOTICE": "d37fcb886de2ad1c602f61c99c6893bcbd9a1949f54d9a6bb40d191204eb605e"
+    },
+    "objects": {
+      "psycopg_binary.libs/libgssapi_krb5-923083ce.so.2.2": "7355c441d02abe41d34959c6f51caa5fac17014799935673ad3cb987b03226e4",
+      "psycopg_binary.libs/libk5crypto-459efceb.so.3.1": "f4901987c99506969fb156c455d3774fad5aad7bff950fd572dfab8a59a901a6",
+      "psycopg_binary.libs/libkrb5-f18b4d11.so.3.3": "066e6f8c94967fa3f91f0c723834bde429a18a387e8ec791d34ac56c05bf975b",
+      "psycopg_binary.libs/libkrb5support-93fbab13.so.0.1": "3404c3db9216ffbbe10f13e5b65b122e1ac6744082c639891f69f0ef28711a2f"
+    },
+    "sources": [
+      "https://github.com/krb5/krb5/blob/krb5-1.22.2-final/NOTICE",
+      "https://github.com/psycopg/psycopg/blob/bced8a8993064a378d5ca852215d99f73f4c6cae/tools/ci/build_libpq.sh",
+      "https://github.com/psycopg/psycopg/blob/bced8a8993064a378d5ca852215d99f73f4c6cae/.github/workflows/packages-bin.yml"
+    ]
+  },
+  "OpenLDAP 2.6.16": {
+    "notices": {
+      "OpenLDAP-2.6.16.LICENSE": "310fe25c858a9515fc8c8d7d1f24a67c9496f84a91e0a0e41ea9975b1371e569"
+    },
+    "objects": {
+      "psycopg_binary.libs/liblber-7b3e3cc5.so.2.0.200": "42e1b323980f325b3fc45b888d026a8fd8cb669997b54885f863f50e48f8f6ef",
+      "psycopg_binary.libs/libldap-fb847fea.so.2.0.200": "841d1b8a667ab165835b08203fb10cf18904e161d5c3a8b1e4b2c623b04ad505"
+    },
+    "sources": [
+      "https://github.com/openldap/openldap/blob/OPENLDAP_REL_ENG_2_6_16/LICENSE",
+      "https://github.com/psycopg/psycopg/blob/bced8a8993064a378d5ca852215d99f73f4c6cae/tools/ci/build_libpq.sh",
+      "https://github.com/psycopg/psycopg/blob/bced8a8993064a378d5ca852215d99f73f4c6cae/.github/workflows/packages-bin.yml"
+    ]
+  },
+  "OpenSSL 3.5.9": {
+    "notices": {
+      "OpenSSL-3.5.9.LICENSE": "7d5450cb2d142651b8afa315b5f238efc805dad827d91ba367d8516bc9d49e7a"
+    },
+    "objects": {
+      "psycopg_binary.libs/libcrypto-3a0647ea.so.3": "e1a48391f48cb5f8392140b43ef9f2fa52f58321f8eadd8a83dc20f7fe398b9e",
+      "psycopg_binary.libs/libssl-6a9b88ec.so.3": "5b9d9f1923a0ffd4fd2666819846d61c5bad31f1bf3a16c65bf1fccf5aa37d17"
+    },
+    "sources": [
+      "https://github.com/openssl/openssl/blob/openssl-3.5.9/LICENSE.txt",
+      "https://github.com/psycopg/psycopg/blob/bced8a8993064a378d5ca852215d99f73f4c6cae/tools/ci/build_libpq.sh",
+      "https://github.com/psycopg/psycopg/blob/bced8a8993064a378d5ca852215d99f73f4c6cae/.github/workflows/packages-bin.yml"
+    ]
+  },
+  "PostgreSQL 18.6": {
+    "notices": {
+      "PostgreSQL-18.6.COPYRIGHT": "3d6af92ff8a4c2cdf69afb1cf44edea727922f5cd0cf8b5f72b11cdecac8fdfd"
+    },
+    "objects": {
+      "psycopg_binary.libs/libpq-e9b5c9ac.so.5.18": "ee8ad7e6497816c693acc1a9691528e3600db2dc0f5f97634653ec5c025ac565"
+    },
+    "sources": [
+      "https://github.com/postgres/postgres/blob/REL_18_6/COPYRIGHT",
+      "https://github.com/psycopg/psycopg/blob/bced8a8993064a378d5ca852215d99f73f4c6cae/tools/ci/build_libpq.sh",
+      "https://github.com/psycopg/psycopg/blob/bced8a8993064a378d5ca852215d99f73f4c6cae/.github/workflows/packages-bin.yml"
+    ]
+  }
+}

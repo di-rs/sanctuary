@@ -81,6 +81,7 @@ jobs:
         context: ${{ steps.image.outputs.context }}
         file: ${{ steps.image.outputs.file }}
         platforms: linux/amd64
+        build-args: ${{ (inputs.component == 'boxie' || inputs.component == 'cli-playground') && 'NATIVE_NOTICE_POLICY=require-complete' || '' }}
         push: 'true'
         tags: ${{ steps.image.outputs.name }}:run-${{ github.run_id }}-${{ github.run_attempt }}
         labels: |

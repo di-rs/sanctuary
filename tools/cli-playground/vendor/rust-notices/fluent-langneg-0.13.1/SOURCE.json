@@ -1,0 +1,8 @@
+{
+  "crate_sha256": "7eebbe59450baee8282d71676f3bfed5689aeab00b27545e83e5f14b1195e8b0",
+  "notices": [
+    "LICENSE-APACHE",
+    "LICENSE-MIT"
+  ],
+  "upstream_source": "https://github.com/projectfluent/fluent-langneg-rs/tree/7fdc590466ea63ca2367ac10fb1b881fe561f1a8"
+}

@@ -5,7 +5,7 @@
 !LICENSE
 !infra/
 !infra/distribution/
-!infra/distribution/python_notices.py
+!infra/distribution/**
 !packages/
 !packages/boxie/
 !packages/boxie/pyproject.toml

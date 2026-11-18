@@ -721,6 +721,9 @@ def main() -> None:
     build.add_argument("--head", required=True)
     build.add_argument("--output", required=True, type=Path)
     build.add_argument(
+        "--notices", type=Path, help="write a Linux companion ZIP for these binaries"
+    )
+    build.add_argument(
         "--catalog", action="store_true", default=os.environ.get("CLI_PLAYGROUND_CATALOG") == "1"
     )
     publication = commands.add_parser("publish")
@@ -741,20 +744,29 @@ def main() -> None:
                 with Path(summary).open("a") as stream:
                     print(selection, file=stream)
             if names:
-                subprocess.run(
-                    [
-                        "cargo",
-                        "build",
-                        "--release",
-                        "--bins",
-                        *(arg for name in names for arg in ("--package", name)),
-                    ],
-                    cwd=ROOT,
-                    check=True,
-                )
-                args.output.mkdir(parents=True, exist_ok=False)
-                for name in names:
-                    shutil.copy2(ROOT / "target/release" / name, args.output / name)
+                if args.notices:
+                    sys.path.insert(0, str(Path(__file__).resolve().parent))
+                    from preview_notices import build as build_with_notices
+
+                    try:
+                        build_with_notices(ROOT, names, args.output, args.notices, args.head)
+                    except ValueError as error:
+                        sys.exit(f"CLI preview notices: {error}")
+                else:
+                    subprocess.run(
+                        [
+                            "cargo",
+                            "build",
+                            "--release",
+                            "--bins",
+                            *(arg for name in names for arg in ("--package", name)),
+                        ],
+                        cwd=ROOT,
+                        check=True,
+                    )
+                    args.output.mkdir(parents=True, exist_ok=False)
+                    for name in names:
+                        shutil.copy2(ROOT / "target/release" / name, args.output / name)
                 if args.catalog:
                     from cli_playground.catalog_build import build_catalog
 

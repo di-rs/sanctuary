@@ -19,9 +19,11 @@ FROM python:3.15-slim
 WORKDIR /app
 COPY --from=build /app/.venv /app/.venv
 COPY tools/cli-playground/alembic.ini /app/alembic.ini
-RUN --network=none --mount=type=bind,source=infra/distribution/python_notices.py,target=/tmp/python_notices.py \
+ARG NATIVE_NOTICE_POLICY=report
+RUN --network=none --mount=type=bind,source=infra/distribution,target=/tmp/distribution \
     --mount=type=bind,source=LICENSE,target=/tmp/Sanctuary.LICENSE \
-    /app/.venv/bin/python -IS /tmp/python_notices.py cli-playground /tmp/Sanctuary.LICENSE /usr/share/sanctuary/notices
+    /app/.venv/bin/python -IS /tmp/distribution/python_notices.py cli-playground /tmp/Sanctuary.LICENSE /usr/share/sanctuary/notices \
+    --native-policy "$NATIVE_NOTICE_POLICY"
 ENV PATH="/app/.venv/bin:$PATH"
 EXPOSE 8000
 CMD ["uvicorn", "cli_playground.app:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--ws-max-size", "65536", "--no-proxy-headers"]

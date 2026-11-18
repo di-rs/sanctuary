@@ -135,11 +135,21 @@ def test_release_container_notices(component: str, dockerfile: str, context: str
                         test -s Sanctuary.LICENSE
                         test -s CPython.LICENSE
                         test -s os-packages.tsv
+                        grep -q '^pip ' python-base-packages.txt
+                        test -s python-base/pip-*/pip/_vendor/vendor.txt
+                        test -s python-base/pip-*/pip/_vendor/packaging/LICENSE.APACHE
+                        grep -q '"complete": false' native-wheel-review.json
+                        grep -q 'psycopg-binary' native-wheel-review.json
+                        test -s python/psycopg_binary-*/native/reviewed/PostgreSQL-18.6.COPYRIGHT
+                        test -s python/psycopg_binary-*/native/reviewed/OpenSSL-3.5.9.LICENSE
+                        test -s python/psycopg_binary-*/native/reviewed/Kerberos-1.22.2.NOTICE
+                        test -s python/psycopg_binary-*/native/reviewed/OpenLDAP-2.6.16.LICENSE
                         grep -q '^psycopg-binary ' python-packages.txt
                         ! grep -Eq '^(pytest|ruff|mypy) ' python-packages.txt || exit 1
                         if [ "$1" = boxie ]; then
                             test -s capture/LICENSE.zig
                             test -s capture/COPYRIGHT.musl
+                            grep -q 'pkg:cargo/temporalio-client' native-wheel-review.json
                         else
                             set -- /app/.venv/lib/python*/site-packages/cli_playground/static
                             cmp frontend/licenses.md "$1/licenses.md"
@@ -156,3 +166,30 @@ def test_release_container_notices(component: str, dockerfile: str, context: str
         )
     finally:
         subprocess.run(["docker", "image", "rm", tag], check=True, timeout=30)
+
+
+@pytest.mark.integration
+def test_release_build_refuses_unverified_native_wheel_inputs() -> None:
+    result = subprocess.run(
+        [
+            "docker",
+            "build",
+            "--platform",
+            "linux/amd64",
+            "--progress=plain",
+            "--build-arg",
+            "NATIVE_NOTICE_POLICY=require-complete",
+            "-f",
+            "packages/boxie/infra/Boxie.Dockerfile",
+            ".",
+        ],
+        cwd=ROOT,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        check=False,
+        timeout=300,
+    )
+    assert result.returncode != 0, "the release build accepted unverified native components"
+    assert "Native wheel notices require verification" in result.stdout, result.stdout
+    assert "psycopg-binary" in result.stdout, result.stdout

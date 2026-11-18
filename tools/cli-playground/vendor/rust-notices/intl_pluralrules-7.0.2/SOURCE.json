@@ -1,0 +1,8 @@
+{
+  "crate_sha256": "078ea7b7c29a2b4df841a7f6ac8775ff6074020c6776d48491ce2268e068f972",
+  "notices": [
+    "LICENSE-APACHE",
+    "LICENSE-MIT"
+  ],
+  "upstream_source": "https://github.com/zbraniecki/pluralrules/tree/d0715d5b7cca72e228d6e6c4de154bd30dfdd06a/intl_pluralrules"
+}

@@ -23,6 +23,9 @@ on:
       - '!**/*.py'
       - '!**/*.pyi'
       - '!tools/cli-playground/**'
+      - 'tools/cli-playground/preview_notices.py'
+      - 'tools/cli-playground/vendor/rust-notices/**'
+      - '.github/workflows/cli-playground.yml'
 
 permissions:
   contents: read
@@ -60,6 +63,7 @@ jobs:
         with:
           cache-bin: false
       - name: 🏗️ Build affected Linux CLI executables
+        id: build
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -67,11 +71,31 @@ jobs:
           CLI_PLAYGROUND_CATALOG: ${{ vars.CLI_PLAYGROUND_CATALOG }}
         run: |
           uv run --no-dev python tools/cli-playground/preview_ci.py build \
-            --base "$BASE_SHA" --head "$HEAD_SHA" --output "$RUNNER_TEMP/cli-playground-artifact"
+            --base "$BASE_SHA" --head "$HEAD_SHA" --output "$RUNNER_TEMP/cli-playground-artifact" \
+            --notices "$RUNNER_TEMP/third-party-notices.zip"
+          if [[ -d "$RUNNER_TEMP/cli-playground-artifact" ]]; then
+            test -s "$RUNNER_TEMP/third-party-notices.zip"
+            echo 'has-preview=true' >> "$GITHUB_OUTPUT"
+          fi
+      - name: 📄 Upload revision-bound companion notices
+        if: steps.build.outputs.has-preview == 'true'
+        id: notices
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: cli-playground-notices-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/third-party-notices.zip
+          if-no-files-found: error
+          retention-days: 7
       - name: 📤 Upload cli-playground CLI binaries
+        if: steps.build.outputs.has-preview == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: cli-playground-binaries
           path: ${{ runner.temp }}/cli-playground-artifact/
-          if-no-files-found: ignore
+          if-no-files-found: error
           retention-days: 7
+      - name: Link the companion notices from this build
+        if: steps.build.outputs.has-preview == 'true'
+        env:
+          NOTICE_URL: ${{ steps.notices.outputs.artifact-url }}
+        run: printf '\n[Download third-party notices](%s) for these preview binaries.\n' "$NOTICE_URL" >> "$GITHUB_STEP_SUMMARY"
