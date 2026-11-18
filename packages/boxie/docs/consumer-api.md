@@ -1,10 +1,11 @@
 # Boxie consumer API
 
-Use this private HTTP and WebSocket API to upload files, create a sandbox, and
-connect a terminal. You need the API URL and a consumer secret from your operator.
-Keep the secret on your server; do not send it to a browser.
+Upload an artifact, then run an approved job over HTTP or connect an interactive
+terminal over WebSocket. You need the private API URL and a consumer secret
+from your operator. Keep the secret on your server.
 
 - [Manage artifacts and sandboxes](#manage-artifacts-and-sandboxes)
+- [Submit a job and retrieve its result](#submit-a-job-and-retrieve-its-result)
 - [Connect a terminal](#connect-a-terminal)
 - [Check service health](#check-service-health)
 - [Follow a request through logs](#follow-a-request-through-logs)
@@ -59,6 +60,49 @@ with the previously accepted specification.
 
 An API restart preserves resource IDs, idempotency records, and capacity accounting.
 The supervisor continues draining terminal output independently.
+
+## Submit a job and retrieve its result
+
+1. Upload the input ZIP and save its artifact ID. Ask the operator for a job
+   profile granted to your consumer and the exact command arguments it permits.
+2. Send `POST /v1/jobs` with an `Idempotency-Key`. Save the key before sending.
+   For example, an operator can approve the following command to count bytes in
+   an uploaded `input.txt`.
+
+   ```json
+   {
+     "artifact_id": "11111111-1111-4111-8111-111111111111",
+     "profile_id": "batch",
+     "command": ["/usr/bin/wc", "-c", "/opt/artifact/input.txt"]
+   }
+   ```
+
+3. Save the `id` from the HTTP 202 response. Poll `GET /v1/jobs/{id}` from any
+   client authenticated as the same consumer. Both calls return `id` and `state`.
+   If you lose the submission response, repeat the identical request with its
+   original key. Changing the input or reusing a job key for a sandbox returns 409.
+4. On `succeeded` or `failed`, read `GET /v1/jobs/{id}/result`. Decode
+   `stdout_base64` and `stderr_base64` independently. The response includes the
+   integer `exit_code` and a `truncated` flag. Boxie keeps the first bytes it
+   reads across both streams up to one shared limit and drains the rest until exit.
+
+| State | What the client can establish |
+| --- | --- |
+| `queued` | Boxie accepted the request. A worker can still claim the first start before the deadline. |
+| `starting` | Boxie committed start authorization. Docker's acknowledgement may still be pending. |
+| `running` | Docker acknowledged start. The command may finish before the next poll. |
+| `succeeded` / `failed` | Boxie committed the output and observed exit code. Zero means success. |
+| `not_started` | Execution ended before start authorization. |
+| `outcome_unknown` | The command may have changed external state and may still be running. Confirm cleanup and check the effect before submitting again with a fresh key. |
+
+The result endpoint returns 409 while a result is unavailable and 410 once
+the seven-day window after confirmed cleanup expires. The job ID, terminal
+state and submission key remain available after expiry. A foreign job ID returns
+404 on both reads. New submissions return 403 for a missing profile grant and
+429 when execution capacity or result storage is full. A result download can
+also return 429 while other downloads are in progress. Retry with the original
+key for submission or the same URL for download. See the
+[job recovery contract](execution.md#noninteractive-job-recovery).
 
 ## Connect a terminal
 

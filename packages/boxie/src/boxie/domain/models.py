@@ -38,6 +38,7 @@ class SandboxSpec:
     command: tuple[str, ...]
     env: Mapping[str, str]
     policy: LifetimePolicy = field(default_factory=LifetimePolicy)
+    is_job: bool = False
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "env", MappingProxyType(dict(self.env)))

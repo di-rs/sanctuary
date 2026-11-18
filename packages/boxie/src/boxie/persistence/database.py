@@ -38,6 +38,7 @@ async def database(
         max_overflow=max_overflow,
         pool_timeout=pool_timeout,
         pool_pre_ping=True,
+        hide_parameters=True,
         connect_args={"connect_timeout": 5},
     )
     try:

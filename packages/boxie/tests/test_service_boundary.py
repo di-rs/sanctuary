@@ -93,6 +93,21 @@ def test_api_file_errors_hide_credentials_and_copy_consumers(tmp_path: Path) -> 
     path.write_text(json.dumps(values))
     loaded = load_configuration(path)
     assert loaded.api.consumers["one"] == b"consumer-one-secret"
+    assert not loaded.api.job_policy.profile_grants
+    path.write_text(json.dumps({**values, "job_policy": {"profile_grants": {"two": ["batch"]}}}))
+    with pytest.raises(ValueError, match="invalid configuration"):
+        load_configuration(path)
+    path.write_text(
+        json.dumps(
+            {
+                **values,
+                "job_policy": {"profile_grants": {"one": ["batch"]}, "consumer_downloads": 1},
+            }
+        )
+    )
+    loaded = load_configuration(path)
+    assert loaded.api.job_policy.profile_grants == {"one": {"batch"}}
+    assert loaded.api.job_policy.consumer_downloads == 1
     original = {"one": b"consumer-one-secret"}
     api = ApiConfig(release="process-release", consumers=original)
     original["one"] = b"changed"

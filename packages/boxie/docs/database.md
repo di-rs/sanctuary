@@ -93,6 +93,20 @@ new request. Delivered outbox records remain for seven days after delivery.
 It never removes pending cleanup, live slots/references, or undelivered commands.
 Artifact retirement tombstones remain; a retired UUID cannot be resurrected.
 
+Job IDs, consumer-scoped keys, request hashes and terminal outcomes remain in
+`jobs` after lifecycle cleanup and result expiry. The API enforces the seven-day
+result window on reads. The retention sweep deletes expired `job_results` bytes
+even if lifecycle bookkeeping is still retained. Protect that table and database
+backups as consumer output. Once any job is admitted, PostgreSQL refuses to
+downgrade past `0007_job_recovery`. The check also protects receipts whose
+output and sandbox metadata have expired. Keep the schema when rolling back
+application code.
+
+Apply migrations through `0008_job_output_budget`, then upgrade the supervisor
+before enabling the job API. The migration accounts for already admitted jobs
+at their pinned output limit and for committed results at their stored byte
+count. A lower budget blocks new jobs until enough bytes are available.
+
 The supervisor owns artifact bytes. `PostgresArtifactStore` publishes complete fsynced
 files under unique storage UUIDs before SQL publication, and never writes local
 JSON metadata. Retirement/collection uses the same row lock as admission.

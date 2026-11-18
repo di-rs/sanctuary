@@ -32,7 +32,13 @@ Advisory secret scans must not publish credential values and run without credent
 - **Playground to Boxie:** The [private API](../packages/boxie/README.md) derives
   consumer identity from credentials and enforces resource ownership. Keep
   consumer and supervisor credentials separate and out of browser responses.
-  Operators own execution profiles; consumers select artifacts.
+  Operators grant job profiles to individual consumer IDs. Job consumers
+  select an owned artifact and an exact command from a granted profile. Treat
+  captured stdout and stderr as private consumer data in PostgreSQL and backups.
+  Reserve output storage at admission and bound concurrent downloads per consumer
+  and across the installation's API process. Enforce ownership and expiry on
+  reads. Preserve submission keys after result expiry and
+  require a new explicit submission when an authorized start has an unknown outcome.
 - **Artifacts to host storage:** ZIPs and executable bytes remain untrusted after
   admission. Preserve path/type validation and expanded-byte limits in
   [Boxie extraction](../packages/boxie/src/boxie/persistence/artifact_files.py)
@@ -58,7 +64,10 @@ Advisory secret scans must not publish credential values and run without credent
 - **Sandbox to host:** Only the supervisor receives Docker access. Preserve
   [runsc isolation](../packages/boxie/src/boxie/sandbox/docker.py), the non-root
   user, disabled network, read-only root and artifacts, dropped capabilities,
-  and resource limits, including during recovery.
+  and resource limits, including during recovery. The supervisor supplies the
+  read-only job capture executable. The workload can write to its output pipes.
+  Only the capture process should be able to publish the completion record on
+  the Docker stream.
 - **PR metadata to repository labels:** The pinned third-party label action reads
   trusted base-revision configuration with contents-read and PR-write permissions.
   Treat PR bodies, filenames, and event payloads as data; never execute PR code or

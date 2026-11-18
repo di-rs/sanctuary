@@ -63,6 +63,13 @@ Its operator configuration contains:
   "consumer_credential_files": {
     "example-consumer": "/run/secrets/consumer"
   },
+  "job_policy": {
+    "profile_grants": {"example-consumer": ["batch"]},
+    "consumer_result_bytes": 268435456,
+    "total_result_bytes": 1073741824,
+    "consumer_downloads": 2,
+    "total_downloads": 4
+  },
   "release": "boxie",
   "identity": {
     "installation_id": "b18283b1-dc32-46e7-8da5-7aa380043685",
@@ -88,6 +95,22 @@ Each credential is a private regular file with the same restrictions as the supe
 secret. Consumer credentials must be unique and distinct from the supervisor secret.
 The API resolves consumer identity from Bearer authentication and never accepts
 consumer identity in a sandbox request body.
+
+Grant each consumer the job profiles it may submit in `job_policy.profile_grants`.
+An omitted consumer starts with no job profiles. Restart the API to apply a
+grant change. Removing a grant prevents new submissions and preserves access to
+previously accepted jobs and their results. On a configuration generator rerun,
+omitting `--job-profile` preserves the current grants. Passing one or more
+`--job-profile` arguments replaces the list for the selected `--consumer-id`.
+To revoke the last grant, set that consumer's list to `[]` in `api.json` and
+restart the API.
+
+The example shows the default result budgets. PostgreSQL reserves the profile's
+output limit for each pending job, then charges the actual combined stdout and
+stderr bytes until the result is deleted. By default one consumer can reserve
+256 MiB and all consumers combined can reserve 1 GiB. The API process allows
+two simultaneous result downloads for one consumer and four in total. A slow
+client holds its slot until the response finishes or the connection closes.
 
 HTTP and WebSocket redirects are disabled for supervisor calls. HTTP control bodies
 and responses are bounded to 64 KiB; uploads stream in chunks of at most 64 KiB
@@ -122,6 +145,17 @@ image IDs (`sha256:` plus 64 lowercase hex digits) are also accepted. Commands
 are exact argument-vector allowlists; environment keys and values are allowlists.
 The artifact mount must be a normalized path under `/opt/`. Optional `limits`
 may lower the defaults but cannot increase them.
+
+For a noninteractive job, add a profile such as `batch` using an approved image
+digest and an exact command entry such as
+`["/usr/bin/wc", "-c", "/opt/artifact/input.txt"]`. Grant `batch` in the API
+configuration and give the consumer the profile ID and argument vector.
+Job requests supply an owned artifact and use
+the approved image environment. The profile's `limits.output_bytes` caps the
+combined stored stdout and stderr before base64 encoding.
+Job profiles need `limits.pids` of at least 2 and `limits.nofile` of at least 9.
+The capture program runs alongside the command and opens three pipes before launch.
+Boxie rejects new jobs below either minimum with HTTP 422.
 
 ### Reload profiles
 

@@ -4,7 +4,9 @@ Shish currently runs locally; Boxie's shipped sandbox uses Bash. This proposal
 would run shish as an operator-approved program inside Boxie's existing sandbox
 lifecycle, keeping Temporal connectivity in Boxie. Durable jobs would require
 explicit submission and a declared recovery policy; ordinary terminal commands
-would not become durable automatically. These plans are not implemented.
+would not become durable automatically. Boxie now provides a
+[noninteractive job API](../../boxie/docs/execution.md#noninteractive-job-recovery)
+independently of the proposed shish integration.
 
 - [Integration boundary](#existing-boundary-and-first-integration)
 - [Recovery behavior](#what-recovery-means)
@@ -33,7 +35,7 @@ image or admitted artifact location instead.
 ```mermaid
 flowchart LR
     User[Consumer and terminal client] --> API[Boxie API: admission and ownership]
-    API --> DB[(SQL: admission and outbox)]
+    API --> DB[(SQL: admission, jobs, results and outbox)]
     API <--> Supervisor[Boxie supervisor and Python workers]
     DB <--> Supervisor
     Supervisor <--> Temporal[Temporal: lifecycle history]
@@ -42,12 +44,12 @@ flowchart LR
     Supervisor <-->|PTY bytes| Shell[Shish inside sandbox]
     Docker --> Shell
     Shell --> Programs[Approved image and artifact programs]
-    Supervisor -.-> Jobs[Proposed durable-job records and output store]
 ```
 
 Solid connections represent existing Boxie mechanisms, with shish as the proposed
-sandbox program. The dotted job store is future work. Temporal receives lifecycle
-identifiers and nonsecret facts; terminal bytes take the supervisor relay path.
+sandbox program. Temporal receives lifecycle identifiers and nonsecret facts.
+Terminal bytes travel through the supervisor relay, and bounded job results
+are committed to PostgreSQL.
 
 ## What recovery means
 
@@ -75,8 +77,9 @@ about whether a shell command completed successfully.
 
 Prefer runtime-mediated submission: a trusted Boxie worker owns the job lifecycle
 and runs the admitted workload inside a sandbox. The shell is a workload frontend,
-not a Temporal worker. Submission still needs a reviewed product/API contract;
-this document does not invent or expose an endpoint.
+and Boxie runs the Temporal workers. The shipped
+[job contract](../../boxie/docs/consumer-api.md#submit-a-job-and-retrieve-its-result)
+defines submission and result retrieval.
 
 | Design | Benefit | Cost and decision |
 | --- | --- | --- |
@@ -165,8 +168,9 @@ Temporal history retention.
 
 ## Implementation stages
 
-All stages below are unimplemented. D01–D02 cover running shish in Boxie;
-D03 onward require an explicit durable-job product and submission contract.
+D01–D02 cover running shish in Boxie. Boxie's first recovery milestone implements
+parts of D03–D05 for a single attempt. The broader stages below describe the
+platform design and its acceptance criteria.
 Dependencies indicate the order in which the guarantees can be established.
 
 | ID | Scope and dependency | Acceptance evidence |
@@ -183,5 +187,5 @@ Dependencies indicate the order in which the guarantees can be established.
 | D10 | Credential/data-flow and operational release gate; depends on the selected implementation scope. | No sandbox control credentials; sensitive payload/history audit, restore drills, operator runbooks, and retention checks. |
 
 The design reuses Boxie's [workflow payload boundary](../../boxie/src/boxie/temporal/contracts.py)
-and Python Temporal workers. No recovery experiment or production rollout is
-claimed here.
+and Python Temporal workers. Boxie's execution contract records the verified
+recovery cases.

@@ -36,10 +36,17 @@ class ProfileRequest(WireModel):
 class SpecWire(ProfileRequest):
     artifact_id: UUID
     policy: PolicyWire = Field(default_factory=PolicyWire)
+    # Preserve the canonical spec and idempotency hashes of existing terminal admissions.
+    is_job: bool = Field(default=False, exclude_if=lambda value: not value)
 
     def domain(self) -> SandboxSpec:
         return SandboxSpec(
-            self.artifact_id, self.profile_id, self.command, self.env, self.policy.domain()
+            self.artifact_id,
+            self.profile_id,
+            self.command,
+            self.env,
+            self.policy.domain(),
+            self.is_job,
         )
 
 
@@ -87,4 +94,5 @@ def spec_wire(spec: SandboxSpec) -> SpecWire:
         command=spec.command,
         env=dict(spec.env),
         policy=PolicyWire(**asdict(spec.policy)),
+        is_job=spec.is_job,
     )

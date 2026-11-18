@@ -2,19 +2,22 @@
 
 from collections.abc import Awaitable, Callable, Mapping
 from types import MappingProxyType
+from typing import Self
 from uuid import UUID
 
 from fastapi import FastAPI, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, PlainTextResponse
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from starlette.datastructures import Headers
 from starlette.middleware.base import RequestResponseEndpoint
 
 from boxie.api.auth import ConsumerAuth
-from boxie.api.routes import routes
+from boxie.api.downloads import JobDownloads
+from boxie.api.routes import job_routes, routes
 from boxie.api.terminal import terminal_routes
-from boxie.application.ports import ArtifactAccess, ReadyLifecycle, TerminalAccess
+from boxie.application.admission import JobPolicy
+from boxie.application.ports import ArtifactAccess, JobAccess, ReadyLifecycle, TerminalAccess
 from boxie.domain.errors import BoxieError
 from boxie.observability.logging import RequestLogging
 
@@ -24,11 +27,18 @@ class ApiConfig(BaseModel):
 
     release: str = Field(min_length=1)
     consumers: Mapping[str, bytes] = Field(min_length=1, repr=False)
+    job_policy: JobPolicy = Field(default_factory=JobPolicy)
 
     @field_validator("consumers")
     @classmethod
     def copy_credentials(cls, value: Mapping[str, bytes]) -> Mapping[str, bytes]:
         return MappingProxyType(dict(value))
+
+    @model_validator(mode="after")
+    def validate_grants(self) -> Self:
+        if self.job_policy.profile_grants.keys() - self.consumers.keys():
+            raise ValueError("job profile grants require a configured consumer")
+        return self
 
 
 def create_app(
@@ -37,6 +47,7 @@ def create_app(
     artifacts: ArtifactAccess,
     terminal: TerminalAccess,
     *,
+    jobs: JobAccess | None = None,
     deliver: Callable[[UUID], Awaitable[None]] | None = None,
     request_completed: Callable[[str, str, str, float], None] | None = None,
 ) -> FastAPI:
@@ -93,6 +104,10 @@ def create_app(
         )
 
     app.include_router(routes(lifecycle, artifacts, deliver))
+    if jobs is not None:
+        downloads = JobDownloads(config.job_policy)
+        app.include_router(job_routes(jobs, deliver, downloads))
+        app.add_middleware(downloads.middleware)
     app.include_router(terminal_routes(lifecycle, terminal, auth))
     app.add_middleware(
         RequestLogging,

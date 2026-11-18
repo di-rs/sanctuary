@@ -107,3 +107,99 @@ def test_request_correlation_migration_preserves_existing_rows(
 
     asyncio.run(verify())
     command.check(config)
+
+
+@pytest.mark.integration
+def test_job_migration_preserves_receipts_and_rebuilds_reservations(
+    postgres_dsn: str, tmp_path: Path
+) -> None:
+    import asyncio
+    from dataclasses import replace
+    from datetime import UTC, datetime, timedelta
+    from uuid import uuid4
+
+    from boxie.domain.lifecycle import EnsureRequest, SupervisorObservation
+    from boxie.domain.models import SandboxState
+    from boxie.persistence.jobs import JobReceipts
+    from boxie.persistence.models import Job, JobResult, Outbox, Sandbox
+    from database_support import OWNER, database, upload
+    from sqlalchemy import func, update
+    from sqlalchemy.exc import IntegrityError
+    from sqlmodel import col
+
+    async def exercise() -> None:
+        async with database(postgres_dsn, tmp_path) as (life, artifacts, sessions, supervisor):
+            spec = replace(await upload(artifacts), is_job=True)
+            queued = await life.submit_job(OWNER, "queued", spec)
+            done = await life.submit_job(OWNER, "done", spec)
+            request = EnsureRequest.from_request(await life.load_request(done.id))
+            receipts, boot = JobReceipts(sessions), uuid4()
+            assert await life.bind_supervisor_boot(
+                OWNER, supervisor.identity, done.id, 1, None, boot
+            )
+            assert await receipts.authorize(request, boot)
+            await receipts.started(done.id, boot)
+            await receipts.complete(
+                boot,
+                JobResult(
+                    sandbox_id=done.id, exit_code=7, stdout=b"out", stderr=b"err", truncated=False
+                ),
+            )
+            config = migration_config(postgres_dsn)
+            await asyncio.to_thread(command.downgrade, config, "0007_job_recovery")
+            with pytest.raises(IntegrityError, match="cannot_downgrade_with_job_receipts"):
+                await asyncio.to_thread(command.downgrade, config, "0006_request_correlation")
+            await asyncio.to_thread(command.upgrade, config, "head")
+            async with sessions() as session:
+                active = await session.get(Sandbox, queued.id)
+                retained = await session.get(Sandbox, done.id)
+                assert (
+                    active
+                    and active.reserved_result_bytes == request.profile_snapshot.limits.output_bytes
+                )
+                assert retained and retained.reserved_result_bytes == 6
+            assert (await life.submit_job(OWNER, "done", spec)).id == done.id
+            assert (await life.get_result(OWNER, done.id)).exit_code == 7
+
+            # Exercise the same guard after the real retention sweep removes
+            # every result and lifecycle row and leaves only permanent job keys.
+            assert await life.bind_supervisor_boot(
+                OWNER, supervisor.identity, queued.id, 1, None, boot
+            )
+            for identifier in (queued.id, done.id):
+                assert await life.record_observation(
+                    SupervisorObservation(
+                        identifier,
+                        OWNER,
+                        supervisor.identity,
+                        1,
+                        boot,
+                        1,
+                        datetime.now(UTC),
+                        SandboxState.TERMINATED,
+                        False,
+                        removal_confirmed=True,
+                    )
+                )
+            expired = func.clock_timestamp() - timedelta(days=8)
+            async with sessions.begin() as session:
+                await session.exec(
+                    update(Sandbox)
+                    .where(col(Sandbox.id).in_((queued.id, done.id)))
+                    .values(cleaned_at=expired)
+                )
+                await session.exec(
+                    update(Outbox)
+                    .where(col(Outbox.sandbox_id).in_((queued.id, done.id)))
+                    .values(delivered_at=expired)
+                )
+            assert await life.purge_retained() == 2
+            with pytest.raises(IntegrityError, match="cannot_downgrade_with_job_receipts"):
+                await asyncio.to_thread(command.downgrade, config, "0006_request_correlation")
+            async with sessions() as session:
+                assert (
+                    await session.get(Job, done.id) and await session.get(Sandbox, done.id) is None
+                )
+            assert (await life.submit_job(OWNER, "done", spec)).id == done.id
+
+    asyncio.run(exercise())

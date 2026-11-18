@@ -149,6 +149,7 @@ class LifecycleActivities:
             desired_stop=request.desired_stop
             or row.state in ("terminating", "terminated", "failed"),
             cleaned=row.cleaned_at is not None,
+            is_job=request.spec.is_job,
         )
 
     @activity.defn
@@ -159,7 +160,9 @@ class LifecycleActivities:
         await self._bind(request)
         observation = await self.supervisor.ensure_ready(EnsureRequest.from_request(request))
         await self._record(observation)
-        if observation.state != SandboxState.READY:
+        if observation.state != SandboxState.READY and not (
+            request.spec.is_job and observation.reason == TerminationReason.EXITED
+        ):
             raise ApplicationError(
                 "provisioning stopped", type="ProvisioningStopped", non_retryable=True
             )
@@ -195,7 +198,7 @@ class LifecycleActivities:
                 observation = await self.supervisor.inspect(ref)
         if observation.reason is not None:
             await self.repository.terminate(
-                request.principal, request.sandbox_id, observation.reason
+                request.principal, request.sandbox_id, observation.reason, include_jobs=True
             )
         await self._record(observation)
         return await self.load_request(sandbox_id)
@@ -213,6 +216,7 @@ class LifecycleActivities:
                     "orchestrator_shutdown": "supervisor_shutdown",
                 }.get(request.reason, request.reason)
             ),
+            include_jobs=True,
         )
 
     @activity.defn

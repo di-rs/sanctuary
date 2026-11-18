@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from uuid import uuid4
 
+from boxie.application.admission import JobPolicy
 from boxie.bootstrap.config import SupervisorConfig
 from boxie.domain.models import Principal, SandboxSpec
 from boxie.persistence.database import SessionFactory
@@ -59,18 +60,24 @@ async def database(
                 async def healthy() -> bool:
                     return True
 
-                lifecycle = PostgresLifecycle(sessions, resolver, config.identity, healthy)
+                lifecycle = PostgresLifecycle(
+                    sessions,
+                    resolver,
+                    config.identity,
+                    healthy,
+                    job_policy=JobPolicy(profile_grants={"one": frozenset({"shell"})}),
+                )
                 artifacts = PostgresArtifactStore(sessions, root / "artifacts")
                 yield lifecycle, artifacts, sessions, config
 
 
-async def upload(artifacts: PostgresArtifactStore) -> SandboxSpec:
+async def upload(artifacts: PostgresArtifactStore, owner: Principal = OWNER) -> SandboxSpec:
     content = bundle()
 
     async def chunks() -> AsyncIterator[bytes]:
         yield content
 
-    result = await artifacts.put(OWNER, uuid4(), hashlib.sha256(content).hexdigest(), chunks())
+    result = await artifacts.put(owner, uuid4(), hashlib.sha256(content).hexdigest(), chunks())
     return SandboxSpec(result.artifact.id, "shell", ("/bin/sh",), {})
 
 

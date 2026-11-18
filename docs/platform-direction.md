@@ -11,10 +11,12 @@ Boxie is the platform runtime. It owns sandbox execution and isolation. Shish
 is a shell application in this repository. It embeds Brush for local shell
 execution.
 
-Separate applications and services will manage consumer accounts, consumer API
-tokens, and environment setup. Their names, interfaces, and deployment boundaries
-are not settled. Runtime enforcement will still need to honor the consumer and
-execution policies established through those services.
+An account will register an app and grant it access to execution environments
+and integrations. Each account–app connection will have a stable consumer
+identity so credential rotation preserves ownership of its jobs. Operators
+provision consumer identities and credentials today and explicitly grant the
+job profiles each consumer can use. Self-service registration, integration
+grants and environment setup are future platform work.
 
 CLI playground is an internal tool and Sanctuary's first consumer. Its job is to
 let people try repository commands in a browser. As the platform develops, it
@@ -23,7 +25,8 @@ Sanctuary's runtime or account model.
 
 ## Where the implementation stands
 
-Today, Boxie exposes a private consumer API and runs bounded Bash sandboxes.
+Today, Boxie exposes a private consumer API for bounded Bash terminals and
+[noninteractive jobs](../packages/boxie/docs/execution.md#noninteractive-job-recovery).
 Temporal workers in its supervisor coordinate provisioning and cleanup; they do
 not make shell processes or terminal sessions resumable after a supervisor restart.
 The playground connects directly to that API, uploads preview binaries, and owns
@@ -78,6 +81,5 @@ can change files or external systems before its result is lost; rerunning it can
 repeat those effects. See Boxie's [execution and recovery contract](../packages/boxie/docs/execution.md)
 for its current guarantees.
 
-The [shish durability plan](../packages/shish/docs/durability.md) covers the
-unimplemented Boxie integration and explicit durable jobs, including persistence,
-retry policy, cancellation, and staged acceptance criteria.
+The [shish durability plan](../packages/shish/docs/durability.md) covers approved
+shell integration and later work on retries, cancellation, and checkpoints.

@@ -5,7 +5,7 @@ import logging
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Literal, Protocol
+from typing import TYPE_CHECKING, Literal, Protocol
 from uuid import UUID, uuid4
 
 from boxie.domain.errors import BoxieError
@@ -29,11 +29,14 @@ from boxie.observability.events import DiagnosticSink, Transition, deliver, emit
 from boxie.observability.telemetry.context import bind_context, request_context
 from boxie.sandbox.docker import ExecutionDocker
 from boxie.sandbox.execution.journal import ExecutionJournal, ExecutionRecord
-from boxie.sandbox.execution.reconcile import reconcile_removal
+from boxie.sandbox.execution.reconcile import discard_queued_container, reconcile_removal
 from boxie.sandbox.execution.retention import MAX_RECORDS, compact
 from boxie.sandbox.execution.safety import ExecutionSafety
 from boxie.sandbox.execution.sandbox import Deadlines, SandboxExecution, TerminalSession
 from boxie.sandbox.profiles import ProfileRegistry
+
+if TYPE_CHECKING:
+    from boxie.sandbox.execution.job import JobRunner
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +71,7 @@ class Supervisor:
         clock: Callable[[], datetime],
         monotonic: Callable[[], float],
         *,
+        jobs: JobRunner | None = None,
         diagnostics: DiagnosticSink = emit,
     ) -> None:
         self.config, self.docker, self.artifact_path, self.guard = (
@@ -78,6 +82,7 @@ class Supervisor:
         )
         self.clock, self.monotonic, self.boot_id = clock, monotonic, uuid4()
         self.diagnostics = diagnostics
+        self.jobs = jobs
         self.profiles = ProfileRegistry(config.profiles_file, config.data_dir / "profiles")
         self.journal = ExecutionJournal(config.data_dir / "execution.json", config.identity)
         self.records = self.journal.records
@@ -93,8 +98,12 @@ class Supervisor:
         self.observer: Callable[[SupervisorObservation], Awaitable[None]] | None = None
         self._journal_healthy = True
 
-    async def resolve_admission(self, spec: SandboxSpec) -> ProfileSnapshot:
-        return self.profiles.resolve_profile(spec.profile_id, spec.command, spec.env)
+    async def resolve_admission(self, spec: SandboxSpec) -> tuple[ProfileSnapshot, LifetimePolicy]:
+        policy = self.config.policy_maximum if spec.is_job else spec.policy
+        validate_policy(policy, self.config.policy_maximum)
+        return self.profiles.resolve_profile(
+            spec.profile_id, spec.command, spec.env, job=spec.is_job
+        ), policy
 
     def _record(self, ref: SandboxRef) -> ExecutionRecord:
         record = self.records.get(ref.id)
@@ -194,7 +203,10 @@ class Supervisor:
     async def initialize(self, request: EnsureRequest) -> SupervisorObservation:
         if request.identity != self.config.identity:
             raise BoxieError(404, "supervisor identity not found")
-        validate_policy(request.spec.policy, self.config.policy_maximum)
+        # Job admission pins the operator policy in SQL, including across later config changes.
+        validate_policy(
+            request.spec.policy, None if request.spec.is_job else self.config.policy_maximum
+        )
         self.profiles.validate_snapshot(request.profile_snapshot)
         snapshot, spec = request.profile_snapshot, request.spec
         if (snapshot.profile_id, snapshot.command, snapshot.env) != (
@@ -272,7 +284,17 @@ class Supervisor:
                 if record.cleanup_pending:
                     await self._cleanup(record)
                 else:
+                    if record.discarding_container:
+                        async with asyncio.timeout(self.config.docker_timeout):
+                            if not await discard_queued_container(
+                                self.docker, record, self._changed
+                            ):
+                                raise BoxieError(503, "job container removal pending")
                     await execution.provision()
+                    if record.discarding_container:
+                        raise BoxieError(503, "job container removal pending")
+                    if record.queued_job and record.creation_uncertain:
+                        raise BoxieError(503, "job container creation pending")
             finally:
                 execution.activity = None
             return await self.inspect(request.ref)
@@ -307,11 +329,12 @@ class Supervisor:
             if not self._live(record):
                 return False
             now = self.clock()
-            record.state, record.ready_at, record.disconnected_at = SandboxState.READY, now, now
-            timers = self.executions[record.id].deadlines
-            assert timers is not None
-            timers.idle = self.monotonic() + record.spec.policy.idle_seconds
-            timers.disconnect = self.monotonic() + record.spec.policy.disconnect_seconds
+            record.state, record.ready_at = SandboxState.READY, now
+            if not record.spec.is_job:
+                record.disconnected_at = now
+                timers = self.executions[record.id].timers
+                timers.idle = self.monotonic() + record.spec.policy.idle_seconds
+                timers.disconnect = self.monotonic() + record.spec.policy.disconnect_seconds
             self._changed(record)
             return True
 
@@ -342,6 +365,9 @@ class Supervisor:
             if record.state in FINAL:
                 return
             execution = self.executions[record.id]
+            if execution.job_task is not None and execution.job_task is not asyncio.current_task():
+                execution.job_task.cancel()
+                await asyncio.gather(execution.job_task, return_exceptions=True)
             terminal, execution.terminal = execution.terminal, None
             if terminal:
                 if terminal.reader:
@@ -522,6 +548,16 @@ class Supervisor:
         )
 
     async def start(self) -> None:
+        for record in self.records.values():
+            if record.queued_job:
+                # Even if SQL already committed authorization, a redelivery must
+                # acquire it again before start and will fail closed in that case.
+                now = self.monotonic()
+                record.container_boot_id = record.container_boot_id or record.boot_id
+                record.boot_id = self.boot_id
+                self.executions[record.id].deadlines = Deadlines(
+                    now + (record.absolute_deadline - self.clock()).total_seconds(), now + 90
+                )
         # Missing process-local deadlines identify previous-boot sessions. Their
         # stop/save is supervised too, so a startup write fault remains retryable.
         await self.safety.inspect()
@@ -531,8 +567,20 @@ class Supervisor:
     async def compact(self) -> None:
         await compact(self)
 
+    async def _discard_on_shutdown(self, record: ExecutionRecord) -> None:
+        try:
+            async with asyncio.timeout(self.config.docker_timeout):
+                if await discard_queued_container(self.docker, record, self._changed):
+                    return
+        except Exception:
+            pass
+        logger.warning("sandbox reconciliation failed; retry pending: %s", record.id)
+
     async def close(self) -> None:
         self.stopping = True
+        for execution in self.executions.values():
+            if execution.record.queued_job and execution.activity is not None:
+                execution.activity.cancel()
         if self.sweeper:
             self.sweeper.cancel()
             await asyncio.gather(self.sweeper, return_exceptions=True)
@@ -540,7 +588,7 @@ class Supervisor:
             *(
                 self.remove(r.ref, TerminationReason.SUPERVISOR_SHUTDOWN)
                 for r in list(self.records.values())
-                if r.state not in FINAL
+                if r.state not in FINAL and not r.queued_job
             )
         )
         for worker in (r.activity for r in self.executions.values() if r.activity is not None):
@@ -556,5 +604,12 @@ class Supervisor:
                 if task is not None
             ),
             return_exceptions=True,
+        )
+        await asyncio.gather(
+            *(
+                self._discard_on_shutdown(record)
+                for record in self.records.values()
+                if record.queued_job
+            )
         )
         await self.docker.close()

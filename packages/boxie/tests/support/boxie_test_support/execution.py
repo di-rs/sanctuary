@@ -34,7 +34,10 @@ class Daemon:
         if self.create_gate:
             await self.create_gate.wait()  # Materialize only AFTER a prior absence check.
         self.resources[name] = ContainerInfo(
-            id=str(uuid4()), labels=config["Labels"], running=False
+            id=str(uuid4()),
+            labels=config["Labels"],
+            running=False,
+            capture_ready=config["Entrypoint"] == ["/.boxie-job-capture", "--"],
         )
         if self.lost_ack:
             raise OSError("lost acknowledgement")

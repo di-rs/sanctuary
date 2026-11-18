@@ -13,11 +13,13 @@ def sync_directory(path: Path) -> None:
         os.close(descriptor)
 
 
-def atomic_write(path: Path, content: bytes) -> None:
+def atomic_write(path: Path, content: bytes, *, mode: int | None = None) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     descriptor, temporary = tempfile.mkstemp(prefix=".metadata-", dir=path.parent)
     try:
         with os.fdopen(descriptor, "wb") as output:
+            if mode is not None:
+                os.fchmod(output.fileno(), mode)
             output.write(content)
             output.flush()
             os.fsync(output.fileno())

@@ -1,6 +1,6 @@
 """Execution wire contracts."""
 
-from dataclasses import asdict
+from collections.abc import Mapping
 from typing import Annotated
 from uuid import UUID
 
@@ -32,34 +32,38 @@ class AdmissionProfileRequest(ProfileRequest):
     policy: PolicyWire = Field(default_factory=PolicyWire)
 
 
-class SnapshotWire(ProfileRequest):
+class ProfileMetadata(WireModel):
     config_digest: Annotated[str, Field(pattern=r"^[a-f0-9]{64}$")]
     image_digest: str
     artifact_target: str
     limits: LimitsWire
 
-    def domain(self) -> ProfileSnapshot:
+    def snapshot(
+        self, profile_id: str, command: tuple[str, ...], env: Mapping[str, str]
+    ) -> ProfileSnapshot:
         return ProfileSnapshot(
-            self.profile_id,
+            profile_id,
             self.config_digest,
             self.image_digest,
-            self.command,
-            self.env,
+            command,
+            env,
             self.artifact_target,
             self.limits.domain(),
         )
 
+
+class JobProfileApproval(WireModel):
+    profile: ProfileMetadata
+    policy: PolicyWire
+
+
+class SnapshotWire(ProfileRequest, ProfileMetadata):
+    def domain(self) -> ProfileSnapshot:
+        return self.snapshot(self.profile_id, self.command, self.env)
+
     @classmethod
     def from_domain(cls, snapshot: ProfileSnapshot) -> SnapshotWire:
-        return cls(
-            profile_id=snapshot.profile_id,
-            config_digest=snapshot.config_digest,
-            image_digest=snapshot.image_digest,
-            command=snapshot.command,
-            env=dict(snapshot.env),
-            artifact_target=snapshot.artifact_target,
-            limits=LimitsWire(**asdict(snapshot.limits)),
-        )
+        return cls.model_validate(snapshot, from_attributes=True)
 
 
 class IdentityWire(WireModel):

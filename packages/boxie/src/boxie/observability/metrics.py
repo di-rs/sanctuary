@@ -27,6 +27,9 @@ API_DEPENDENCIES = (
 )
 SUPERVISOR_DEPENDENCIES = ("postgres", "docker", "execution")
 ROUTES = (
+    "/v1/jobs",
+    "/v1/jobs/{job_id}",
+    "/v1/jobs/{job_id}/result",
     "/healthz",
     "/readyz",
     "/v1/sandboxes",
@@ -34,6 +37,7 @@ ROUTES = (
     "/v1/artifacts/{artifact_id}",
     "/v1/identity",
     "/v1/profiles/resolve",
+    "/v1/profiles/resolve-job",
 )
 
 

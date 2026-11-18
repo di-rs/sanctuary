@@ -48,6 +48,13 @@ class Sandbox(SQLModel, table=True):
     __table_args__ = (
         UniqueConstraint("consumer_id", "idempotency_key"),
         CheckConstraint(column("generation") > 0, name="sandbox_generation"),
+        CheckConstraint(column("reserved_result_bytes") >= 0, name="sandbox_result_bytes"),
+        Index(
+            "sandbox_result_reservations",
+            "consumer_id",
+            "reserved_result_bytes",
+            postgresql_where=column("reserved_result_bytes") > 0,
+        ),
         CheckConstraint(
             column("provisioning_outcome").in_(["ready", "failed", "stopped"]),
             name="sandbox_provisioning_outcome",
@@ -87,6 +94,9 @@ class Sandbox(SQLModel, table=True):
     request_hash: str
     spec: dict[str, Any] = Field(sa_column=Column(JSONB, nullable=False))
     snapshot: dict[str, Any] = Field(sa_column=Column(JSONB, nullable=False))
+    reserved_result_bytes: int = Field(
+        default=0, sa_type=BigInteger, sa_column_kwargs={"server_default": literal(0)}
+    )
     installation_id: UUID
     host_id: str
     generation: int = Field(
@@ -102,6 +112,46 @@ class Sandbox(SQLModel, table=True):
     cleaned_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
     provisioning_outcome: str | None = None
     cleanup_pending_since: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
+
+
+class Job(SQLModel, table=True):
+    """The owner/key receipt outlives sandbox metadata and the result bytes."""
+
+    __tablename__ = "jobs"
+    __table_args__ = (
+        UniqueConstraint("consumer_id", "idempotency_key"),
+        CheckConstraint(
+            column("state").in_(
+                [
+                    "queued",
+                    "starting",
+                    "running",
+                    "succeeded",
+                    "failed",
+                    "not_started",
+                    "outcome_unknown",
+                ]
+            ),
+            name="job_state",
+        ),
+    )
+
+    id: UUID = Field(primary_key=True)
+    consumer_id: str
+    idempotency_key: str
+    request_hash: str
+    state: str = "queued"
+    authorized_boot: UUID | None = None
+
+
+class JobResult(SQLModel, table=True):
+    __tablename__ = "job_results"
+
+    sandbox_id: UUID = Field(primary_key=True, foreign_key="sandboxes.id", ondelete="CASCADE")
+    exit_code: int
+    stdout: bytes = Field(repr=False)
+    stderr: bytes = Field(repr=False)
+    truncated: bool
 
 
 class CapacitySlot(SQLModel, table=True):

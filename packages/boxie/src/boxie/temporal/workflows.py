@@ -97,13 +97,21 @@ class SandboxLifecycle:
                 if facts.desired_stop:
                     break
                 if provision is None:
+                    # Worker downtime can outlast the terminal provisioning budget.
+                    # Jobs retain their original deadline and every delivery must
+                    # still acquire the one-time SQL authorization to start.
+                    provision_budget = (
+                        max(30, facts.absolute_deadline - workflow.now().timestamp())
+                        if facts.is_job
+                        else 120
+                    )
                     provision = workflow.start_activity_method(
                         LifecycleActivities.ensure_sandbox,
                         sandbox_id,
                         start_to_close_timeout=timedelta(seconds=30),
-                        schedule_to_close_timeout=timedelta(seconds=120),
+                        schedule_to_close_timeout=timedelta(seconds=provision_budget),
                         heartbeat_timeout=timedelta(seconds=10),
-                        retry_policy=PROVISION_RETRY,
+                        retry_policy=CLEANUP_RETRY if facts.is_job else PROVISION_RETRY,
                         cancellation_type=workflow.ActivityCancellationType.WAIT_CANCELLATION_COMPLETED,
                     )
                 if provision.done() and not provision_settled:

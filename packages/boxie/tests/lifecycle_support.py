@@ -1,6 +1,7 @@
 """Typed execution setup shared by lifecycle, retention and terminal tests."""
 
 import asyncio
+import json
 from datetime import timedelta
 from pathlib import Path
 from typing import Any
@@ -14,16 +15,20 @@ from boxie_test_support.supervisor import Clock, configuration
 
 
 async def setup(
-    root: Path, **changes: Any
+    root: Path, *, is_job: bool = False, limits: dict[str, int] | None = None, **changes: Any
 ) -> tuple[Supervisor, EnsureRequest, Daemon, Clock, Guard]:
     config = configuration(root, **changes)
+    if limits is not None:
+        profiles = json.loads(config.profiles_file.read_bytes())
+        profiles["shell"]["limits"] = limits
+        config.profiles_file.write_text(json.dumps(profiles))
     clock, daemon, guard = Clock(), Daemon(), Guard()
 
     async def artifact(principal: Principal, identifier: UUID) -> Path:
         return root
 
     supervisor = Supervisor(config, daemon, artifact, guard, clock, clock.monotonic)
-    spec = SandboxSpec(uuid4(), "shell", ("/bin/sh",), {})
+    spec = SandboxSpec(uuid4(), "shell", ("/bin/sh",), {}, is_job=is_job)
     snapshot = supervisor.profiles.resolve_profile(spec.profile_id, spec.command, spec.env)
     request = EnsureRequest(
         SandboxRef(uuid4(), 1),

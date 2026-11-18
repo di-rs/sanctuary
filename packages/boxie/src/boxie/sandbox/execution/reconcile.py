@@ -15,6 +15,32 @@ async def owned_container(docker: ExecutionDocker, record: ExecutionRecord) -> C
     return info
 
 
+async def discard_queued_container(
+    docker: ExecutionDocker, record: ExecutionRecord, changed: Callable[[ExecutionRecord], None]
+) -> bool:
+    """Discard only an owned pre-start resource, retaining the job's admission."""
+    info = await owned_container(docker, record)
+    if info is None and record.creation_uncertain:
+        return False
+    if info is not None:
+        if info.running:
+            return False
+        # Persist the ID before DELETE. A replacement must finish this deletion
+        # before adopting or creating a container, even if its acknowledgement was lost.
+        record.container_id = info.id
+        record.creation_uncertain = False
+        record.discarding_container = True
+        changed(record)
+        await docker.delete(info.id)
+        if await docker.inspect(info.id) is not None:
+            return False
+    if record.container_id is not None or record.discarding_container:
+        record.container_id = None
+        record.discarding_container = False
+        changed(record)
+    return True
+
+
 async def reconcile_removal(
     docker: ExecutionDocker,
     record: ExecutionRecord,
@@ -50,6 +76,7 @@ async def reconcile_removal(
             record.container_id = None
             record.cleanup_pending = False
             record.removal_confirmed = True
+            record.discarding_container = False
             record.start_uncertain = False
             record.state = (
                 SandboxState.FAILED

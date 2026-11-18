@@ -54,7 +54,14 @@ def load_configuration(path: Path) -> ApiProcessConfig:
             TypeAdapter(ConsumerId).validate_python(consumer)
         except ValidationError:
             raise ValueError("invalid consumer ID") from None
-    api = validate_file_model(ApiConfig, {"release": data.pop("release"), "consumers": consumers})
+    api = validate_file_model(
+        ApiConfig,
+        {
+            "release": data.pop("release"),
+            "consumers": consumers,
+            "job_policy": data.pop("job_policy", {}),
+        },
+    )
     if "lifecycle" not in data or "identity" not in data:
         raise ValueError("lifecycle configuration and supervisor identity required")
     data["lifecycle"] = lifecycle_config(data.pop("lifecycle"))
@@ -106,12 +113,14 @@ def _main(metrics: Metrics, config_path: Path) -> None:
                     lambda: check_schedules(temporal, config.identity),
                 ),
                 diagnostics=metrics.transition,
+                job_policy=config.api.job_policy,
             )
             app = create_app(
                 config.api,
                 lifecycle,
                 supervisor,
                 supervisor,
+                jobs=lifecycle,
                 request_completed=metrics.http_completed,
                 deliver=CommandDelivery(
                     PostgresOutbox(sessions, config.identity),
