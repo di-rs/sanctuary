@@ -4,7 +4,8 @@ import asyncio
 import os
 import shutil
 import tempfile
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable, Iterator
+from contextlib import AbstractContextManager, ExitStack, asynccontextmanager, contextmanager
 from pathlib import Path
 from uuid import UUID
 
@@ -25,8 +26,13 @@ class UploadStaging:
         self.uploads = root / "uploads"
         self.uploads.mkdir(parents=True, exist_ok=True, mode=0o700)
 
-    def temporary_directory(self) -> Path:
-        return Path(tempfile.mkdtemp(prefix=".upload-", dir=self.root))
+    @contextmanager
+    def temporary_directory(self) -> Iterator[Path]:
+        directory = Path(tempfile.mkdtemp(prefix=".upload-", dir=self.root))
+        try:
+            yield directory
+        finally:
+            shutil.rmtree(directory, ignore_errors=True)
 
     def archive(self, identifier: UUID) -> Path:
         return self.uploads / f"{identifier}.zip"
@@ -34,11 +40,15 @@ class UploadStaging:
     def stage(self, identifier: UUID, source: Path) -> None:
         target = self.archive(identifier)
         temporary = target.with_suffix(".pending")
-        with source.open("rb") as incoming, temporary.open("wb") as output:
-            shutil.copyfileobj(incoming, output)
-            output.flush()
-            os.fsync(output.fileno())
-        temporary.replace(target)
+        try:
+            with source.open("rb") as incoming, temporary.open("wb") as output:
+                shutil.copyfileobj(incoming, output)
+                output.flush()
+                os.fsync(output.fileno())
+            temporary.replace(target)
+        except OSError:
+            temporary.unlink(missing_ok=True)
+            raise
         sync_directory(self.uploads)
 
     def remove(self, identifier: UUID) -> None:
@@ -70,3 +80,15 @@ async def run_staging[T](operation: Callable[[], T]) -> T:
                 except asyncio.CancelledError:
                     pass
         raise
+
+
+@asynccontextmanager
+async def staging_resource[T](
+    resource: Callable[[], AbstractContextManager[T]],
+) -> AsyncIterator[T]:
+    stack = ExitStack()
+    try:
+        # Register cleanup in the worker even if cancellation prevents returning the resource.
+        yield await run_staging(lambda: stack.enter_context(resource()))
+    finally:
+        await run_staging(stack.close)

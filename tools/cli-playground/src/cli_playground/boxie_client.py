@@ -3,6 +3,7 @@
 import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from functools import partial
 from pathlib import Path
 from uuid import UUID
 
@@ -24,6 +25,7 @@ from cli_playground.sandbox import (
 )
 from cli_playground.terminal_protocol import TerminalEvent
 from cli_playground.terminal_protocol import response as terminal_response
+from cli_playground.upload_staging import run_staging, staging_resource
 
 
 class NoRedirectConnect(connect):
@@ -105,10 +107,10 @@ class HttpBoxieClient:
 
     async def upload(self, identifier: UUID, digest: str, archive: Path) -> None:
         async def chunks() -> AsyncIterator[bytes]:
-            with archive.open("rb") as stream:
-                while data := stream.read(65536):
+            async with staging_resource(lambda: archive.open("rb")) as stream:
+                read_chunk = partial(stream.read, 65536)
+                while data := await run_staging(read_chunk):
                     yield data
-                    await asyncio.sleep(0)
 
         try:
             async with self._http().put(

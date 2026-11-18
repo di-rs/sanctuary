@@ -6,6 +6,7 @@ import stat
 import time
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
+from functools import partial
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -28,6 +29,7 @@ from cli_playground.service import CliPlaygroundService
 from cli_playground.session_store import SessionStore
 from cli_playground.storage import EnvironmentStore
 from cli_playground.transport import RequestBodyBoundary, RequestHostBoundary
+from cli_playground.upload_staging import run_staging
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
@@ -64,9 +66,10 @@ def create_app(
         cleanup: asyncio.Task[None] | None = None
         try:
             await check_schema(sessions)
-            service.staging.recover(
-                {intent.artifact.artifact_id for intent in await service.sessions.uploads()}
-            )
+            pending_uploads = {
+                intent.artifact.artifact_id for intent in await service.sessions.uploads()
+            }
+            await run_staging(partial(service.staging.recover, pending_uploads))
             await service.recover()
             cleanup = asyncio.create_task(service.cleanup_periodically())
             yield
