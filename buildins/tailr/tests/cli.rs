@@ -269,3 +269,5 @@ fn broken_stdout_does_not_wait_for_later_stdin(cx: &TestContext) -> Result<()> {
     }
     Ok(())
 }
+
+cli_testing::readme_example!(0, "blue\n");

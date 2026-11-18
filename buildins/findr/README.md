@@ -6,6 +6,8 @@
 
 From the repository root:
 
+<!-- cli-example -->
+
 ```sh
 cargo run -q -p findr -- buildins/findr/src -t f -n 'main[.]rs$'
 ```

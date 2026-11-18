@@ -13,6 +13,34 @@ Add `cli-testing.workspace = true` under the consuming package's
 `[dev-dependencies]`. Ordinary tests use committed fixtures, never execute the
 reference, and never update expectations.
 
+## Test the first README example
+
+Put the first runnable example in the README's first section, in a top-level
+`sh` fence preceded by the `<!-- cli-example -->` comment. End the example with
+`cargo run -q -p NAME --` and its arguments on one line. You can prepare inputs
+with POSIX shell commands before the invocation or pipe a `printf` into it.
+
+In `tests/cli.rs`, register the expected exit status and exact stdout. For
+example, the [echor README](../../../buildins/echor/README.md) prints a greeting.
+
+```rust,ignore
+cli_testing::readme_example!(0, "hello world\n");
+```
+
+The test reads the command from the README and substitutes the built binary
+for the Cargo launcher. The macro also checks for empty stderr. The shell runs
+in a temporary directory with logging disabled, C locale, and UTC. It sets
+`TMPDIR` to that directory. Pass `mktemp` a template such as
+`"${TMPDIR:-/tmp}/example.XXXXXX"` to keep files there on Linux and macOS.
+
+For a case that needs fixtures or file assertions, name the native test
+`readme_example`. Create a workspace with `cx.workspace()?` and keep it alive
+while you run `workspace.readme_cmd()?` and check the results. The
+[touchr case](../../../buildins/touchr/tests/cli.rs) checks the file that its
+example creates. Give OS-specific cases a reference or platform condition.
+The [Kara case](../../../packages/kara/tests/cli.rs) uses a PTY driven by Python 3
+on Linux and macOS to check the saved bytes and the terminal output.
+
 ## Register a catalog
 
 Keep the package's native tests in `tests/cli.rs`. Add a separate Cargo target:

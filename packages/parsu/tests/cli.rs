@@ -198,3 +198,8 @@ fn json_tree_and_errors_are_machine_readable() -> Result<()> {
     }
     Ok(())
 }
+
+cli_testing::readme_example!(
+    0,
+    "Element { name: \"parent\", attributes: [], children: [Element { name: \"child\", attributes: [], children: [] }] }\n"
+);

@@ -6,6 +6,8 @@
 
 From the repository root:
 
+<!-- cli-example -->
+
 ```sh
 cargo run -q -p pwdr -- -P
 ```

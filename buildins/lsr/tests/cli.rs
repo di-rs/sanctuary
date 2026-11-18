@@ -11,6 +11,22 @@ const FOX: &str = "tests/inputs/fox.txt";
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
+#[cfg(unix)]
+#[cli_test]
+fn readme_example(cx: &TestContext) -> Result<()> {
+    let workspace = cx.workspace()?;
+    let source = workspace.path().join("buildins/lsr/src");
+    fs::create_dir_all(&source)?;
+    fs::write(source.join("main.rs"), "")?;
+    workspace
+        .readme_cmd()?
+        .assert()
+        .code(0)
+        .stdout("buildins/lsr/src/main.rs\n")
+        .stderr("");
+    Ok(())
+}
+
 fn fixture_tree(cx: &TestContext) -> Result<Workspace> {
     let dir = cx.workspace()?;
     let nested = dir.child("tests/inputs/dir");

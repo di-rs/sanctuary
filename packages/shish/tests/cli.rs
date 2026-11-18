@@ -229,3 +229,5 @@ fn large_multiline_stdin_completes_within_budget() {
     assert_eq!(output.stdout, b"done");
     assert_eq!(output.stderr, b"");
 }
+
+cli_testing::readme_example!(0, "hello world\n");

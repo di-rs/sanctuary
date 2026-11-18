@@ -129,7 +129,7 @@ def terminal_routes(
         except BoxieError as error:
             if websocket.application_state == WebSocketState.CONNECTING:
                 await websocket.send_denial_response(
-                    JSONResponse({"detail": str(error)}, status_code=error.status)
+                    JSONResponse({"detail": error.public_detail}, status_code=error.status)
                 )
             elif websocket.application_state == WebSocketState.CONNECTED:
                 await close_socket(websocket, 1011)

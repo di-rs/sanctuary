@@ -102,3 +102,5 @@ fn tsv_b1_8(cx: &mut cli_testing::Context) -> cli_testing::Result<()> {
     cx.map_expected_stdout(|bytes| String::from_utf8_lossy(bytes).into_owned().into_bytes())?;
     Ok(())
 }
+
+cli_testing::readme_example!(0, "Rust\n");

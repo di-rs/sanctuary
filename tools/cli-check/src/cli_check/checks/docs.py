@@ -1,12 +1,14 @@
 """Check the content and first-use examples in package READMEs."""
 
-import re
+from itertools import pairwise
 from pathlib import Path
 
 from markdown_it import MarkdownIt
 
 from cli_check.diagnostics import Diagnostic
 from cli_check.workspace import Package
+
+EXAMPLE_MARKER = "<!-- cli-example -->"
 
 
 def readme_style(root: Path, readme: Path, cli: str | None = None) -> list[Diagnostic]:
@@ -34,15 +36,29 @@ def readme_style(root: Path, readme: Path, cli: str | None = None) -> list[Diagn
         )
     if cli:
         end = headings[2] if len(headings) > 2 else len(tokens)
-        if not any(
-            token.type == "fence"
-            and token.info.strip() in {"sh", "bash", "shell"}
-            and re.search(rf"(?<![\w-]){re.escape(cli)}(?![\w-])", token.content)
-            for token in tokens[section:end]
+        example = next(
+            (
+                (previous, token)
+                for previous, token in pairwise(tokens[section:end])
+                if token.type == "fence" and token.info.strip() in {"sh", "bash", "shell"}
+            ),
+            None,
+        )
+        if not (
+            example
+            and example[0].type == "html_block"
+            and example[0].content == EXAMPLE_MARKER + "\n"
+            and example[1].level == 0
+            and example[1].info == "sh"
+            and example[1].markup == "```"
         ):
             errors.append(
                 Diagnostic(
-                    path, "docs", "example", "show a runnable shell example in the first section"
+                    path,
+                    "docs",
+                    "example",
+                    f"put {EXAMPLE_MARKER} before the first runnable shell example"
+                    " in the first section",
                 )
             )
     return errors

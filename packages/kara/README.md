@@ -6,15 +6,17 @@ Kara's navigation keys and adds literal search and Rust syntax highlighting.
 
 ## Edit a file
 
-From the repository root, open an existing UTF-8 file in an interactive terminal:
+In the repository root, create a UTF-8 file named `scratch.txt` with `world` on
+its first line. Open it in an interactive terminal.
+
+<!-- cli-example -->
 
 ```sh
-cargo run -p kara -- scratch.txt
+cargo run -q -p kara -- scratch.txt
 ```
 
-For a new file, omit the filename. Press `i` to type, Esc to return to navigation,
-and Ctrl-S to save. An unnamed buffer opens a `:w ` prompt; enter its filename and
-press Enter. Ctrl-Q quits, with protection for unsaved edits. There is no undo.
+Press `i` and type `hello` followed by a space. Press Esc to return to navigation,
+Ctrl-S to save, and Ctrl-Q to quit. The line in `scratch.txt` now reads `hello world`.
 
 ## Arguments
 
@@ -28,6 +30,8 @@ press Enter. Ctrl-Q quits, with protection for unsaved edits. There is no undo.
 Extra operands and invalid arguments exit with status 2; startup or event-loop
 failures exit with status 1. Normal quit exits with status 0. An unreadable or
 invalid UTF-8 file reports an error inside the editor and leaves an unnamed buffer.
+To start with an unnamed buffer, omit the filename. Ctrl-S opens a `:w ` prompt
+where you can type a filename and press Enter to save.
 
 ## Controls
 

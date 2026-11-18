@@ -24,11 +24,15 @@ def test_terminal_authentication_replay_and_unicode_through_api(tmp_path: Path) 
             identifier = await create(net.api, await artifact(net.api))
             await ready(net.api, identifier)
             url = terminal_url(net.api, identifier)
-            for headers, status in (({}, 401), (FOREIGN_AUTH, 404)):
+            for headers, status, detail in (
+                ({}, 401, "invalid consumer credential"),
+                (FOREIGN_AUTH, 404, "sandbox not found"),
+            ):
                 with pytest.raises(InvalidStatus) as error:
                     async with connect(url, additional_headers=headers):
                         pytest.fail("unauthorized terminal opened")
                 assert error.value.response.status_code == status
+                assert json.loads(error.value.response.body) == {"detail": detail}
                 assert error.value.response.headers["x-request-id"]
             async with connect(url, additional_headers=CONSUMER_AUTH) as old:
                 assert old.response is not None
@@ -54,6 +58,58 @@ def test_terminal_authentication_replay_and_unicode_through_api(tmp_path: Path) 
                     assert next(iter(net.daemon.streams.values())).sizes[-1] == (100, 30)
                     await net.api.delete(f"/v1/sandboxes/{identifier}")
                     assert json.loads(await new.recv()) == {"type": "status", "reason": "requested"}
+
+    asyncio.run(exercise())
+
+
+def test_boxie_http_and_terminal_errors_serialize_public_detail(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from typing import Never
+    from uuid import uuid4
+
+    from boxie.domain.errors import BoxieError
+    from boxie.sandbox.execution.supervisor import Supervisor
+    from boxie_test_support.terminal_network import Admission
+
+    class SandboxLookupError(BoxieError):
+        def __str__(self) -> str:
+            return "internal lookup diagnostic"
+
+    async def missing_sandbox(*_args: object) -> Never:
+        raise SandboxLookupError(404, "sandbox not found")
+
+    def missing_execution(*_args: object) -> Never:
+        raise SandboxLookupError(404, "execution not found")
+
+    monkeypatch.setattr(Admission, "get", missing_sandbox)
+    monkeypatch.setattr(Supervisor, "terminal_ref", missing_execution)
+
+    async def exercise() -> None:
+        identifier = uuid4()
+        path = f"/v1/sandboxes/{identifier}"
+        async with network(tmp_path) as net:
+            response = await net.api.get(path, headers={"Authorization": "Bearer invalid"})
+            assert response.status_code == 401
+            assert response.json() == {"detail": "invalid consumer credential"}
+            response = await net.api.get(path)
+            assert response.status_code == 404
+            assert response.json() == {"detail": "sandbox not found"}
+
+            supervisor = net.supervisor_url.replace("http:", "ws:", 1)
+            for url, headers, detail in (
+                (terminal_url(net.api, str(identifier)), CONSUMER_AUTH, "sandbox not found"),
+                (
+                    f"{supervisor}{path}/terminal?consumer_id=one",
+                    {"Authorization": "Bearer supervisor-test-secret"},
+                    "execution not found",
+                ),
+            ):
+                with pytest.raises(InvalidStatus) as error:
+                    async with connect(url, additional_headers=headers):
+                        pytest.fail("terminal opened without an execution")
+                assert error.value.response.status_code == 404
+                assert json.loads(error.value.response.body) == {"detail": detail}
 
     asyncio.run(exercise())
 
