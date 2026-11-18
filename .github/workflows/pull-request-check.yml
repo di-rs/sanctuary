@@ -184,13 +184,17 @@ jobs:
         run: pnpm test
       - name: 🏗️ Build production frontend assets
         run: pnpm build
+      - name: 🐳 Build the cli-playground deployment image
+        working-directory: .
+        run: docker build --file tools/cli-playground/infra/docker/CliPlayground.Dockerfile .
       - name: 📦 Verify isolated service packages and Compose topology
         working-directory: .
         run: |
-          uv sync --all-packages
+          uv sync --locked --all-packages
           uv run pytest packages/boxie/tests/test_packaging.py -m integration
-      - name: 🌐 Install Chromium and browser dependencies
-        run: pnpm exec playwright install --with-deps chromium
+      - name: 🌐 Install headless Chromium
+        # The hosted runner supplies the system libraries used by headless Chromium.
+        run: pnpm exec playwright install --only-shell chromium
       - name: 🐘 Verify Playground PostgreSQL lifecycle
         working-directory: .
         run: uv run python tools/cli-playground/tests/run_integration.py
