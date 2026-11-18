@@ -110,25 +110,29 @@ fn reference_package(expected: &[u8]) -> TestResult<TempDir> {
             r#"
 schema = 1
 binary = "probe"
+env = {{ CLI_TESTING_PROBE = "suite" }}
 [fixtures]
 raw = "raw"
 all = "."
 [references.shell]
 program = "/bin/sh"
 platform = "{}"
+env = {{ CLI_TESTING_PROBE = "reference" }}
 [[cases]]
 name = "raw"
 args = []
 inputs = ["all"]
 stdin = {{ mode = "pipe", files = ["raw"] }}
-origin = {{ reference = "shell", args = ["-c", "cat; exit 1"], exit = 1, reason = "The controlled reference probe exits 1; the candidate cat exits 0." }}
+env = {{ CLI_TESTING_PROBE = "case" }}
+origin = {{ reference = "shell", args = ["-c", 'test -p /dev/stdin && test "$CLI_TESTING_PROBE" = origin || exit 7; cat; exit 1'], env = {{ CLI_TESTING_PROBE = "origin" }}, exit = 1, reason = "The controlled reference probe checks its stdin and environment and exits 1; the candidate cat exits 0." }}
 expect = {{ exit = 0, stdout_file = "raw", stderr = "" }}
 [[cases]]
 name = "native"
 execution = "rust"
-args = []
+args = ["-c", 'test -f /dev/stdin && test "$CLI_TESTING_PROBE" = reference || exit 8; cat']
 stdin = {{ mode = "file", path = "raw" }}
-origin = {{ reference = "shell", args = ["-c", "cat"], reason = "Controlled reference probe through regular-file stdin." }}
+env = {{ CLI_TESTING_PROBE = "case" }}
+origin = {{ reference = "shell" }}
 expect = {{ exit = 0, stdout_file = "raw", stderr = "" }}
 "#,
             std::env::consts::OS
