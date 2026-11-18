@@ -3,6 +3,8 @@ services:
   api:
     extends: {file: compose.yml, service: api}
     user: ${BOXIE_TEST_USER:?Set fixture owner UID:GID}
+    environment:
+      PGPASSWORD: ${BOXIE_DB_PASSWORD:?Set fixture database password}
     restart: "no"
     ports: ["127.0.0.1:${BOXIE_TEST_API_PORT}:8090"]
   supervisor:
@@ -11,6 +13,7 @@ services:
     user: ${BOXIE_TEST_USER:?Set fixture owner UID:GID}
     restart: "no"
     environment:
+      PGPASSWORD: ${BOXIE_DB_PASSWORD:?Set fixture database password}
       DOCKER_HOST: unix:///faults/docker.sock
     volumes: !override
       - ${BOXIE_TEST_ROOT}/faults:/faults

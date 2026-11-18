@@ -12,12 +12,14 @@ import pty
 import re
 import shutil
 import signal
+import socket
 import struct
 import subprocess
 import tempfile
 import termios
 import time
 from contextlib import suppress
+from ipaddress import IPv4Address
 from pathlib import Path
 from uuid import uuid4
 
@@ -224,7 +226,7 @@ async def serve(root: Path, workspaces: Path) -> None:
             root / "product",
             str(network.api.base_url),
             port=8765,
-            bind_host="0.0.0.0",
+            published_address=IPv4Address(socket.gethostbyname(socket.gethostname())),
             clock=time.time,
             configure_app=lambda app: app.add_middleware(LocalPublishedPort),
         ) as product:

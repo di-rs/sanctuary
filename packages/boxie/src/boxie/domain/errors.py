@@ -2,9 +2,12 @@
 
 
 class BoxieError(Exception):
-    def __init__(self, status: int, message: str) -> None:
-        super().__init__(message)
+    """An application failure with an explicitly client-safe detail."""
+
+    def __init__(self, status: int, public_detail: str) -> None:
+        super().__init__(public_detail)
         self.status = status
+        self.public_detail = public_detail
 
 
 class TerminalWriteClosed(BoxieError):

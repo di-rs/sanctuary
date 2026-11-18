@@ -92,11 +92,10 @@ class LifecycleStack(ProductionStack):
             path.write_text(value)
             path.chmod(0o600)
         self.dsn = f"host=127.0.0.1 port={self.pg_port} dbname=boxie user=boxie password={self.env['BOXIE_DB_PASSWORD']} sslmode=disable"
+        # The native test services receive the disposable password through libpq's environment.
         for name, host in (("postgres-dsn", "postgres"), ("supervisor-dsn", "faults")):
             path = self.root / name
-            path.write_text(
-                f"host={host} dbname=boxie user=boxie password={self.env['BOXIE_DB_PASSWORD']} sslmode=disable"
-            )
+            path.write_text(f"host={host} dbname=boxie user=boxie sslmode=disable")
             path.chmod(0o600)
         migrate(self.dsn, ROOT / "packages/boxie/alembic")
         # Compose's nested profiles bind must not create a root-owned directory.

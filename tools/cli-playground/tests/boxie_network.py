@@ -3,8 +3,9 @@
 import asyncio
 import socket
 from collections.abc import AsyncIterator, Callable
-from contextlib import asynccontextmanager
+from contextlib import ExitStack, asynccontextmanager
 from dataclasses import dataclass
+from ipaddress import IPv4Address
 from pathlib import Path
 
 import httpx
@@ -38,13 +39,28 @@ async def product_server(
     *,
     port: int = 0,
     clock: Callable[[], float] | None = None,
-    bind_host: str = "127.0.0.1",
+    published_address: IPv4Address | None = None,
     configure_app: Callable[[FastAPI], None] | None = None,
 ) -> AsyncIterator[Product]:
-    with socket.socket() as sock:
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock.bind((bind_host, port))
-        url = f"http://127.0.0.1:{sock.getsockname()[1]}"
+    hosts = ["127.0.0.1"]
+    if published_address is not None:
+        if (
+            published_address.is_unspecified
+            or published_address.is_multicast
+            or published_address == IPv4Address("255.255.255.255")
+        ):
+            raise ValueError("expected a specific IPv4 listener address")
+        if str(published_address) != hosts[0]:
+            hosts.append(str(published_address))
+    with ExitStack() as listeners:
+        sockets = []
+        for host in hosts:
+            listener = listeners.enter_context(socket.socket())
+            listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            listener.bind((host, port))
+            port = listener.getsockname()[1]
+            sockets.append(listener)
+        url = f"http://127.0.0.1:{port}"
         settings = Settings(
             data_dir=root,
             public_url=url,
@@ -62,7 +78,7 @@ async def product_server(
         server = uvicorn.Server(
             uvicorn.Config(app, log_level="error", ws="websockets-sansio", access_log=False)
         )
-        task = asyncio.create_task(server.serve(sockets=[sock]))
+        task = asyncio.create_task(server.serve(sockets=sockets))
         try:
             for _ in range(200):
                 if server.started:

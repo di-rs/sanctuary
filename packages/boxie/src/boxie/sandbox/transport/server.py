@@ -65,7 +65,7 @@ def create_supervisor_app(
 
     @app.exception_handler(BoxieError)
     async def application_error(request: Request, error: BoxieError) -> JSONResponse:
-        return JSONResponse({"detail": str(error)}, status_code=error.status)
+        return JSONResponse({"detail": error.public_detail}, status_code=error.status)
 
     @app.exception_handler(RequestValidationError)
     async def validation_error(request: Request, error: RequestValidationError) -> JSONResponse:
@@ -128,7 +128,7 @@ def create_supervisor_app(
             ref = supervisor.terminal_ref(Principal(consumer_id), identifier)
         except BoxieError as error:
             await websocket.send_denial_response(
-                JSONResponse({"detail": str(error)}, status_code=error.status)
+                JSONResponse({"detail": error.public_detail}, status_code=error.status)
             )
             return
         await serve_terminal(websocket, supervisor, ref)
