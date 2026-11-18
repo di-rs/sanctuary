@@ -198,16 +198,21 @@ def test_only_manual_setup_can_provision_cloud_resources() -> None:
     assert "submit-release.sh" not in commands
 
 
-@pytest.mark.parametrize("transport", ["setup", "release"])
-def test_deployment_ssh_keeps_silent_readiness_checks_connected(
-    transport: str, tmp_path: Path
-) -> None:
-    if transport == "setup":
-        script = workflow("sanctuary-setup.yml")["jobs"]["provision"]["steps"][-1]["run"]
-    else:
-        script = (WORKFLOWS.parent.parent / "infra/environments/single-host/release.sh").read_text()
-    config = tmp_path / "ssh_config"
-    config.write_text(script.split("<<SSH\n", 1)[1].split("\nSSH", 1)[0])
+def test_deployment_ssh_keeps_silent_readiness_checks_connected(tmp_path: Path) -> None:
+    library = WORKFLOWS.parent.parent / "infra/environments/single-host/deployment.shlib"
+    subprocess.run(
+        [
+            "bash",
+            "-eu",
+            "-c",
+            'umask 077\nsource "$1"\nwrite_deployment_ssh_config "$2" example.com',
+            "deployment-ssh-config",
+            str(library),
+            str(tmp_path),
+        ],
+        check=True,
+    )
+    config = tmp_path / "config"
     result = subprocess.run(
         ["ssh", "-G", "-F", str(config), "deployment"],
         capture_output=True,
@@ -218,6 +223,10 @@ def test_deployment_ssh_keeps_silent_readiness_checks_connected(
     assert 0 < int(settings["serveraliveinterval"]) <= 60
     assert int(settings["serveralivecountmax"]) >= 3
     assert settings["stricthostkeychecking"] == "true"
+    assert settings["hostname"] == "example.com"
+    assert settings["identityfile"] == str(tmp_path / "key")
+    assert settings["userknownhostsfile"] == str(tmp_path / "known_hosts")
+    assert config.stat().st_mode & 0o077 == 0
 
 
 @pytest.mark.parametrize("status", [0, 1, 2])

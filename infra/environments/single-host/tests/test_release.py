@@ -1,5 +1,6 @@
 """Run the release transport with fake SSH/SCP boundaries, without a host."""
 
+import base64
 import json
 import os
 import subprocess
@@ -55,6 +56,8 @@ assert "StrictHostKeyChecking yes" in config.read_text()
 assert all(p.stat().st_mode & 0o077 == 0 for p in config.parent.rglob("*") if p.is_file())
 if name == "scp" and args[-1].endswith("/image.env"):
     record["image_env"] = pathlib.Path(args[-2]).read_text()
+if name == "scp" and args[-1].endswith("/registry"):
+    record["registry"] = json.loads((pathlib.Path(args[-2]) / "config.json").read_text())
 with open(os.environ["CALLS"], "a") as log:
     log.write(json.dumps(record) + "\\n")
 if name == "ssh" and "sed -n" in args[-1]:
@@ -125,6 +128,8 @@ def test_release_preserves_other_image_and_cleans_credentials(
         f"{key}={IMAGE}",
         *(f"{name}={RETAINED[name]}" for name in retained_keys),
     }
+    registry = next(call["registry"] for call in calls if "registry" in call)
+    assert base64.b64decode(registry["auths"]["ghcr.io"]["auth"]) == b"test:private-token"
     deployment = next(call["args"][-1] for call in calls if "DOCKER_CONFIG=" in call["args"][-1])
     assert f"/opt/sanctuary/{owner}/{command}" in deployment
     assert f"/etc/sanctuary/{owner}-image.env" in deployment
