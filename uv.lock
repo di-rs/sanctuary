@@ -246,7 +246,7 @@ requires-dist = [
     { name = "aiodocker", specifier = ">=0.27,<1" },
     { name = "aiohttp", specifier = ">=3.13,<4" },
     { name = "alembic", specifier = ">=1.18,<2" },
-    { name = "fastapi", specifier = ">=0.163.0" },
+    { name = "fastapi", specifier = ">=0.163.1" },
     { name = "httpx", specifier = ">=0.28" },
     { name = "prometheus-client", specifier = "==0.26.0" },
     { name = "psycopg", extras = ["binary"], specifier = "==3.3.9" },
@@ -355,7 +355,7 @@ requires-dist = [
     { name = "aiohttp", specifier = ">=3.13,<4" },
     { name = "alembic", specifier = ">=1.18,<2" },
     { name = "anyio", specifier = ">=4.16.0" },
-    { name = "fastapi", specifier = ">=0.128" },
+    { name = "fastapi", specifier = ">=0.163.1" },
     { name = "psycopg", extras = ["binary"], specifier = "==3.3.9" },
     { name = "pydantic", specifier = ">=2.14,<3" },
     { name = "pydantic-settings", specifier = ">=2,<3" },
@@ -389,7 +389,7 @@ requires-dist = [
     { name = "pulumi", specifier = "==3.276.0" },
     { name = "pulumi-cloudflare", specifier = "==6.24.0" },
     { name = "pulumi-hcloud", specifier = "==1.43.4" },
-    { name = "pulumi-tls", specifier = "==5.6.2" },
+    { name = "pulumi-tls", specifier = "==5.6.3" },
     { name = "pydantic", specifier = ">=2.14,<3" },
     { name = "pyyaml", specifier = ">=6.0.3" },
 ]
@@ -451,7 +451,7 @@ wheels = [
 
 [[package]]
 name = "fastapi"
-version = "0.163.0"
+version = "0.163.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "annotated-doc" },
@@ -462,9 +462,9 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "typing-inspection" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f1/98/5411252e1c08bdd919c5d55774cebe9da0bebfb174c4e4ffa1a5821935ff/fastapi-0.163.0.tar.gz", hash = "sha256:ef55fa066d74b922aac7231af7869c4469b88ca00cac5d0421e42ceee213a902", size = 543109, upload-time = "2026-11-14T16:53:16.356Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a4/62/19000d0f3699cacaeffe8a3c4cc7046d87aac3291163ffeb2ef08b82d859/fastapi-0.163.1.tar.gz", hash = "sha256:3d364b02a68b67292e833ff2dfed3b8dc3aeadf73e271c15316c6c166668792f", size = 544796, upload-time = "2026-11-15T09:51:31.271Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/de/b0/2d68e967b2fc6012ef1e7e91253c8222a2a895a45dee3677562deb93987e/fastapi-0.163.0-py3-none-any.whl", hash = "sha256:7572550ab4935e3ff373dc0191aea410d6c48127cc5477bc290b992fe539e345", size = 154381, upload-time = "2026-11-14T16:53:14.67Z" },
+    { url = "https://files.pythonhosted.org/packages/20/b6/2424da1e40825d3fc54539621811f34e21472499677c9490e4967270e38e/fastapi-0.163.1-py3-none-any.whl", hash = "sha256:68f2d8050f5c3583121c0d203046cc7def5c16a7d6c43a0e7707a8ea610fe2d3", size = 154541, upload-time = "2026-11-15T09:51:29.726Z" },
 ]
 
 [[package]]
@@ -627,7 +627,7 @@ dependencies = [
 requires-dist = [
     { name = "pulumi", specifier = "==3.276.0" },
     { name = "pulumi-hcloud", specifier = "==1.43.4" },
-    { name = "pulumi-tls", specifier = "==5.6.2" },
+    { name = "pulumi-tls", specifier = "==5.6.3" },
     { name = "pydantic", specifier = ">=2.14,<3" },
 ]
 
@@ -1235,16 +1235,16 @@ wheels = [
 
 [[package]]
 name = "pulumi-tls"
-version = "5.6.2"
+version = "5.6.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "packaging" },
     { name = "pulumi" },
     { name = "semver" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f4/89/5831139191d91c6fe64369f4c7b803dce67e0e07a3497cd29fe6f1be47a1/pulumi_tls-5.6.2.tar.gz", hash = "sha256:ec322dc4a4a58afcf9dc18ccb558f4f3c544206773cdaf4419f7765f5bc67320", size = 33154, upload-time = "2026-10-13T17:54:18.831Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/07/79/09f3af1d53aea0df2d5a97fc159c09752e60b80d70ffc1603a32d47af373/pulumi_tls-5.6.3.tar.gz", hash = "sha256:b5337917ff27496366baaf26fff7c2e224d2e67a32da0b0062b4826cb69f003d", size = 33205, upload-time = "2026-11-02T12:15:59.246Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ca/a5/20f31777bf2903c56aee6ff62c63ef5ebc80428941ec0a3187e5a4cd1909/pulumi_tls-5.6.2-py3-none-any.whl", hash = "sha256:d36f5114f33c07101e6221162f781adc3867e6261f3d8e4a2dfb3d707b33b329", size = 40673, upload-time = "2026-10-13T17:54:17.563Z" },
+    { url = "https://files.pythonhosted.org/packages/6f/4e/e8851ef673a1c2ed8b86e57eebf2a22c824a6d85821e1a95f6f236ee8588/pulumi_tls-5.6.3-py3-none-any.whl", hash = "sha256:b0fd8c89e5839a6e98af251ac03bb457336954634b0256f52ff0429cfeb77e26", size = 40674, upload-time = "2026-11-02T12:15:58.332Z" },
 ]
 
 [[package]]
@@ -1444,7 +1444,7 @@ dev = [
     { name = "pulumi", specifier = "==3.276.0" },
     { name = "pulumi-cloudflare", specifier = "==6.24.0" },
     { name = "pulumi-hcloud", specifier = "==1.43.4" },
-    { name = "pulumi-tls", specifier = "==5.6.2" },
+    { name = "pulumi-tls", specifier = "==5.6.3" },
     { name = "pytest", specifier = ">=9.2.0" },
     { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "ruff" },
