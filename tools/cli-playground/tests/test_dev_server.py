@@ -2,8 +2,12 @@
 
 import asyncio
 import os
+from ipaddress import IPv4Address
 from pathlib import Path
 
+import pytest
+
+from .boxie_network import product_server
 from .dev_server import LocalTerminal
 
 
@@ -93,3 +97,15 @@ def test_published_port_preserves_host_and_origin_boundary() -> None:
                 raise AssertionError("cross-origin socket accepted")
         except WebSocketDisconnect as error:
             assert error.code == 1008
+
+
+@pytest.mark.parametrize("address", ["0.0.0.0", "255.255.255.255", "224.0.0.1"])
+def test_product_server_requires_a_specific_listener_address(tmp_path: Path, address: str) -> None:
+    async def exercise() -> None:
+        with pytest.raises(ValueError, match="specific IPv4 listener address"):
+            async with product_server(
+                tmp_path, "http://127.0.0.1:1", published_address=IPv4Address(address)
+            ):
+                pytest.fail("invalid listener address reached server startup")
+
+    asyncio.run(exercise())

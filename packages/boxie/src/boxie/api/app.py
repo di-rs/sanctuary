@@ -53,7 +53,7 @@ def create_app(
 
     @app.exception_handler(BoxieError)
     async def application_error(_request: Request, error: BoxieError) -> JSONResponse:
-        return JSONResponse({"detail": str(error)}, status_code=error.status)
+        return JSONResponse({"detail": error.public_detail}, status_code=error.status)
 
     @app.exception_handler(RequestValidationError)
     async def invalid_request(_request: Request, _error: RequestValidationError) -> JSONResponse:
@@ -74,7 +74,7 @@ def create_app(
                     body.extend(chunk)
                 request._body = bytes(body)
         except BoxieError as error:
-            return JSONResponse({"detail": str(error)}, status_code=error.status)
+            return JSONResponse({"detail": error.public_detail}, status_code=error.status)
         return await call_next(request)
 
     @app.get("/healthz")
