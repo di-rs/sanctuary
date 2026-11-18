@@ -2,26 +2,36 @@
 
 Sanctuary's [checked-in ruleset](../.github/rulesets/gitmoji-commits.json) defines
 the required check names, their GitHub App IDs, and the allowed merge methods.
-Maintainers should compare it with GitHub during weekly dependency maintenance
-and after changes to rulesets, required-check workflows, or merge settings.
-Resolve drift before the next merge. [Dependency maintenance](dependency-updates.md)
+The maintenance workflow compares it with GitHub each Tuesday at 04:23 UTC.
+Recheck after changes to rulesets, required-check workflows, or merge settings.
+Resolve drift before the next merge. [Maintenance workflow](../.github/workflows/maintenance.yml)
 
 ## Compare with GitHub
 
-From the root of a current Sanctuary checkout, run this read-only check with
-`uv` and the GitHub CLI (`gh`) on your path. Use a `gh` login with read access
-to the repository. [GitHub CLI authentication](https://cli.github.com/manual/gh_auth_login)
+Open **Scheduled repository maintenance** in GitHub Actions and view the
+**Check default-branch merge policy** job. Trigger that job by itself with
+**Run workflow** and **Run only the default-branch merge policy check**, or run
+the following command with `gh`. [Manual workflow runs](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow)
+
+```sh
+gh workflow run maintenance.yml --repo di-rs/sanctuary -f merge_policy_only=true
+```
+
+To compare from a current checkout, run the script from the repository root
+with `uv` and `gh` on your path. Use a `gh` login with read access to the
+repository. [GitHub CLI authentication](https://cli.github.com/manual/gh_auth_login)
 
 ```sh
 uv run --locked python tools/repository_policy/check.py
 ```
 
-The script reads the repository's default branch and all active rules that
-apply to it. It collects required check name and app ID pairs and intersects
-the merge methods allowed by those rules. It also compares the repository's
-enabled merge methods independently with the checked-in policy. Check classic
-branch protection, bypass lists, and review settings in GitHub when reconciling
-a rule.
+The script reads the repository's default branch and merge settings with a
+GraphQL query, then reads the active rules for that branch. The maintenance job
+uses its read-only `GITHUB_TOKEN`. The script collects required check name and
+app ID pairs and intersects the merge methods allowed by those rules. It also
+compares the repository's enabled merge methods independently with the
+checked-in policy. Check classic branch protection, bypass lists, and review
+settings in GitHub when reconciling a rule.
 [GitHub rules API](https://docs.github.com/en/rest/repos/rules#get-rules-for-a-branch) ·
 [Rule layering](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets#about-rule-layering)
 

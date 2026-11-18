@@ -8,19 +8,30 @@ from pathlib import Path
 from typing import Annotated, Literal
 from urllib.parse import quote
 
-from pydantic import BaseModel, Field, TypeAdapter, ValidationError
+from pydantic import AliasPath, BaseModel, Field, TypeAdapter, ValidationError
 
 REPOSITORY = "di-rs/sanctuary"
 RULESET = Path(__file__).resolve().parents[2] / ".github/rulesets/gitmoji-commits.json"
+# The REST repository endpoint requires contents:write to return the merge settings.
+REPOSITORY_QUERY = """query($owner: String!, $name: String!) {
+  repository(owner: $owner, name: $name) {
+    defaultBranchRef { name }
+    mergeCommitAllowed
+    rebaseMergeAllowed
+    squashMergeAllowed
+  }
+}"""
 
 type MergeMethod = Literal["merge", "rebase", "squash"]
 
 
 class RepositorySettings(BaseModel):
-    default_branch: Annotated[str, Field(min_length=1)]
-    allow_merge_commit: bool
-    allow_rebase_merge: bool
-    allow_squash_merge: bool
+    default_branch: str = Field(
+        validation_alias=AliasPath("defaultBranchRef", "name"), min_length=1
+    )
+    allow_merge_commit: bool = Field(validation_alias="mergeCommitAllowed")
+    allow_rebase_merge: bool = Field(validation_alias="rebaseMergeAllowed")
+    allow_squash_merge: bool = Field(validation_alias="squashMergeAllowed")
 
     def merge_methods(self) -> set[MergeMethod]:
         flags: dict[MergeMethod, bool] = {
@@ -95,16 +106,16 @@ def collect_policy(rules: list[Rule]) -> MergePolicy:
     return MergePolicy(checks, methods)
 
 
-def github_get(endpoint: str, *, paginated: bool = False) -> bytes:
-    command = ["gh", "api", "--hostname", "github.com", "--method", "GET", endpoint]
-    if paginated:
-        command.extend(["--paginate", "--slurp"])
+def github_api(endpoint: str, *args: str) -> bytes:
+    command = ["gh", "api", "--hostname", "github.com", endpoint, *args]
     try:
         return subprocess.run(command, capture_output=True, check=True, timeout=30).stdout
     except subprocess.CalledProcessError as exc:
-        raise ValueError(f"GitHub GET {endpoint} failed (gh exit {exc.returncode})") from exc
+        raise ValueError(
+            f"GitHub API request to {endpoint} failed (gh exit {exc.returncode})"
+        ) from exc
     except subprocess.TimeoutExpired as exc:
-        raise ValueError(f"GitHub GET {endpoint} timed out") from exc
+        raise ValueError(f"GitHub API request to {endpoint} timed out") from exc
 
 
 def drift(expected: MergePolicy, live: MergePolicy, settings: RepositorySettings) -> list[str]:
@@ -145,13 +156,30 @@ def main(argv: list[str] | None = None) -> int:
         if not expected.ruleset_methods or not expected.required_checks:
             raise ValueError("Checked-in ruleset must specify merge methods and required checks")
 
-        repo_endpoint = f"repos/{REPOSITORY}"
         source = "GitHub repository settings"
-        settings = RepositorySettings.model_validate_json(github_get(repo_endpoint), strict=True)
+        owner, name = REPOSITORY.split("/")
+        response = github_api(
+            "graphql",
+            "--method",
+            "POST",
+            "--raw-field",
+            f"query={REPOSITORY_QUERY}",
+            "--raw-field",
+            f"owner={owner}",
+            "--raw-field",
+            f"name={name}",
+            "--jq",
+            ".data.repository",
+        )
+        settings = RepositorySettings.model_validate_json(response, strict=True)
         branch = quote(settings.default_branch, safe="")
         source = "GitHub default-branch rules"
-        response = github_get(
-            f"{repo_endpoint}/rules/branches/{branch}?per_page=100", paginated=True
+        response = github_api(
+            f"repos/{REPOSITORY}/rules/branches/{branch}?per_page=100",
+            "--method",
+            "GET",
+            "--paginate",
+            "--slurp",
         )
         pages = TypeAdapter(list[list[Rule]]).validate_json(response, strict=True)
         live = collect_policy([rule for page in pages for rule in page])

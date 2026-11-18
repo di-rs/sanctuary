@@ -7,8 +7,7 @@ import pytest
 from repository_policy import check
 
 APP_ID = 15368
-REPOSITORY_ENDPOINT = "repos/di-rs/sanctuary"
-RULES_ENDPOINT = f"{REPOSITORY_ENDPOINT}/rules/branches/release%2Fmain?per_page=100"
+RULES_ENDPOINT = "repos/di-rs/sanctuary/rules/branches/release%2Fmain?per_page=100"
 
 
 def pull_request(*methods: str) -> dict[str, object]:
@@ -48,21 +47,31 @@ def checked_in_policy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 @pytest.fixture
 def github(monkeypatch: pytest.MonkeyPatch) -> Callable[..., None]:
-    def respond(*pages: list[object], merge_enabled: bool = False) -> None:
+    def respond(*pages: list[object], merge_enabled: bool | None = False) -> None:
         def fake_run(
             command: list[str], *, capture_output: bool, check: bool, timeout: int
         ) -> subprocess.CompletedProcess[bytes]:
-            assert command[:6] == ["gh", "api", "--hostname", "github.com", "--method", "GET"]
+            assert command[:4] == ["gh", "api", "--hostname", "github.com"]
             assert capture_output and check and timeout > 0
-            if command[6:] == [REPOSITORY_ENDPOINT]:
+            if command[4] == "graphql":
+                assert command[5:8] == ["--method", "POST", "--raw-field"]
+                assert command[8].startswith("query=query(")
+                assert command[9:] == [
+                    "--raw-field",
+                    "owner=di-rs",
+                    "--raw-field",
+                    "name=sanctuary",
+                    "--jq",
+                    ".data.repository",
+                ]
                 payload: object = {
-                    "default_branch": "release/main",
-                    "allow_merge_commit": merge_enabled,
-                    "allow_rebase_merge": False,
-                    "allow_squash_merge": True,
+                    "defaultBranchRef": {"name": "release/main"},
+                    "mergeCommitAllowed": merge_enabled,
+                    "rebaseMergeAllowed": False,
+                    "squashMergeAllowed": True,
                 }
             else:
-                assert command[6:] == [RULES_ENDPOINT, "--paginate", "--slurp"]
+                assert command[4:] == [RULES_ENDPOINT, "--method", "GET", "--paginate", "--slurp"]
                 payload = pages
             return subprocess.CompletedProcess(command, 0, json.dumps(payload).encode(), b"")
 
@@ -142,6 +151,17 @@ def test_malformed_live_rules_are_an_observation_failure(
     assert "Invalid required_status_checks in GitHub default-branch rules" in result.err
 
 
+def test_unavailable_merge_setting_is_an_observation_failure(
+    github: Callable[..., None], capsys: pytest.CaptureFixture[str]
+) -> None:
+    github([], merge_enabled=None)
+
+    assert check.main([]) == 2
+    result = capsys.readouterr()
+    assert not result.out
+    assert "Invalid mergeCommitAllowed in GitHub repository settings" in result.err
+
+
 def test_unreadable_policy_is_an_observation_failure(
     checked_in_policy: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -166,5 +186,5 @@ def test_failed_request_does_not_expose_gh_output(
     assert check.main([]) == 2
     result = capsys.readouterr()
     assert not result.out
-    assert "GitHub GET repos/di-rs/sanctuary failed" in result.err
+    assert "GitHub API request to graphql failed" in result.err
     assert "untrusted raw diagnostic" not in result.err

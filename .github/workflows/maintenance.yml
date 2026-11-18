@@ -5,6 +5,11 @@ on:
     - cron: '17 4 * * *'
     - cron: '23 4 * * 2'
   workflow_dispatch:
+    inputs:
+      merge_policy_only:
+        description: Run only the default-branch merge policy check
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -18,9 +23,28 @@ defaults:
     shell: bash
 
 jobs:
+  merge-policy:
+    name: Check default-branch merge policy
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '23 4 * * 2'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: '0.13.0'
+      - name: Install locked dependencies
+        run: uv sync --locked --no-dev --no-install-workspace
+      - name: Compare active GitHub rules and merge settings
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: uv run --no-sync python tools/repository_policy/check.py
+
   audit:
     # The daily schedule already audits dependencies before Tuesday's extended checks.
-    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '17 4 * * *'
+    if: (github.event_name == 'workflow_dispatch' && !inputs.merge_policy_only) || github.event.schedule == '17 4 * * *'
     name: 📦 Refresh dependency vulnerability and license checks
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -42,7 +66,7 @@ jobs:
 
   remote-links:
     name: 🔗 Check external documentation links
-    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '23 4 * * 2'
+    if: (github.event_name == 'workflow_dispatch' && !inputs.merge_policy_only) || github.event.schedule == '23 4 * * 2'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -67,7 +91,7 @@ jobs:
 
   coverage:
     name: 📊 Collect Rust test coverage
-    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '23 4 * * 2'
+    if: (github.event_name == 'workflow_dispatch' && !inputs.merge_policy_only) || github.event.schedule == '23 4 * * 2'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
@@ -105,7 +129,7 @@ jobs:
 
   toolchains:
     name: 🦀 Rust compatibility (${{ matrix.toolchain }})
-    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '23 4 * * 2'
+    if: (github.event_name == 'workflow_dispatch' && !inputs.merge_policy_only) || github.event.schedule == '23 4 * * 2'
     strategy:
       fail-fast: false
       matrix:
@@ -147,7 +171,7 @@ jobs:
 
   optimized-tests:
     name: ⚡ Rust release-mode tests and doctests
-    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '23 4 * * 2'
+    if: (github.event_name == 'workflow_dispatch' && !inputs.merge_policy_only) || github.event.schedule == '23 4 * * 2'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -171,7 +195,7 @@ jobs:
 
   miri:
     name: 🔬 Check Rust memory safety with Miri
-    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '23 4 * * 2'
+    if: (github.event_name == 'workflow_dispatch' && !inputs.merge_policy_only) || github.event.schedule == '23 4 * * 2'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
