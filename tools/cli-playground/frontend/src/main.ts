@@ -1,6 +1,5 @@
 import { mount } from "svelte";
-import "@xterm/xterm/css/xterm.css";
-import "./app.css";
+import "./theme.css";
 import App from "./App.svelte";
 
 const target = document.getElementById("app");

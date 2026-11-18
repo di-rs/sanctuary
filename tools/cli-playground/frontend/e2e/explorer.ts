@@ -9,10 +9,8 @@ export async function openExplorer(page: Page) {
 }
 export async function openSampleFiles(page: Page) {
   await openExplorer(page);
-  const section = page.locator(".workspace-details");
-  if (!(await section.getAttribute("open"))) {
-    // Empty open attributes are truthy only in DOM, not string coercion.
-    if (!(await section.evaluate((node) => (node as HTMLDetailsElement).open)))
-      await section.locator("summary").click();
+  const summary = page.getByText("Sample files", { exact: true });
+  if (!(await summary.evaluate((node) => node.closest("details")?.open))) {
+    await summary.click();
   }
 }

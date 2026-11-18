@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vite-plus/test";
 import { commandContext, tokens } from "./command-context";
-import { argument, catalog, command } from "../testing/catalog";
+import { indexCatalog } from "./catalog-diff";
+import { argument, catalog, command } from "../../testing/catalog";
 const reference = catalog("a".repeat(40), ["biggie", "echor"]);
 reference.clis[0].head.command.subcommands = [
   command({
@@ -20,7 +21,8 @@ reference.clis[0].head.command.subcommands = [
   command({ name: "bytes" }),
   command({ name: "records" }),
 ];
-const context = (text: string) => commandContext(text, ["biggie", "echor"], reference);
+const commands = indexCatalog(reference);
+const context = (text: string) => commandContext(text, ["biggie", "echor"], commands);
 describe("terminal-driven command choices", () => {
   test("starts with CLI buttons and completes names without artifact paths", () => {
     expect(context("").choices.map((choice) => choice.label)).toEqual(["biggie", "echor"]);
@@ -76,7 +78,7 @@ test("end-of-options stops flag and command suggestions", () => {
   withOperand.clis[0].head.command.args.push(
     argument({ id: "text", short: null, long: null, index: 1 }),
   );
-  expect(commandContext("echor -- hello", ["echor"], withOperand).flags).toEqual([]);
+  expect(commandContext("echor -- hello", ["echor"], indexCatalog(withOperand)).flags).toEqual([]);
   expect(context("biggie text --lines --").endOfOptions).toBe(false);
   expect(context("biggie text --lines=--").flags.length).toBeGreaterThan(0);
 });
@@ -87,7 +89,8 @@ test("flags after operands still request values and track used options", () => {
     argument({ id: "file", short: null, long: null, index: 1 }),
     argument({ id: "lines", short: "n", long: "lines", num_args: { min: 1, max: 1 } }),
   );
-  const parse = (text: string) => commandContext(text, ["headr"], reference);
+  const commands = indexCatalog(reference);
+  const parse = (text: string) => commandContext(text, ["headr"], commands);
   expect(parse("headr welcome.txt --lines").kind).toBe("value");
   expect(parse("headr welcome.txt --lines").pending?.argument.id).toBe("lines");
   expect(parse("headr welcome.txt --lines 5").used).toEqual(["lines"]);

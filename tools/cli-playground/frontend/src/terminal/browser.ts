@@ -1,5 +1,6 @@
-import { createFreshBinding, stopBinding } from "../environment";
+import { createFreshBinding, stopBinding } from "../services/sessions";
 import { Terminal } from "@xterm/xterm";
+import "@xterm/xterm/css/xterm.css";
 import { FitAddon } from "@xterm/addon-fit";
 import { createSession, type SessionState } from "./session";
 import { watchDraft, type Draft } from "./draft";

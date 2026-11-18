@@ -1,10 +1,5 @@
-import {
-  compareCommand,
-  quoteToken as quote,
-  type Catalog,
-  type CommandView,
-  type ArgumentView,
-} from "./catalog";
+import type { ArgumentView, Change, CommandView } from "./catalog-diff";
+import { quoteToken as quote } from "./shell";
 
 interface Token {
   value: string;
@@ -54,7 +49,7 @@ export interface Suggestion {
   label: string;
   description: string;
   value: string;
-  change?: string;
+  change?: Change;
 }
 export interface Context {
   cli: string;
@@ -67,7 +62,11 @@ export interface Context {
   endOfOptions?: boolean;
   pending?: ArgumentView;
 }
-export function commandContext(text: string, names: string[], catalog: Catalog | null): Context {
+export function commandContext(
+  text: string,
+  names: string[],
+  commands: ReadonlyMap<string, CommandView>,
+): Context {
   const empty: Context = {
     cli: "",
     node: null,
@@ -96,7 +95,7 @@ export function commandContext(text: string, names: string[], catalog: Catalog |
       .filter((name) => name.includes(cli))
       .map((name) => ({
         label: name,
-        description: catalog?.clis.find((item) => item.name === name)?.head.command.about ?? "",
+        description: commands.get(name)?.command.about ?? "",
         value: replace(first, name),
       }));
     return {
@@ -106,9 +105,9 @@ export function commandContext(text: string, names: string[], catalog: Catalog |
       kind: choices.length && parsed.length <= 1 ? "clis" : "missing",
     };
   }
-  const entry = catalog?.clis.find((item) => item.name === cli);
-  if (!entry) return { ...empty, cli, kind: "unsupported" };
-  let node = compareCommand(entry.head.command, entry.base?.command ?? null, entry.comparison);
+  const root = commands.get(cli);
+  if (!root) return { ...empty, cli, kind: "unsupported" };
+  let node = root;
   let pending: ArgumentView | undefined;
   let remaining = 0;
   let operands = false;

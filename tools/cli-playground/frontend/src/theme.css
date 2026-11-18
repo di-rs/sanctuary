@@ -1,0 +1,39 @@
+@import "tailwindcss" source(".");
+
+@theme {
+  --color-paper: #0b0b0b;
+  --color-panel: #101010;
+  --color-surface: #151515;
+  --color-line: #292929;
+  --color-ink: #d8d8d8;
+  --color-detail: #bcbcbc;
+  --color-subtle: #aaa;
+  --color-muted: #929292;
+  --font-sans: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  --breakpoint-desktop: 800px;
+  --breakpoint-wide: 1051px;
+}
+
+@layer base {
+  :root {
+    color-scheme: dark;
+    font-synthesis: none;
+  }
+  body {
+    @apply bg-paper font-sans text-ink antialiased;
+  }
+  button:enabled,
+  summary {
+    @apply cursor-pointer;
+  }
+  button:disabled {
+    @apply cursor-default opacity-40;
+  }
+  :is(button, a, summary, input):focus-visible {
+    @apply outline-1 outline-offset-3 outline-neutral-300;
+  }
+  ::selection {
+    @apply bg-neutral-300 text-panel;
+  }
+}
