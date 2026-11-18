@@ -53,7 +53,7 @@ strict = true
 exclude = ["infra/environments/single-host/__main__.py"]
 
 [tool.pytest]
-testpaths = ["infra/host/tests", "infra/environments/single-host/tests", "packages/boxie/tests", "tools/cli-bench/tests", "tools/cli-playground/tests", "tools/cli-check/tests", "tools/local-dev/tests", "tools/cli-record/tests", "tools/sanctuary-dev/tests"]
+testpaths = ["infra/host/tests", "infra/environments/single-host/tests", "packages/boxie/tests", "tools/cli-bench/tests", "tools/cli-playground/tests", "tools/cli-check/tests", "tools/local-dev/tests", "tools/cli-record/tests", "tools/repository_policy/tests", "tools/sanctuary-dev/tests"]
 pythonpath = ["tools", "tools/cli-bench", "infra/host/tests", "packages/boxie/tests"]
 addopts = ["--strict-config", "--strict-markers", "-p", "boxie_test_support.dependencies", "-m", "not integration"]
 markers = ["integration: real isolated builds/installations and external-tool checks; prerequisites required"]
