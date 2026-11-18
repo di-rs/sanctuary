@@ -38,6 +38,7 @@ async def product_server(
     api_url: str,
     *,
     port: int = 0,
+    credential: str = "consumer-one-secret",
     clock: Callable[[], float] | None = None,
     published_address: IPv4Address | None = None,
     configure_app: Callable[[FastAPI], None] | None = None,
@@ -70,7 +71,7 @@ async def product_server(
         )
         app = create_app(
             settings,
-            boxie=HttpBoxieClient(api_url, "consumer-one-secret"),
+            boxie=HttpBoxieClient(api_url, credential),
             clock=clock or MutableClock(),
         )
         if configure_app is not None:

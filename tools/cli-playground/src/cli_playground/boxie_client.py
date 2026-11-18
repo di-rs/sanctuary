@@ -1,6 +1,8 @@
 """Product-owned adapter for Boxie's private consumer HTTP/WebSocket API."""
 
 import asyncio
+import hmac
+import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -15,7 +17,9 @@ from cli_playground.observability import current_request_id
 from cli_playground.sandbox import (
     AdmissionRejected,
     ArtifactReply,
+    BoxieCredentialRejected,
     BoxieUnavailable,
+    SandboxNotFound,
     SandboxRequest,
     SandboxView,
     TerminalPort,
@@ -58,20 +62,25 @@ class HttpTerminal:
 class HttpBoxieClient:
     def __init__(self, url: str, credential: str) -> None:
         self.url = url.rstrip("/")
-        self.headers = {"Authorization": f"Bearer {credential}"}
+        self._credential = credential
         self._session: aiohttp.ClientSession | None = None
 
+    def sandbox_scope(self, identifier: UUID) -> str:
+        return hmac.digest(
+            self._credential.encode(),
+            f"playground-sandbox\0{self.url}\0{identifier}".encode(),
+            "sha256",
+        ).hex()
+
     def _headers(self, extra: dict[str, str] | None = None) -> dict[str, str]:
-        result = self.headers | (extra or {})
+        result = {"Authorization": f"Bearer {self._credential}"} | (extra or {})
         if request_id := current_request_id():
             result["X-Request-ID"] = request_id
         return result
 
     def _http(self) -> aiohttp.ClientSession:
         if self._session is None:
-            self._session = aiohttp.ClientSession(
-                headers=self.headers, timeout=aiohttp.ClientTimeout(total=30)
-            )
+            self._session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30))
         return self._session
 
     async def _request(
@@ -96,7 +105,16 @@ class HttpBoxieClient:
                     and response.status in {404, 409, 429}
                 ):
                     raise AdmissionRejected("sandbox admission rejected")
+                stopping = method == "DELETE" and path.startswith("/v1/sandboxes/")
+                if stopping and response.status in {401, 403}:
+                    raise BoxieCredentialRejected("sandbox stop credential rejected")
                 data = await bounded_response(response)
+                if (
+                    stopping
+                    and response.status == 404
+                    and json.loads(data) == {"detail": "sandbox not found"}
+                ):
+                    raise SandboxNotFound("sandbox not found")
                 if response.status not in {200, 201, 202, 204} or len(data) > 65536:
                     raise BoxieUnavailable("sandbox service unavailable")
                 return data

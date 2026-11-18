@@ -8,7 +8,13 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlmodel import col, delete, select, update
 
 from cli_playground.database import SessionFactory, connection
-from cli_playground.domain import CreateIntent, SessionBinding, UploadIntent, check_build
+from cli_playground.domain import (
+    CreateIntent,
+    SessionBinding,
+    UploadIntent,
+    check_build,
+    request_stop,
+)
 from cli_playground.models import BuildIdentity
 from cli_playground.observability import current_request_id
 from cli_playground.sandbox import BoxieUnavailable, SandboxView, validate_sandbox
@@ -178,15 +184,13 @@ class SessionStore:
             )
             for row in rows:
                 binding = SessionBinding.model_validate(row.model_dump())
-                if binding.sandbox.cleanup_pending or binding.sandbox.state not in {
-                    "terminated",
-                    "failed",
-                }:
-                    if not row.pending_stop:
-                        row.stop_request_id = UUID(current_request_id() or str(uuid4()))
-                    row.pending_stop = True
+                request_stop(binding, UUID(current_request_id() or str(uuid4())))
+                row.stop_request_id = binding.stop_request_id
+                row.pending_stop = binding.pending_stop
 
-    async def recover_creation(self, intent: CreateIntent, sandbox: SandboxView) -> None:
+    async def recover_creation(
+        self, intent: CreateIntent, sandbox: SandboxView, *, scope: str
+    ) -> None:
         async with connection(self.sessions, write=True) as session:
             row = (
                 await session.exec(select(Binding).where(Binding.id == intent.id).with_for_update())
@@ -194,7 +198,12 @@ class SessionStore:
             pending = await session.get(Creation, intent.id, with_for_update=True)
             if pending is None or (
                 row is not None
-                and (row.attached or row.attachment_deadline is not None or row.pending_stop)
+                and (
+                    row.attached
+                    or row.attachment_deadline is not None
+                    or row.pending_stop
+                    or row.stop_absent
+                )
             ):
                 return
             if row is not None:
@@ -205,6 +214,7 @@ class SessionStore:
                 revision=intent.revision,
                 credential_hash=intent.credential_hash,
                 sandbox=sandbox,
+                sandbox_scope=scope,
                 pending_stop=True,
                 stop_request_id=UUID(current_request_id() or str(uuid4())),
             )
