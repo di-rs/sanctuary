@@ -9,7 +9,6 @@ import subprocess
 import tarfile
 import tempfile
 import time
-import tomllib
 from pathlib import Path
 
 from cli_playground.catalog import CATALOG_NAME, MAX_CATALOG, Catalog, CliCatalog, CliSchema
@@ -64,6 +63,70 @@ def capture_schema(binary: Path, *, timeout: float = 10, limit: int = 1024 * 102
     return CliSchema.model_validate_json(bytes(data))
 
 
+def compare_baseline(root: Path, ancestor: str, entries: list[CliCatalog]) -> None:
+    # cli-check is installed by the checkout build, outside the gateway's runtime dependencies.
+    from cli_check.workspace import discover
+
+    with tempfile.TemporaryDirectory(prefix="playground-base-") as directory:
+        temporary = Path(directory)
+        archive = temporary / "source.tar"
+        source = temporary / "source"
+        try:
+            subprocess.run(
+                ["git", "archive", "--format=tar", "-o", str(archive), ancestor],
+                cwd=root,
+                check=True,
+            )
+            source.mkdir()
+            with tarfile.open(archive) as tar:
+                tar.extractall(source, filter="data")
+            existing = {
+                package.name
+                for package in discover(source, timeout=60)
+                if any(binary.name == package.name for binary in package.binaries)
+            }
+        except KeyError, OSError, ValueError, subprocess.SubprocessError, tarfile.TarError:
+            print("Merge-base discovery unavailable; publishing without comparison markers.")
+            return
+
+        candidates = sorted(entry.name for entry in entries if entry.name in existing)
+        for entry in entries:
+            if entry.name not in existing:
+                entry.comparison = "added"
+        if not candidates or not (source / "utils/cli-schema/Cargo.toml").is_file():
+            return
+        try:
+            subprocess.run(
+                [
+                    "cargo",
+                    "build",
+                    "--locked",
+                    "--release",
+                    "--bins",
+                    "--target-dir",
+                    str(temporary / "target"),
+                    *(arg for name in candidates for arg in ("--package", name)),
+                ],
+                cwd=source,
+                check=True,
+                timeout=600,
+            )
+        except OSError, subprocess.SubprocessError:
+            print("Merge-base compilation unavailable; publishing without comparison markers.")
+            return
+
+        for entry in entries:
+            if entry.name not in existing:
+                continue
+            try:
+                baseline = capture_schema(temporary / "target/release" / entry.name)
+                if baseline.command.name == entry.name:
+                    entry.base = baseline
+                    entry.comparison = "available"
+            except ValueError, OSError, subprocess.TimeoutExpired:
+                continue
+
+
 def build_catalog(root: Path, base: str, head: str, names: list[str], output: Path) -> None:
     base = subprocess.check_output(
         ["git", "rev-parse", "--verify", f"{base}^{{commit}}"], cwd=root, text=True
@@ -90,56 +153,7 @@ def build_catalog(root: Path, base: str, head: str, names: list[str], output: Pa
                 comparison="unavailable",
             )
         )
-    with tempfile.TemporaryDirectory(prefix="playground-base-") as directory:
-        temporary = Path(directory)
-        archive = temporary / "source.tar"
-        subprocess.run(
-            ["git", "archive", "--format=tar", "-o", str(archive), ancestor], cwd=root, check=True
-        )
-        source = temporary / "source"
-        source.mkdir()
-        with tarfile.open(archive) as tar:
-            tar.extractall(source, filter="data")
-        existing: set[str] = set()
-        for folder in ("buildins", "packages"):
-            for manifest in (source / folder).glob("*/Cargo.toml"):
-                if (manifest.parent / "src/main.rs").is_file():
-                    existing.add(tomllib.loads(manifest.read_text())["package"]["name"])
-        for entry in entries:
-            if entry.name not in existing:
-                entry.comparison = "added"
-        candidates = sorted(existing.intersection(names))
-        if candidates and (source / "utils/cli-schema/Cargo.toml").is_file():
-            try:
-                subprocess.run(
-                    [
-                        "cargo",
-                        "build",
-                        "--locked",
-                        "--release",
-                        "--bins",
-                        "--target-dir",
-                        str(temporary / "target"),
-                        *(arg for name in candidates for arg in ("--package", name)),
-                    ],
-                    cwd=source,
-                    check=True,
-                    timeout=600,
-                )
-            except subprocess.CalledProcessError, subprocess.TimeoutExpired:
-                print("Merge-base compilation unavailable; publishing without comparison markers.")
-            else:
-                for entry in entries:
-                    if entry.name not in candidates:
-                        continue
-                    try:
-                        baseline = capture_schema(temporary / "target/release" / entry.name)
-                        if baseline.command.name != entry.name:
-                            raise ValueError("baseline CLI identity mismatch")
-                        entry.base = baseline
-                        entry.comparison = "available"
-                    except ValueError, OSError, subprocess.TimeoutExpired:
-                        entry.base = None
+    compare_baseline(root, ancestor, entries)
     catalog = Catalog(schema_version=1, head_sha=head, base_sha=ancestor, clis=entries)
     payload = catalog.canonical()
     if len(payload) > MAX_CATALOG:
