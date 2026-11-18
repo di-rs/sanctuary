@@ -44,7 +44,9 @@ Contributors select the example that shows their change using the [CLI developme
 
 The docs group checks a single level-one title and introductory prose in component
 READMEs. Each Cargo CLI uses its own name as the title and a fenced shell example
-in its first section. The full workspace check includes the root, infrastructure,
+in its first section. The `<!-- cli-example -->` comment identifies the first
+shell fence for the [native README test](../../cli-testing/docs/testing.md#test-the-first-readme-example).
+The full workspace check includes the root, infrastructure,
 and direct service, library and tool READMEs. Lychee checks links and fragments.
 
 The command index lists Cargo CLI packages alphabetically, using the resolved

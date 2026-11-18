@@ -6,8 +6,10 @@
 
 From the repository root:
 
+<!-- cli-example -->
+
 ```sh
-work=$(mktemp -d)
+work=$(mktemp -d "${TMPDIR:-/tmp}/mkdirr.XXXXXX")
 cargo run -q -p mkdirr -- -p "$work/one/two"
 ```
 

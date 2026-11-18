@@ -68,3 +68,5 @@ fn missing_operand_returns_failure(cx: &TestContext) {
         .stdout("")
         .stderr(predicates::str::contains("/sanctuary-audit-missing/path"));
 }
+
+cli_testing::readme_example!(0, "     1\tred\n     2\tblue\n");

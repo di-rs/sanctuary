@@ -144,3 +144,26 @@ fn syntax_and_file_type_follow_saved_identity() {
         String::from_utf8_lossy(&result.stderr)
     );
 }
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+#[cli_testing::cli_test]
+fn readme_example(cx: &cli_testing::TestContext) -> cli_testing::Result {
+    let workspace = cx.workspace()?;
+    let command = workspace.readme_std_command()?;
+    cli_testing::command("python3", workspace.path())
+        .arg(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/readme_example.py"
+        ))
+        .arg(command.get_program())
+        .args(command.get_args())
+        .envs(
+            command
+                .get_envs()
+                .filter_map(|(key, value)| value.map(|value| (key, value))),
+        )
+        .assert()
+        .code(0)
+        .stdout("")
+        .stderr("");
+    Ok(())
+}

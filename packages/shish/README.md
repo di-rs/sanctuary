@@ -8,19 +8,26 @@ guaranteed.
 
 From the repository root:
 
+<!-- cli-example -->
+
 ```sh
-cargo run -p shish -- -c 'printf "%s\n" "hello world"'
-cargo run -p shish -- script.sh first-argument
-printf 'echo hello\n' | cargo run -p shish -- -s
+cargo run -q -p shish -- -c 'printf "%s\n" "hello world"'
 ```
 
-The first command prints `hello world`.
+The command prints `hello world`.
 
 ## Invocation
 
 Use `--help` for arguments and `--version` for the package version.
 The root `make install-rust` target also installs shish into `~/.local/bin` (or
 `PREFIX/bin` when overridden).
+
+Pass an existing script and its arguments, or pipe commands into `-s`.
+
+```sh
+cargo run -p shish -- script.sh first-argument
+printf 'echo hello\n' | cargo run -p shish -- -s
+```
 
 | Invocation | Behavior |
 | --- | --- |

@@ -48,14 +48,16 @@ def restrict_acl(path: Path) -> None:
         os.setxattr(path, "system.posix_acl_access", value)
 
 
-def session(binary: str, directory: Path, keys: list[bytes]) -> bytes:
+def session(
+    binary: str, directory: Path, keys: list[bytes], *, args: tuple[str, ...] = ("original",)
+) -> bytes:
     pid, fd = pty.fork()
     if pid == 0:
         os.chdir(directory)
         os.environ.update(
             TERM="xterm-256color", SANCTUARY_LOG_LEVEL="off", SANCTUARY_LOG_STDERR="off"
         )
-        os.execv(binary, [binary, "original"])
+        os.execv(binary, [binary, *args])
     fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", 24, 120, 0, 0))
     captured = bytearray()
 

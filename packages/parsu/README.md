@@ -7,8 +7,10 @@ debug formatting. It is a parser-combinator exercise, not a general XML parser.
 
 Run from the repository root with the pinned Rust toolchain installed:
 
+<!-- cli-example -->
+
 ```sh
-printf '%s\n' '<parent><child/></parent>' | cargo run -p parsu -- -
+printf '%s\n' '<parent><child/></parent>' | cargo run -q -p parsu -- -
 ```
 
 The output is a debug representation of the parent element and its child.

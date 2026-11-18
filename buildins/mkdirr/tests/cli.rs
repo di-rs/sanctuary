@@ -4,6 +4,31 @@ use predicates::prelude::*;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
+#[cfg(unix)]
+#[cli_test]
+fn readme_example(cx: &TestContext) -> Result<()> {
+    let workspace = cx.workspace()?;
+    workspace
+        .readme_cmd()?
+        .assert()
+        .code(0)
+        .stdout("")
+        .stderr("");
+
+    let entries = workspace
+        .path()
+        .read_dir()?
+        .collect::<std::io::Result<Vec<_>>>()?;
+    let [temporary] = entries.as_slice() else {
+        return Err("expected one temporary directory from mktemp".into());
+    };
+    let created = temporary.path().join("one/two");
+    if !created.is_dir() {
+        return Err(format!("missing directory {}", created.display()).into());
+    }
+    Ok(())
+}
+
 #[test_case("creates_single_directory")]
 fn creates_single_directory(cx: &mut Context) -> cli_testing::Result<()> {
     cx.workspace()?;

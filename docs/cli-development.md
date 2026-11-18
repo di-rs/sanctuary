@@ -51,8 +51,9 @@ starting a persistent playground and inspecting a worktree's services.
    [catr](../buildins/catr/README.md) has both catalog and native tests.
 5. Give the package a README with its name as the title, a short purpose, and a
    runnable shell example in the first section. Describe the result and document
-   flags, exit behavior and limitations where readers need them. Run
-   `uv run --locked sdev index` and commit the refreshed
+   flags, exit behavior and limitations where readers need them. Connect the
+   example to a [README test](../tools/cli-testing/docs/testing.md#test-the-first-readme-example).
+   Run `uv run --locked sdev index` and commit the refreshed
    [command index](../README.md#commands). The table uses Cargo’s package
    description or, when it is empty, the README’s opening paragraph. Refresh it
    after moving or removing a CLI or editing its listed purpose. Applications in `packages/` also
@@ -70,8 +71,12 @@ sdev check echor
 ```
 
 This runs package policy, formatting, Clippy and native tests on your working
-tree. Without activating the environment, use `uv run --locked sdev
-check echor`. For shared changes, test affected consumers as well. Run
+tree. On Linux and macOS, the native suite runs the introductory README example
+against the built binary, as PR CI does. If it fails, look for `readme_example`
+and the README path in the test output. Without activating the environment,
+use `uv run --locked sdev check echor`.
+
+For shared changes, test affected consumers as well. Run
 `cargo test --locked -p PACKAGE --all-features --doc` for a library target.
 For a case catalog, run `sdev test --suite
 buildins/catr/tests/cases.toml validate` with the owning catalog path.

@@ -18,6 +18,16 @@ fn assert_path(cmd: &mut Command, expected: &Path) {
         .stderr("");
 }
 
+#[cfg(unix)]
+#[cli_test]
+fn readme_example(cx: &TestContext) -> Result<()> {
+    let workspace = cx.workspace()?;
+    // The platform's canonical path resolves any symlinks in the temp root.
+    let physical = workspace.path().canonicalize()?;
+    assert_path(&mut workspace.readme_cmd()?, &physical);
+    Ok(())
+}
+
 #[cli_test]
 fn prints_current_directory_in_each_mode(cx: &TestContext) -> Result<()> {
     let dir = cx.workspace()?;

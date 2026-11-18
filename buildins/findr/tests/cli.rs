@@ -4,6 +4,23 @@ use std::{borrow::Cow, fs};
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
+#[cfg(unix)]
+#[cli_test]
+fn readme_example(cx: &TestContext) -> Result<()> {
+    let workspace = cx.workspace()?;
+    let source = workspace.path().join("buildins/findr/src");
+    fs::create_dir_all(&source)?;
+    fs::write(source.join("main.rs"), "")?;
+    fs::write(source.join("lib.rs"), "")?;
+    workspace
+        .readme_cmd()?
+        .assert()
+        .code(0)
+        .stdout("buildins/findr/src/main.rs\n")
+        .stderr("");
+    Ok(())
+}
+
 #[cfg(windows)]
 fn format_file_name(expected_file: &str) -> Cow<str> {
     // Equivalent to: Cow::Owned(format!("{}.windows", expected_file))

@@ -6,8 +6,10 @@
 
 From the repository root:
 
+<!-- cli-example -->
+
 ```sh
-printf 'red\nred\nblue\n' | cargo run -q -p uniqr
+printf 'red\nred\nblue\n' | cargo run -q -p uniqr --
 ```
 
 The output has two lines, `red` and `blue`.

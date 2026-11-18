@@ -6,6 +6,8 @@
 
 From the repository root:
 
+<!-- cli-example -->
+
 ```sh
 printf 'Ada,Rust\n' | cargo run -q -p cutr -- -d , -f 2
 ```

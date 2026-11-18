@@ -305,3 +305,5 @@ fn sigint_terminates_without_stdout_chatter(cx: &TestContext) -> Result<()> {
     assert_eq!(output.stderr, b"");
     Ok(())
 }
+
+cli_testing::readme_example!(0, "blue\n");

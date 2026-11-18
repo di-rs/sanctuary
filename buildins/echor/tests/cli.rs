@@ -45,3 +45,5 @@ fn unicode_and_backslashes_are_literal(cx: &TestContext) {
         .stdout("世界 \\n\\t")
         .stderr("");
 }
+
+cli_testing::readme_example!(0, "hello world\n");
