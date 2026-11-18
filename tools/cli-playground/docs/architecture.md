@@ -45,11 +45,12 @@ Clap reflection supplies the command tree during the unprivileged build. Trusted
 publication validates data and digests without invoking the executable; the gateway
 persists that reference separately from Boxie's executable artifact.
 
-`App.svelte` owns one terminal controller and the active revision. CLI selection,
-search, filtering, and the mobile drawer update the explorer without replacing
-the terminal DOM. Build polling records the latest available revision but cannot
-switch the active workspace. Only an explicit fresh-session action remounts the
-terminal and loads another catalog. Reconnection uses the existing session.
+The preview pins the first runnable revision to the workspace. TanStack Query
+polls the latest build status and caches each command catalog by preview and
+revision. Typing a command or opening the mobile drawer updates the explorer
+while the same xterm instance stays mounted. Reconnecting resumes that session.
+Resetting or switching builds disposes the old terminal, reads fresh metadata,
+and opens a workspace for the current runnable revision.
 
 The explorer renders metadata as text. Insertion shell-quotes individual command
 and flag tokens, rejects terminal control characters, and passes the text through

@@ -1,4 +1,4 @@
-import type { Argument, Catalog, Command } from "../src/catalog";
+import type { Argument, Catalog, Command } from "../src/services/catalog";
 
 // Hand-authored interfaces keep browser and comparison expectations independent
 // of the exporter and server validators.

@@ -1,8 +1,9 @@
 import { svelte } from "@sveltejs/vite-plugin-svelte";
+import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vite-plus";
 
 export default defineConfig(({ command }) => ({
-  plugins: [svelte()],
+  plugins: [tailwindcss(), svelte()],
   base: command === "build" ? "/static/" : "/",
   build: {
     outDir: "../src/cli_playground/static",

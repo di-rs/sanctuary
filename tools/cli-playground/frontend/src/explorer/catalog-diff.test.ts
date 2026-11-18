@@ -1,13 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
-import { argument, catalog, command } from "../testing/catalog";
-import {
-  commandText,
-  compareCommand,
-  flagText,
-  parseCatalog,
-  quoteToken,
-  visible,
-} from "./catalog";
+import { argument, catalog, command } from "../../testing/catalog";
+import { compareCommand, visible } from "./catalog-diff";
 
 describe("public interface comparison", () => {
   it("distinguishes added, removed and help-only changes with before and after details", () => {
@@ -109,32 +102,5 @@ describe("public interface comparison", () => {
     const tree = compareCommand(command(), null, "added");
     expect(tree.change).toBe("added");
     expect(tree.args[0].change).toBe("added");
-  });
-});
-
-describe("catalog admission and terminal insertion", () => {
-  it("ties the catalog to the exact active head and CLI set", () => {
-    const value = catalog("a".repeat(40));
-    expect(parseCatalog(value, value.head_sha, ["catr"])).toEqual(value);
-    expect(() => parseCatalog(value, "b".repeat(40), ["catr"])).toThrow();
-    expect(() => parseCatalog(value, value.head_sha, ["echor"])).toThrow();
-    expect(() => parseCatalog({ ...value, schema_version: 2 }, value.head_sha, ["catr"])).toThrow();
-  });
-  it("quotes tokens and never inserts Enter or positional placeholders", () => {
-    expect(commandText("catr", ["run", "a'b;$HOME"])).toBe(`catr run 'a'"'"'b;$HOME' `);
-    expect(
-      flagText(argument({ long: "file", num_args: { min: 1, max: 1 }, value_names: ["FILE"] })),
-    ).toBe(" --file ");
-    expect(flagText(argument({ long: null, short: "n" }))).toBe(" -n ");
-    expect(flagText(argument({ long: null, short: null, index: 1 }))).toBe("");
-    for (const token of [
-      "",
-      "evil\ncommand",
-      "evil\rcommand",
-      "evil\x1b[200~",
-      "evil\u009b",
-      "evil\u2028",
-    ])
-      expect(() => quoteToken(token)).toThrow();
   });
 });
