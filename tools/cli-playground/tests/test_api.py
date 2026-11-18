@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 from starlette.testclient import WebSocketDenialResponse
 
 from .boxie_fake import FakeBoxie
+from .catalog_fixtures import catalog
 from .helpers import (
     AUTH,
     MutableClock,
@@ -275,12 +276,42 @@ def test_subdomain_urls_bind_http_and_websocket_to_the_same_preview(
     with TestClient(
         create_app(settings, boxie=FakeBoxie(), static_dir=static_dir), base_url=settings.public_url
     ) as client:
-        current, sibling = upload(client), upload(client, cli="catr", pr=456)
+        reference = catalog()
+        published = client.post(
+            "/api/environments",
+            params={
+                "pr": 123,
+                "sha": reference.head_sha,
+                "run_id": 10,
+                "run_number": 2,
+                "run_attempt": 1,
+            },
+            content=binary_bundle({"echor": elf_binary(), "catalog.json": reference.canonical()}),
+            headers=AUTH,
+        )
+        assert published.status_code == 201, published.text
+        current = published.json()
+        sibling = upload(client, cli="catr", pr=456)
         authority = "pr-123.play.example"
         assert current["url"] == f"https://{authority}/p/{current['id']}"
         metadata = client.get(f"https://{authority}/api/environments/{current['id']}")
         assert metadata.status_code == 200
         assert metadata.json()["clis"] == ["echor"]
+        revision = f"{reference.head_sha}-2-1"
+        assert metadata.json()["revision"] == revision
+        catalog_path = f"/api/environments/{current['id']}/revisions/{revision}/catalog"
+        control_catalog = client.get(catalog_path)
+        assert control_catalog.status_code == 200
+        assert control_catalog.json() == reference.model_dump(by_alias=True)
+        owner_catalog = client.get(httpx.URL(current["url"]).copy_with(path=catalog_path))
+        assert owner_catalog.status_code == 200, owner_catalog.text
+        assert owner_catalog.json() == control_catalog.json()
+        sibling_url = httpx.URL(sibling["url"])
+        assert client.get(sibling_url.copy_with(path=catalog_path)).status_code == 404
+        legacy_path = f"/api/environments/{sibling['id']}/revisions/{reference.head_sha}/catalog"
+        legacy_catalog = client.get(sibling_url.copy_with(path=legacy_path))
+        assert legacy_catalog.status_code == 200
+        assert legacy_catalog.json() is None
         assert client.get(current["url"]).status_code == 200
         assert (
             client.get(f"https://{current['id']}.play.example/p/{current['id']}").status_code == 400
@@ -299,6 +330,16 @@ def test_subdomain_urls_bind_http_and_websocket_to_the_same_preview(
             ).status_code
             == 404
         )
+        for method, path in (
+            ("POST", "/api/environments"),
+            ("DELETE", "/api/pull-requests/123"),
+            ("POST", "/api/pull-requests/123/reopen"),
+            ("POST", catalog_path),
+        ):
+            assert (
+                client.request(method, f"https://{authority}{path}", headers=AUTH).status_code
+                == 404
+            )
         assert (
             client.get(f"https://{authority}/api/environments/{sibling['id']}").status_code == 404
         )

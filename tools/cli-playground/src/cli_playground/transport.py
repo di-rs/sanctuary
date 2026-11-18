@@ -15,6 +15,7 @@ from starlette.datastructures import Headers
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from cli_playground.config import Settings
+from cli_playground.models import ARTIFACT_REVISION_PATTERN, ID_PATTERN
 from cli_playground.sandbox import TerminalPort, TerminalWriteClosed
 from cli_playground.terminal_protocol import (
     Ack,
@@ -87,6 +88,11 @@ class RequestHostBoundary:
             match = re.fullmatch(
                 r"/(?:p|ws|api/environments)/([^/]+)(?:/sessions(?:/[0-9a-f-]+)?)?", scope["path"]
             )
+            if match is None and scope["type"] == "http" and scope["method"] == "GET":
+                match = re.fullmatch(
+                    rf"/api/environments/({ID_PATTERN})/revisions/{ARTIFACT_REVISION_PATTERN}/catalog",
+                    scope["path"],
+                )
             if match is not None:
                 valid = self.settings.accepts_host(hosts[0], match[1])
             elif scope["path"].startswith("/api/"):
