@@ -23,3 +23,16 @@ jobs:
         uses: fuxingloh/multi-labeler@bcd50af464202999e57f556b4aefcf05a34abf85 # v5.0.0
         with:
           config-path: .github/labeler.yml
+      - name: Keep the higher risk when file and template labels overlap
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          issue="repos/$GH_REPO/issues/$PR_NUMBER"
+          labels=$(gh api "$issue" --jq '[.labels[].name]')
+          for label in risk:low risk:medium; do
+            if jq -e --arg label "$label" 'index("risk:high") != null and index($label) != null' <<< "$labels" >/dev/null; then
+              gh api --method DELETE --silent "$issue/labels/$label"
+            fi
+          done

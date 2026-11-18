@@ -1407,6 +1407,7 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "boxie-test-support" },
+    { name = "markdown-it-py" },
     { name = "mypy" },
     { name = "pulumi" },
     { name = "pulumi-cloudflare" },
@@ -1416,6 +1417,10 @@ dev = [
     { name = "pyyaml" },
     { name = "ruff" },
     { name = "types-pyyaml" },
+]
+pr-review = [
+    { name = "markdown-it-py" },
+    { name = "pyyaml" },
 ]
 
 [package.metadata]
@@ -1434,6 +1439,7 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "boxie-test-support", editable = "packages/boxie/tests/support" },
+    { name = "markdown-it-py", specifier = ">=4,<5" },
     { name = "mypy" },
     { name = "pulumi", specifier = "==3.276.0" },
     { name = "pulumi-cloudflare", specifier = "==6.24.0" },
@@ -1443,6 +1449,10 @@ dev = [
     { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "ruff" },
     { name = "types-pyyaml", specifier = ">=6.0.12.20261113" },
+]
+pr-review = [
+    { name = "markdown-it-py", specifier = ">=4,<5" },
+    { name = "pyyaml", specifier = ">=6.0.3" },
 ]
 
 [[package]]

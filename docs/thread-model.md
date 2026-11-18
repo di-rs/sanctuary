@@ -110,6 +110,12 @@ Source badge generation runs with read-only access; its write-capable publisher 
 
 ## Deployment assumptions
 
+The shared-host PostgreSQL installer accepts an operator-owned volume selection
+under `/etc/sanctuary/boxie`. It checks the active container's data mount and
+reads the selected cluster's major version through a read-only volume mount
+before Compose can replace the database. Operators coordinate major-version
+cutovers and verify recovery as described in [PostgreSQL data preservation](../packages/boxie/docs/database.md#preserve-data).
+
 The opt-in [playground development Compose stack](../tools/cli-playground/compose.dev.yml)
 uses real CLI binaries and PTYs inside one non-root container, backed by the
 terminal transport test harness. It is for trusted local code and disposable data,

@@ -32,7 +32,15 @@ link updated contracts or audit records when relevant. -->
 
 <!-- State Low, Medium, or High with a concrete reason: what could break and who
 or what is affected. Mention mitigation or accepted regressions when relevant.
-A short sentence is enough. -->
+A short sentence is enough for a routine change. For production database or
+schema changes, select High and complete these three entries outside this comment.
+
+- **Production impact** Identify the deployed and proposed versions or schemas,
+  affected data and services, and what happens to existing installations.
+- **Existing-data validation** Give the result of a rehearsal with existing data,
+  or identify the missing evidence and its consequence for rollout.
+- **Recovery** Explain how an operator can restore service and recover the data.
+-->
 
 Choose one risk level and explain it above.
 

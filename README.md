@@ -104,6 +104,9 @@ and Boxie fit together. The [platform direction](docs/platform-direction.md)
 describes the durable-shell north star and open design questions. The
 [threat model](docs/thread-model.md) describes security boundaries.
 
+To inspect production dashboards and workflows from local Codex Desktop or CLI,
+see [Debug production with Codex and MCP](docs/production-mcp.md).
+
 | Directory   | Contents                                              |
 | ----------- | ----------------------------------------------------- |
 | `buildins/` | Small standalone Rust CLIs                            |
