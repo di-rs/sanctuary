@@ -1,12 +1,18 @@
 use clap::CommandFactory;
 use std::{
     fs::File,
-    io::{BufRead, BufReader, BufWriter, IsTerminal, Write, stdin},
+    io::{self, BufReader, BufWriter, IsTerminal, Stdin, Write, stdin},
+    os::{fd::AsFd, unix::fs::MetadataExt},
 };
 
 mod cli;
 use crate::cli::{Cli, CliError};
 use uniqr::{UniqueList, report_unique_lines};
+
+enum Input {
+    Stdin(Stdin),
+    File(File),
+}
 
 fn main() -> std::process::ExitCode {
     cli_log::run("uniqr", |cli| match run(cli) {
@@ -28,35 +34,38 @@ fn main() -> std::process::ExitCode {
 }
 
 fn run(cli: Cli) -> Result<(), CliError> {
-    let reader = get_reader(&cli.input_file)?;
-    let mut writer = get_writer(cli.output_file, &cli.input_file)?;
+    let input = open_input(&cli.input_file)?;
+    let mut writer = get_writer(cli.output_file, &input)?;
 
-    let list = UniqueList::from_reader(reader)?;
+    let list = match input {
+        Input::Stdin(stdin) => UniqueList::from_reader(stdin.lock()),
+        Input::File(file) => UniqueList::from_reader(BufReader::new(file)),
+    }?;
     report_unique_lines(&mut writer, list, cli.count)?;
     writer.flush()?;
 
     Ok(())
 }
 
-fn get_reader(path: &str) -> Result<Box<dyn BufRead>, CliError> {
+fn open_input(path: &str) -> Result<Input, CliError> {
     if path == "-" {
-        if stdin().is_terminal() {
+        let stdin = stdin();
+        if stdin.is_terminal() {
             let _ = Cli::command().print_help();
             return Err(CliError::Config);
         }
-        Ok(Box::new(stdin().lock()))
+        Ok(Input::Stdin(stdin))
     } else {
         let file = File::open(path).map_err(|err| CliError::FileOpen {
             err,
             path: path.to_string(),
         })?;
-        Ok(Box::new(BufReader::new(file)))
+        Ok(Input::File(file))
     }
 }
 
-fn get_writer(path: Option<String>, input: &str) -> Result<Box<dyn Write>, CliError> {
+fn get_writer(path: Option<String>, input: &Input) -> Result<Box<dyn Write>, CliError> {
     if let Some(path) = path {
-        use std::os::unix::fs::MetadataExt;
         let file = std::fs::OpenOptions::new()
             .write(true)
             .create(true)
@@ -66,16 +75,21 @@ fn get_writer(path: Option<String>, input: &str) -> Result<Box<dyn Write>, CliEr
                 err,
                 path: path.clone(),
             })?;
-        if input != "-" {
-            let source = std::fs::metadata(input)?;
-            let target = file.metadata()?;
-            if source.dev() == target.dev() && source.ino() == target.ino() {
-                return Err(
-                    std::io::Error::other("input and output refer to the same file").into(),
-                );
+        let target = file.metadata()?;
+        let source = match input {
+            Input::File(file) => Some(file.metadata()?),
+            Input::Stdin(stdin) if target.is_file() => {
+                Some(File::from(stdin.as_fd().try_clone_to_owned()?).metadata()?)
             }
+            Input::Stdin(_) => None,
+        };
+        if let Some(source) = source
+            && source.dev() == target.dev()
+            && source.ino() == target.ino()
+        {
+            return Err(io::Error::other("input and output refer to the same file").into());
         }
-        if file.metadata()?.is_file() {
+        if target.is_file() {
             file.set_len(0)?;
         }
         Ok(Box::new(BufWriter::new(file)))

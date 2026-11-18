@@ -1,3 +1,9 @@
 [[cases]]
 name = "count-repetitions"
 args = ["--count", "duplicates.txt"]
+
+[[cases]]
+name = "reject-stdin-alias"
+setup = "printf 'red\\nred\\nblue\\n' > data.txt"
+args = ["data.txt"]
+after = 'uniqr - data.txt < data.txt; echo "Exit status: $?"; cat data.txt'
