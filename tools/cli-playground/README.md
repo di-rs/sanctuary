@@ -54,13 +54,13 @@ which requires changes to the CLI's own implementation.
 From the repository root, with uv installed and Docker and its Compose plugin running:
 
 ```sh
-uv run local-dev up
+uv run --locked sdev local up
 ```
 
 The launcher builds the frontend and all CLIs, starts the disposable Compose
 playground, waits for health checks, and follows logs. Open
 the assigned loopback URL when it prints `Ready`. Ctrl+C leaves services running;
-`uv run local-dev down` stops and removes them.
+`uv run --locked sdev local down` stops and removes them.
 
 The [local development guide](../../docs/local-development.md) explains prerequisites,
 components, exact Compose commands, rebuilding, logs, cleanup, and troubleshooting.

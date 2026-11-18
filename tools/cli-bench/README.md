@@ -201,10 +201,15 @@ with their CLI while sharing the measurement machinery.
 
 ## Installed use and JSON
 
-From the repository root, `make install-python` installs cli-bench and cli-check
-in isolated uv environments and places commands in `~/.local/bin`. Add that
-directory to `PATH`. Python 3.15+ and uv are required for installation. The old
-`uv run python tools/cli-bench/bench.py ...` entry point remains compatible.
+From the repository root, install `cli-bench` with its workspace dependency and
+add `~/.local/bin` to `PATH`. Installation requires uv and Python 3.15+.
+
+```sh
+uv tool install --with ./tools/cli-check ./tools/cli-bench
+```
+
+`make install-python` installs all four standalone Python tools. `sdev bench`
+runs this checkout’s benchmark runner with the same suites and flags.
 
 ```sh
 cli-bench --json doctor

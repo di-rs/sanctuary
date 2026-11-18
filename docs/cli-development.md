@@ -22,7 +22,7 @@ frontend's versions of Node and pnpm. Then prepare Chromium.
 ```sh
 pnpm --dir tools/cli-playground/frontend install --frozen-lockfile
 pnpm --dir tools/cli-playground/frontend exec playwright install chromium
-sanctuary-dev doctor
+sdev local doctor
 ```
 
 On Linux, `playwright install --with-deps chromium` also installs the browser's
@@ -61,14 +61,14 @@ starting a persistent playground and inspecting a worktree's services.
 From the activated checkout, check the CLI you changed.
 
 ```sh
-sanctuary-dev check echor
+sdev check echor
 ```
 
 This runs package policy, formatting, Clippy and native tests on your working
-tree. Without activating the environment, use `uv run --locked sanctuary-dev
+tree. Without activating the environment, use `uv run --locked sdev
 check echor`. For shared changes, test affected consumers as well. Run
 `cargo test --locked -p PACKAGE --all-features --doc` for a library target.
-For a case catalog, run `cargo run --locked -p cli-testing -- --suite
+For a case catalog, run `sdev test --suite
 buildins/catr/tests/cases.toml validate` with the owning catalog path.
 Automatic reference comparison additionally requires the declared reference
 platform and executable.
@@ -99,8 +99,8 @@ args = ["-n", "--", "hello", "sanctuary"]
 List the names, then record only the demo you want to show.
 
 ```sh
-sanctuary-dev record echor --list
-sanctuary-dev record echor no-newline
+sdev record echor --list
+sdev record echor no-newline
 ```
 
 Pass additional names in the order they should appear in the same video.
@@ -150,5 +150,5 @@ and current body.
 
 ```sh
 gh pr view PR_NUMBER --json body --jq .body > pr.md
-sanctuary-dev check-pr --base origin/master --body-file pr.md
+sdev check-pr --base origin/master --body-file pr.md
 ```

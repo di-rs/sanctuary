@@ -1,7 +1,8 @@
 # CLI schema
 
 `cli-schema` exports a Sanctuary CLI's public Clap interface for the playground.
-Derive `Schema` on the root parser struct:
+The [nested macro crate](macros/README.md) implements the `Schema` derive.
+Apply it to the root parser struct.
 
 ```rust,no_run
 use cli_schema::Schema;

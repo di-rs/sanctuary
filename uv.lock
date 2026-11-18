@@ -11,8 +11,10 @@ members = [
     "cli-check",
     "cli-playground",
     "cli-playground-infra",
+    "cli-record",
     "host-infra",
     "local-dev",
+    "sanctuary-dev",
     "sanctuary-tools",
 ]
 
@@ -393,6 +395,21 @@ requires-dist = [
 ]
 
 [[package]]
+name = "cli-record"
+version = "0.1.0"
+source = { editable = "tools/cli-record" }
+dependencies = [
+    { name = "cli-check" },
+    { name = "local-dev" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "cli-check", editable = "tools/cli-check" },
+    { name = "local-dev", editable = "tools/local-dev" },
+]
+
+[[package]]
 name = "click"
 version = "8.5.0"
 source = { registry = "https://pypi.org/simple" }
@@ -703,12 +720,6 @@ wheels = [
 name = "local-dev"
 version = "0.1.0"
 source = { editable = "tools/local-dev" }
-dependencies = [
-    { name = "cli-check" },
-]
-
-[package.metadata]
-requires-dist = [{ name = "cli-check", editable = "tools/cli-check" }]
 
 [[package]]
 name = "mako"
@@ -1373,6 +1384,11 @@ wheels = [
 ]
 
 [[package]]
+name = "sanctuary-dev"
+version = "0.1.0"
+source = { editable = "tools/sanctuary-dev" }
+
+[[package]]
 name = "sanctuary-tools"
 version = "0.1.0"
 source = { virtual = "." }
@@ -1380,10 +1396,12 @@ dependencies = [
     { name = "anyio" },
     { name = "cli-bench" },
     { name = "cli-check" },
+    { name = "cli-record" },
     { name = "githubkit" },
     { name = "httpx" },
     { name = "local-dev" },
     { name = "pydantic" },
+    { name = "sanctuary-dev" },
 ]
 
 [package.dev-dependencies]
@@ -1405,10 +1423,12 @@ requires-dist = [
     { name = "anyio" },
     { name = "cli-bench", editable = "tools/cli-bench" },
     { name = "cli-check", editable = "tools/cli-check" },
+    { name = "cli-record", editable = "tools/cli-record" },
     { name = "githubkit", specifier = ">=0.17.1,<0.18" },
     { name = "httpx" },
     { name = "local-dev", editable = "tools/local-dev" },
     { name = "pydantic", specifier = ">=2.14,<3" },
+    { name = "sanctuary-dev", editable = "tools/sanctuary-dev" },
 ]
 
 [package.metadata.requires-dev]

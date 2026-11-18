@@ -29,7 +29,7 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           jq -r '.pull_request.body // ""' "$GITHUB_EVENT_PATH" > "$RUNNER_TEMP/pr-body.md"
-          uv run --locked --no-dev --package local-dev sanctuary-dev check-pr \
+          uv run --locked --no-dev --package cli-check cli-check check-pr \
             --base "$BASE_SHA" --body-file "$RUNNER_TEMP/pr-body.md"
 
   git-policy:

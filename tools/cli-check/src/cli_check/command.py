@@ -1,12 +1,16 @@
-"""Validate repository CLI standards without building or executing packages."""
+"""Check CLI package standards, verify one binary or inspect PR recording evidence."""
 
+import argparse
+import shlex
+import subprocess
 import sys
 from dataclasses import asdict
 from pathlib import Path
 
 from cli_check.checks import benches, docs, layout, tests
 from cli_check.output import ArgumentParser, emit, failure
-from cli_check.workspace import discover, find_root
+from cli_check.recordings import changed_clis, check_pr_recordings
+from cli_check.workspace import cli_package, discover, find_root
 
 CHECKS = {
     "layout": layout.check,
@@ -16,20 +20,77 @@ CHECKS = {
 }
 
 
-def main() -> int:
-    parser = ArgumentParser(description=__doc__)
-    parser.add_argument("group", nargs="?", choices=CHECKS, help="check group (default: all)")
-    parser.add_argument("--root", type=Path, help="explicit Cargo workspace root")
-    parser.add_argument("-p", "--package", action="append", help="check only this Cargo package")
-    parser.add_argument("--json", action="store_true", help="emit structured results and errors")
-    parser.add_argument(
+def arguments() -> argparse.Namespace:
+    # Existing callers use shared options on either side of a check group.
+    common = ArgumentParser(add_help=False, allow_abbrev=False)
+    common.add_argument("--root", type=Path, help="explicit Cargo workspace root")
+    common.add_argument(
+        "-p", "--package", action="append", help="select a package for policy checks"
+    )
+    common.add_argument("--json", action="store_true", help="emit structured results and errors")
+    common.add_argument(
         "--list-packages", action="store_true", help="discover packages without checking them"
     )
+    options, rest = common.parse_known_args()
+    parser = ArgumentParser(parents=[common], description=__doc__)
     parser.add_argument("--version", action="version", version="%(prog)s 0.1.0")
-    args = parser.parse_args()
+    sub = parser.add_subparsers(dest="group")
+    for group in CHECKS:
+        sub.add_parser(group, help=f"run the {group} policy checks")
+    shared_help = "Use --root PATH to select a workspace and --json for structured output."
+    verify = sub.add_parser(
+        "verify",
+        help="run policy, formatting, Clippy and native tests for one CLI",
+        epilog=shared_help,
+    )
+    verify.add_argument("cli")
+    review = sub.add_parser(
+        "check-pr", help="verify the CLI evidence in a PR description", epilog=shared_help
+    )
+    review.add_argument("--base", default="origin/master", help="base revision")
+    review.add_argument("--head", default="HEAD", help="head revision")
+    review.add_argument("--body-file", type=Path, required=True)
+    args = parser.parse_args(rest, namespace=options)
+    if args.group in {"verify", "check-pr"} and (args.package or args.list_packages):
+        parser.error("--package and --list-packages select workspace policy checks")
+    return args
+
+
+def native_checks(root: Path, name: str, *, json_output: bool) -> None:
+    for command in (
+        ["cargo", "fmt", "-p", name, "--", "--check"],
+        [
+            "cargo",
+            "clippy",
+            "--locked",
+            "-p",
+            name,
+            "--all-targets",
+            "--all-features",
+            "--",
+            "-D",
+            "warnings",
+            "-F",
+            "unsafe_code",
+        ],
+        ["cargo", "nextest", "run", "--locked", "-p", name, "--all-features", "--profile", "ci"],
+    ):
+        print(f"+ {shlex.join(command)}", file=sys.stderr, flush=True)
+        subprocess.run(command, cwd=root, check=True, stdout=sys.stderr if json_output else None)
+
+
+def main() -> int:
+    args = arguments()
     try:
         root = args.root.resolve() if args.root else find_root(Path.cwd())
-        packages = discover(root)
+        if args.group == "check-pr":
+            names = changed_clis(root, args.base, args.head)
+            check_pr_recordings(names, args.body_file.read_text(encoding="utf-8"))
+            if args.json:
+                emit({"packages": names})
+            return 0
+        verifying = args.group == "verify"
+        packages = [cli_package(root, args.cli)] if verifying else discover(root)
         if args.package:
             unknown = set(args.package) - {package.name for package in packages}
             if unknown:
@@ -44,12 +105,16 @@ def main() -> int:
             else:
                 print("\n".join(p.name for p in packages))
             return 0
-        selected = [CHECKS[args.group]] if args.group else list(CHECKS.values())
+        selected = [CHECKS[args.group]] if args.group in CHECKS else list(CHECKS.values())
         errors = [error for check in selected for error in check(root, packages)]
-        if docs.check in selected and not args.package:
+        if docs.check in selected and not args.package and not verifying:
             errors.extend(docs.component_docs(root, packages))
         errors.sort()
-    except (OSError, ValueError, KeyError, TypeError) as error:
+        if verifying and not errors:
+            native_checks(root, args.cli, json_output=args.json)
+    except KeyboardInterrupt:
+        return 130
+    except (OSError, ValueError, KeyError, TypeError, subprocess.CalledProcessError) as error:
         if args.json:
             failure("operation", str(error))
         else:

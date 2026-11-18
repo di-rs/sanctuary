@@ -22,8 +22,9 @@ cli-testing --json doctor
 ```
 
 The target installs a release binary into `~/.local/bin`; use `PREFIX=/path` to
-choose another prefix. `make install-local` includes this tool too. Without
-installation, use `cargo run -p cli-testing --` before the same arguments.
+choose another prefix. With the development launcher installed, `sdev test`
+forwards the same arguments to this checkout’s binary. You can also use
+`cargo run --locked -p cli-testing --` directly.
 The command works outside this checkout when supplied an absolute suite path.
 A [companion skill](skill/SKILL.md) describes the installed command workflow.
 

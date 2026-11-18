@@ -14,10 +14,11 @@ From the repository root with the pinned Rust toolchain installed:
 cargo run -p echor -- hello world
 ```
 
-For installed commands, `make install-local` installs Biggie, Parsu, Kara, Shish, cli-testing, cli-bench,
-and cli-check into `~/.local/bin`. Add it to `PATH`; use `PREFIX=/path` to override.
-The Rust tools are release binaries; the Python tools use isolated uv tool environments.
-The target replaces installations with these seven names; built-ins are not installed.
+Run `make install-local` to put `sdev` in `~/.local/bin`. Add that directory to
+`PATH`, or set `PREFIX=/path` to use another prefix. From a checkout,
+`sdev check echor` runs package policy and native tests. The
+[development launcher](tools/sanctuary-dev/README.md) also opens the fixture,
+benchmark, recording and playground tools.
 
 Choose another package from the tables below. These commands implement selected
 behaviors, not complete GNU/BSD replacements; each README explains the differences.
@@ -35,7 +36,7 @@ explains sessions, sample files, and switching builds.
 To run the playground and all CLIs locally with Docker Compose:
 
 ```sh
-uv run --locked sanctuary-dev up
+uv run --locked sdev local up
 ```
 
 The [local development guide](docs/local-development.md) covers setup, console
@@ -77,7 +78,9 @@ output, rebuilding, shutdown, and the separate full Boxie service setup.
 
 | Project                                          | Purpose                                                                            |
 | ------------------------------------------------ | ---------------------------------------------------------------------------------- |
-| [sanctuary-dev](tools/local-dev/README.md)       | Check a CLI, record a selected demo, and start the local playground                |
+| [sdev](tools/sanctuary-dev/README.md)            | Launch development tools from the active checkout                                  |
+| [cli-record](tools/cli-record/README.md)         | Record selected CLI demos in a disposable browser playground                       |
+| [local-dev](tools/local-dev/README.md)           | Build and manage a worktree’s local playground stack                               |
 | [cli-bench](tools/cli-bench/README.md)           | Run per-CLI benchmark suites with Biggie and hyperfine                             |
 | [cli-check](tools/cli-check/README.md)           | Check CLI package boundaries, tests, documentation, and benchmark coverage         |
 | [cli-testing](tools/cli-testing/README.md)       | Author CLI tests and inspect, compare, and record reference fixtures               |

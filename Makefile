@@ -5,7 +5,8 @@ INSTALL_TARGET ?= $(shell rustc -vV | sed -n 's/^host: //p')
 RUST_TOOLS := biggie parsu kara shish cli-testing
 
 .PHONY: install-local install-rust install-python install-cli-testing
-install-local: install-rust install-python
+install-local:
+	UV_TOOL_BIN_DIR="$(PREFIX)/bin" uv tool install --python 3.15 --force "$(CURDIR)/tools/sanctuary-dev"
 
 install-cli-testing: RUST_TOOLS := cli-testing
 install-rust install-cli-testing:
@@ -16,3 +17,5 @@ install-rust install-cli-testing:
 install-python:
 	UV_TOOL_BIN_DIR="$(PREFIX)/bin" uv tool install --python 3.15 --force "$(CURDIR)/tools/cli-check"
 	UV_TOOL_BIN_DIR="$(PREFIX)/bin" uv tool install --python 3.15 --force --with "$(CURDIR)/tools/cli-check" "$(CURDIR)/tools/cli-bench"
+	UV_TOOL_BIN_DIR="$(PREFIX)/bin" uv tool install --python 3.15 --force "$(CURDIR)/tools/local-dev"
+	UV_TOOL_BIN_DIR="$(PREFIX)/bin" uv tool install --python 3.15 --force --with "$(CURDIR)/tools/cli-check" --with "$(CURDIR)/tools/local-dev" "$(CURDIR)/tools/cli-record"

@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { Buffer } from "node:buffer";
 
-// sanctuary-dev validates the selected TOML cases before starting the stack.
+// cli-record validates the selected TOML cases before starting the stack.
 interface Demo {
   args: string[];
   setup?: string;
@@ -14,7 +14,7 @@ const { cli, cases } = JSON.parse(process.env.CLI_RECORD_PLAN ?? "{}") as {
   cli: string;
   cases: Demo[];
 };
-if (!cli || !cases?.length) throw new Error("Select demos with sanctuary-dev record");
+if (!cli || !cases?.length) throw new Error("Select demos with cli-record");
 
 function quote(token: string): string {
   return /^[\w./:@%+=,-]+$/.test(token) ? token : "'" + token.replaceAll("'", "'\\''") + "'";
