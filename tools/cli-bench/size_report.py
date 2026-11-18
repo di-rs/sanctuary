@@ -1,11 +1,16 @@
 """Render size measurements as data, using the shared trusted publication boundary."""
 
+import sys
 import zipfile
+from pathlib import Path
 
-from github_transport import github_pages, github_request
 from githubkit import GitHub, TokenAuthStrategy
-from report import MAX_ZIP, integer, read_zip, seconds
-from size_data import BinarySize, SizeReport
+
+# The standalone collector imports this module when writing its job summary.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from github_transport import github_pages, github_request  # noqa: E402
+from report import MAX_ZIP, integer, read_zip, seconds  # noqa: E402
+from size_data import BinarySize, SizeReport  # noqa: E402
 
 JOB = "📦 Measure Linux binary sizes"
 

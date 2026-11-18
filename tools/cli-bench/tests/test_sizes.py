@@ -394,39 +394,25 @@ def test_size_archive_limits_are_enforced(
 
 
 def test_reporting_only_pr_skips_builds_and_writes_summary(
-    repo: Repository,
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
+    repo: Repository, tmp_path: Path
 ) -> None:
     repo.write("rust-toolchain.toml", (TOOLS.parents[1] / "rust-toolchain.toml").read_text())
     base = repo.commit()
     repo.write("tools/cli-bench/report.py", "# reporting-only change\n")
     head = repo.commit()
-    for key in list(os.environ):
-        if key.startswith("GIT_") and key not in repo.env:
-            monkeypatch.delenv(key)
-    for key, value in repo.env.items():
-        if key.startswith("GIT_"):
-            monkeypatch.setenv(key, value)
-    # Keep the collector's toolchain and target settings local to this test.
-    monkeypatch.setenv("RUSTUP_TOOLCHAIN", os.environ.get("RUSTUP_TOOLCHAIN", ""))
-    monkeypatch.setenv("CARGO_BUILD_TARGET", os.environ.get("CARGO_BUILD_TARGET", ""))
-
-    def unexpected_build(*args: object, **kwargs: object) -> None:
-        pytest.fail("an unaffected PR must never invoke the build function")
-
-    monkeypatch.setattr(collect_sizes, "build_sizes", unexpected_build)
+    cargo = fixture_executable(
+        tmp_path,
+        "cargo",
+        "assert sys.argv[1] == 'metadata', 'reporting-only changes must skip builds'\n"
+        f"os.execv({shutil.which('cargo')!r}, ['cargo', *sys.argv[1:]])",
+    )
     output = tmp_path / "report.json"
     summary = tmp_path / "summary.md"
-    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
-    monkeypatch.setenv("GITHUB_RUN_NUMBER", "10")
-    monkeypatch.setenv("GITHUB_RUN_ID", "500")
-    monkeypatch.setenv("GITHUB_REPOSITORY", REPO)
-    monkeypatch.setattr(
-        sys,
-        "argv",
+    result = subprocess.run(
         [
-            "collect_sizes.py",
+            sys.executable,
+            "-E",
+            str(TOOLS / "collect_sizes.py"),
             "--root",
             str(repo.root),
             "--base",
@@ -436,7 +422,22 @@ def test_reporting_only_pr_skips_builds_and_writes_summary(
             "--output",
             str(output),
         ],
+        cwd=tmp_path,
+        env=repo.env
+        | {
+            "PATH": str(cargo.parent) + os.pathsep + repo.env["PATH"],
+            "GITHUB_STEP_SUMMARY": str(summary),
+            "GITHUB_RUN_NUMBER": "10",
+            "GITHUB_RUN_ID": "500",
+            "GITHUB_REPOSITORY": REPO,
+        },
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
     )
-    collect_sizes.main()
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == "No affected binary packages; skipping all builds.\n"
+    assert result.stderr == ""
     assert SizeReport.model_validate_json(output.read_bytes()).rows == []
     assert "No affected binary packages; no builds were needed." in summary.read_text()
