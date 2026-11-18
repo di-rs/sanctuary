@@ -9,7 +9,7 @@ From the repository root:
 <!-- cli-example -->
 
 ```sh
-work=$(mktemp -d)
+work=$(mktemp -d "${TMPDIR:-/tmp}/commr.XXXXXX")
 printf 'blue\nred\n' > "$work/left"
 printf 'red\n' > "$work/right"
 cargo run -q -p commr -- -1 -2 "$work/left" "$work/right"

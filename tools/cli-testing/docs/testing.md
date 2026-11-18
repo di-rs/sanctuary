@@ -28,8 +28,10 @@ cli_testing::readme_example!(0, "hello world\n");
 ```
 
 The test reads the command from the README and substitutes the built binary
-for the Cargo launcher. The shell runs in a temporary directory with C locale,
-UTC, and logging disabled. The macro also checks for empty stderr.
+for the Cargo launcher. The macro also checks for empty stderr. The shell runs
+in a temporary directory with logging disabled, C locale, and UTC. It sets
+`TMPDIR` to that directory. Pass `mktemp` a template such as
+`"${TMPDIR:-/tmp}/example.XXXXXX"` to keep files there on Linux and macOS.
 
 For a case that needs fixtures or file assertions, name the native test
 `readme_example`. Create a workspace with `cx.workspace()?` and keep it alive

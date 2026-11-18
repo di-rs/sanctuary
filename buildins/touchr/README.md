@@ -9,7 +9,7 @@ From the repository root:
 <!-- cli-example -->
 
 ```sh
-work=$(mktemp -d)
+work=$(mktemp -d "${TMPDIR:-/tmp}/touchr.XXXXXX")
 cargo run -q -p touchr -- "$work/example.txt"
 ```
 
