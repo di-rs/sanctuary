@@ -103,7 +103,7 @@ jobs:
       }}
     name: 🐍 Python lint, types and tests (3.15)
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - name: 📥 Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -138,6 +138,14 @@ jobs:
         run: prek run mypy --all-files --show-diff-on-failure
       - name: 🧪 Run Python regression tests
         run: uv run pytest
+      - name: 🔭 Verify shared-host observability
+        timeout-minutes: 5
+        run: uv run --locked pytest -m integration infra/environments/single-host/tests/test_observability.py
+      - name: 📏 Verify the binary-size collector on real builds
+        timeout-minutes: 5
+        run: |
+          rustc -Vv
+          uv run --locked pytest -m integration tools/cli-bench/tests/test_sizes.py
       - name: 🧹 Verify checks leave the checkout unchanged
         run: git diff --exit-code
 
