@@ -147,18 +147,16 @@ class SessionStore:
                 .on_conflict_do_nothing()
             )
 
-    async def retirement_request_id(self, identifier: UUID) -> UUID | None:
+    async def retirements(self) -> list[tuple[UUID, UUID | None]]:
         async with connection(self.sessions) as session:
-            row = await session.get(Retirement, identifier)
-            return row.request_id if row else None
-
-    async def retirements(self) -> list[UUID]:
-        async with connection(self.sessions) as session:
-            return list(
-                await session.exec(
-                    select(Retirement.artifact_id).where(col(Retirement.completed).is_(False))
+            return [
+                (artifact_id, request_id)
+                for artifact_id, request_id in await session.exec(
+                    select(Retirement.artifact_id, Retirement.request_id).where(
+                        col(Retirement.completed).is_(False)
+                    )
                 )
-            )
+            ]
 
     async def retired(self, identifier: UUID) -> None:
         async with connection(self.sessions, write=True) as session:
