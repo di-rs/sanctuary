@@ -147,3 +147,4 @@ def test_audit_workflow(
     assert f"{ecosystem.title()} dependency audit — {outcome}." in summary.read_text()
     if case == "advisory":
         assert "fixture advisory" in result.stdout.lower() or "fixture-advisory" in result.stdout
+        assert '"error"' not in result.stdout

@@ -19,7 +19,7 @@ def json_object(value: object, label: str) -> dict[str, Any]:
 
 def scan(
     command: list[str], *, cwd: Path | None = None, env: dict[str, str] | None = None
-) -> dict[str, Any]:
+) -> tuple[int, dict[str, Any]]:
     result = subprocess.run(
         command, cwd=cwd, env=env, timeout=300, text=True, stdout=subprocess.PIPE
     )
@@ -29,10 +29,7 @@ def scan(
         report = json_object(json.loads(result.stdout), "scanner report")
     except json.JSONDecodeError as error:
         raise ValueError(f"Scanner returned invalid JSON (status {result.returncode})") from error
-    if result.returncode == 1 and not report.get("error"):
-        # Exit 1 may carry advisories. It cannot establish a clean result.
-        report["error"] = "Scanner exited with status 1"
-    return report
+    return result.returncode, report
 
 
 def audit_python() -> tuple[str, str]:
@@ -76,7 +73,7 @@ def audit_python() -> tuple[str, str]:
     with TemporaryDirectory() as directory:
         requirements = Path(directory) / "requirements.txt"
         requirements.write_text(export.stdout, encoding="utf-8")
-        report = scan(
+        status, report = scan(
             [
                 sys.executable,
                 "-m",
@@ -111,7 +108,9 @@ def audit_python() -> tuple[str, str]:
     if affected:
         print(json.dumps(affected))
         return "Affected", "pip-audit reported known vulnerabilities"
-    if report.get("error") is not None or audited != expected or len(audited) != len(rows):
+    if status != 0 or report.get("error") is not None:
+        raise ValueError(f"pip-audit did not complete successfully (status {status})")
+    if audited != expected or len(audited) != len(rows):
         raise ValueError(
             f"pip-audit coverage could not be verified ({len(audited)} reported, {len(expected)} expected)"
         )
@@ -169,7 +168,7 @@ def audit_frontend(frontend: Path) -> tuple[str, str]:
         expected = frontend_package_count(audit_dir)
         # Omit repository audit exceptions, configuration, and lifecycle scripts.
         (audit_dir / "pnpm-workspace.yaml").write_text("packages: []\n", encoding="utf-8")
-        report = scan(
+        status, report = scan(
             ["pnpm", "audit", "--json", "--audit-level", "info", "--ignore-registry-errors=false"],
             cwd=audit_dir,
             env={
@@ -180,14 +179,13 @@ def audit_frontend(frontend: Path) -> tuple[str, str]:
         )
     metadata = json_object(report.get("metadata"), "pnpm audit metadata")
     counts = json_object(metadata.get("vulnerabilities"), "pnpm vulnerability counts")
-    if report.get("advisories") or any(
-        type(count) is int and count > 0 for count in counts.values()
-    ):
+    advisories = json_object(report.get("advisories"), "pnpm advisories")
+    if advisories or any(type(count) is int and count > 0 for count in counts.values()):
         print(json.dumps(report))
         return "Affected", "pnpm reported known vulnerabilities"
     if (
-        report.get("error") is not None
-        or report.get("advisories") != {}
+        status != 0
+        or report.get("error") is not None
         or counts.keys() != {"info", "low", "moderate", "high", "critical"}
         or any(type(count) is not int or count != 0 for count in counts.values())
     ):
