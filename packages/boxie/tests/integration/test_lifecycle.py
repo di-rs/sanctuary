@@ -283,8 +283,8 @@ def test_successful_artifact_commit_lost_ack_collector_overlap_and_supervisor_re
                         await asyncio.sleep(0.05)
                 assert not marker.with_suffix(".completed").exists()
                 assert not upload.done() and storage.exists()
-                # Entry without completion proves the real collector waits behind
-                # the publication still awaiting its successful COMMIT response.
+                # This collection overlaps the upload while its successful COMMIT
+                # response is still withheld.
                 await asyncio.to_thread(stack.process, "supervisor", "kill")
                 stack.fault("hold_commit", False)
                 await asyncio.to_thread(stack.process, "supervisor", "start")

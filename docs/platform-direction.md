@@ -76,9 +76,9 @@ claim.
 Shish runs locally. Boxie's default interactive environment runs Bash, and a
 supervisor restart ends terminal processes. If the same host retains its PostgreSQL
 data and supervisor volume, a consumer can retrieve a noninteractive job's outcome
-by ID after a supervisor restart.
-Once Boxie has authorized a start, a missing completion record can leave the outcome
-unknown. Boxie will not launch the command a second time to resolve that uncertainty.
+by ID after a supervisor restart. Once Boxie has authorized a start, a missing
+completion record can leave the outcome unknown. Running the command again
+requires an explicit new submission.
 
 Shell history and syntax trees do not provide execution checkpoints. A command
 can change files or external systems before its result is lost; rerunning it can
