@@ -152,7 +152,7 @@ jobs:
       }}
     name: 🎨 Frontend checks, builds and browser tests${{ github.event.action == 'labeled' && github.event.label.name != 'run-ci' && ' (label metadata only)' || '' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: tools/cli-playground/frontend
@@ -192,8 +192,9 @@ jobs:
         run: |
           uv sync --locked --all-packages
           uv run pytest packages/boxie/tests/test_packaging.py -m integration
-      - name: 🌐 Install Chromium and browser dependencies
-        run: pnpm exec playwright install --with-deps chromium
+      - name: 🌐 Install headless Chromium
+        # The hosted runner supplies the system libraries used by headless Chromium.
+        run: pnpm exec playwright install --only-shell chromium
       - name: 🐘 Verify Playground PostgreSQL lifecycle
         working-directory: .
         run: uv run python tools/cli-playground/tests/run_integration.py
