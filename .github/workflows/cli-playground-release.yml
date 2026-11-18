@@ -40,34 +40,17 @@ jobs:
   deploy-backend:
     name: 🚀 Update cli-playground Backend with Compose
     needs: [source, backend]
-    if: ${{ github.ref == 'refs/heads/master' && vars.DEPLOYMENT_ACCEPTANCE_PASSED == 'true' }}
-    environment: cli-playground
-    runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    uses: ./.github/workflows/release-component.yml # zizmor: ignore[self-repository]
+    with:
+      component: cli-playground
+      environment: cli-playground
+      source_sha: ${{ needs.source.outputs.sha }}
+      source_attempt: ${{ needs.source.outputs.attempt }}
+      built_sha: ${{ needs.backend.outputs.source_sha }}
+      image: ${{ needs.backend.outputs.image }}
+    secrets:
+      DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+      DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
     permissions:
       contents: read
       packages: read
-    steps:
-      - name: 🔎 Require a complete workflow retry
-        env:
-          SOURCE_ATTEMPT: ${{ needs.source.outputs.attempt }}
-        run: |
-          if [[ -z $SOURCE_ATTEMPT || $SOURCE_ATTEMPT != "$GITHUB_RUN_ATTEMPT" ]]; then
-            echo 'Use Re-run all jobs or start a new workflow run to select current master.' >&2
-            exit 1
-          fi
-      - name: 📥 Check out the built source
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          ref: ${{ needs.source.outputs.sha }}
-          persist-credentials: false
-      - name: 🚀 Copy backend files and run Compose
-        env:
-          SOURCE_SHA: ${{ needs.source.outputs.sha }}
-          BUILT_SHA: ${{ needs.backend.outputs.source_sha }}
-          IMAGE: ${{ needs.backend.outputs.image }}
-          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
-          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
-          GHCR_TOKEN: ${{ github.token }}
-        run: bash infra/environments/single-host/release.sh cli-playground

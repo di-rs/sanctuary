@@ -13,24 +13,22 @@ WORKFLOWS = Path(__file__).resolve().parents[3] / ".github/workflows"
 QUEUE = {"group": "sanctuary-production", "queue": "max", "cancel-in-progress": "false"}
 
 
-def workflow(name: str) -> dict[str, Any]:
-    result: dict[str, Any] = yaml.load(
-        (
-            WORKFLOWS
-            / f"{'sanctuary' if name in {'setup', 'infra-check'} else 'cli-playground'}-{name}.yml"
-        ).read_text(),
-        Loader=yaml.BaseLoader,
-    )
+def workflow(filename: str) -> dict[str, Any]:
+    result: dict[str, Any] = yaml.load((WORKFLOWS / filename).read_text(), Loader=yaml.BaseLoader)
     return result
 
 
+def assert_source_selects_master(source: dict[str, Any]) -> None:
+    assert source["steps"][0]["with"]["ref"] == "master"
+    assert source["outputs"]["attempt"] == "${{ steps.revision.outputs.attempt }}"
+    assert "GITHUB_RUN_ATTEMPT" in source["steps"][-1]["run"]
+
+
 @pytest.mark.parametrize(
-    "filename,job_name",
+    "filename,job_name,attempt_expression",
     [
-        ("boxie-release.yml", "deploy-boxie"),
-        ("cli-playground-release.yml", "deploy-backend"),
-        ("boxie-release.yml", "deploy-sandbox"),
-        ("sanctuary-setup.yml", "provision"),
+        ("release-component.yml", "deploy", "${{ inputs.source_attempt }}"),
+        ("sanctuary-setup.yml", "provision", "${{ needs.source.outputs.attempt }}"),
     ],
 )
 @pytest.mark.parametrize(
@@ -38,14 +36,15 @@ def workflow(name: str) -> dict[str, Any]:
     [("2", "2", True), ("1", "2", False), ("", "2", False)],
 )
 def test_deployment_rejects_partial_workflow_retry(
-    filename: str, job_name: str, source_attempt: str, current_attempt: str, allowed: bool
+    filename: str,
+    job_name: str,
+    attempt_expression: str,
+    source_attempt: str,
+    current_attempt: str,
+    allowed: bool,
 ) -> None:
-    definition = yaml.load((WORKFLOWS / filename).read_text(), Loader=yaml.BaseLoader)
-    source = definition["jobs"]["source"]
-    assert source["outputs"]["attempt"] == "${{ steps.revision.outputs.attempt }}"
-    assert "GITHUB_RUN_ATTEMPT" in source["steps"][-1]["run"]
-    guarded = definition["jobs"][job_name]["steps"][0]
-    assert guarded["env"]["SOURCE_ATTEMPT"] == "${{ needs.source.outputs.attempt }}"
+    guarded = workflow(filename)["jobs"][job_name]["steps"][0]
+    assert guarded["env"]["SOURCE_ATTEMPT"] == attempt_expression
     result = subprocess.run(
         ["bash", "-euo", "pipefail", "-c", guarded["run"]],
         env={**os.environ, "SOURCE_ATTEMPT": source_attempt, "GITHUB_RUN_ATTEMPT": current_attempt},
@@ -58,10 +57,10 @@ def test_deployment_rejects_partial_workflow_retry(
 
 
 def test_setup_queues_before_selecting_master_and_builds_all_images() -> None:
-    setup = workflow("setup")
+    setup = workflow("sanctuary-setup.yml")
     assert setup["concurrency"] == QUEUE
     jobs = setup["jobs"]
-    assert jobs["source"]["steps"][0]["with"]["ref"] == "master"
+    assert_source_selects_master(jobs["source"])
     for name, component in {
         "boxie": "boxie",
         "backend": "cli-playground",
@@ -80,7 +79,7 @@ def test_setup_queues_before_selecting_master_and_builds_all_images() -> None:
 
 
 def test_reusable_builder_uses_fixed_components_without_deployment_secrets() -> None:
-    builder = yaml.load((WORKFLOWS / "build-image.yml").read_text(), Loader=yaml.BaseLoader)
+    builder = workflow("build-image.yml")
     job = builder["jobs"]["build"]
     assert set(builder["on"]) == {"workflow_call"}
     assert job["permissions"] == {"contents": "read", "packages": "write"}
@@ -92,43 +91,74 @@ def test_reusable_builder_uses_fixed_components_without_deployment_secrets() -> 
 
 
 @pytest.mark.parametrize(
-    "job_name,app",
-    [("deploy-boxie", "boxie"), ("deploy-backend", "cli-playground"), ("deploy-sandbox", "boxie")],
+    "filename,build_job,component,environment",
+    [
+        ("boxie-release.yml", "boxie", "boxie", "boxie"),
+        ("boxie-release.yml", "sandbox", "boxie-sandbox", "boxie"),
+        ("cli-playground-release.yml", "backend", "cli-playground", "cli-playground"),
+    ],
 )
-def test_release_uses_one_queue_current_master_and_direct_ssh(job_name: str, app: str) -> None:
-    filename = "cli-playground-release.yml" if app == "cli-playground" else "boxie-release.yml"
-    release = yaml.load((WORKFLOWS / filename).read_text(), Loader=yaml.BaseLoader)
+def test_release_uses_one_queue_and_passes_the_selected_build(
+    filename: str, build_job: str, component: str, environment: str
+) -> None:
+    release = workflow(filename)
     assert release["concurrency"] == QUEUE
-    assert release["jobs"]["source"]["steps"][0]["with"]["ref"] == "master"
-    deployment = release["jobs"][job_name]
-    assert deployment["environment"] == app
+    assert_source_selects_master(release["jobs"]["source"])
+    deployment = release["jobs"][f"deploy-{build_job}"]
+    assert deployment["uses"] == "./.github/workflows/release-component.yml"
     assert "concurrency" not in deployment
-    gate = deployment["if"]
-    assert "DEPLOYMENT_ACCEPTANCE_PASSED" in gate
-    assert "BOXIE_BACKUP_RESTORE_VERIFIED" not in gate
-    assert "AUTO_DEPLOY" not in gate
-    commands = "\n".join(step.get("run", "") for step in deployment["steps"])
-    component = job_name.removeprefix("deploy-")
-    selector = {"boxie": "boxie", "sandbox": "boxie-sandbox", "backend": "cli-playground"}[
-        component
-    ]
-    assert deployment["steps"][-1]["run"] == (
-        f"bash infra/environments/single-host/release.sh {selector}"
+    assert deployment["permissions"] == {"contents": "read", "packages": "read"}
+    assert deployment["with"] == {
+        "component": component,
+        "environment": environment,
+        "source_sha": "${{ needs.source.outputs.sha }}",
+        "source_attempt": "${{ needs.source.outputs.attempt }}",
+        "built_sha": "${{ needs." + build_job + ".outputs.source_sha }}",
+        "image": "${{ needs." + build_job + ".outputs.image }}",
+    }
+    assert deployment["secrets"] == {
+        "DEPLOY_SSH_KEY": "${{ secrets.DEPLOY_SSH_KEY }}",
+        "DEPLOY_KNOWN_HOSTS": "${{ secrets.DEPLOY_KNOWN_HOSTS }}",
+    }
+
+
+def test_shared_release_uses_protected_environment_and_direct_ssh() -> None:
+    release = workflow("release-component.yml")
+    assert set(release["on"]) == {"workflow_call"}
+    assert release["on"]["workflow_call"]["secrets"] == {
+        "DEPLOY_SSH_KEY": {"required": "true"},
+        "DEPLOY_KNOWN_HOSTS": {"required": "true"},
+    }
+    assert "concurrency" not in release
+    deployment = release["jobs"]["deploy"]
+    assert "concurrency" not in deployment
+    assert deployment["if"] == (
+        "${{ github.ref == 'refs/heads/master' && vars.DEPLOYMENT_ACCEPTANCE_PASSED == 'true' }}"
     )
-    assert deployment["steps"][-1]["env"]["IMAGE"] == (
-        "${{ needs." + component + ".outputs.image }}"
-    )
-    assert "submit-release.sh" not in commands
-    assert "release_selection.py" not in commands
-    assert "expected-revision" not in commands
-    assert "PULUMI_" not in str(deployment)
-    assert "R2_" not in str(deployment)
-    assert "HCLOUD" not in str(deployment)
+    assert deployment["environment"] == "${{ inputs.environment }}"
+    assert deployment["permissions"] == {"contents": "read", "packages": "read"}
+    _, checkout, deploy = deployment["steps"]
+    assert checkout["uses"].startswith("actions/checkout@")
+    assert checkout["with"] == {
+        "ref": "${{ inputs.source_sha }}",
+        "persist-credentials": "false",
+    }
+    assert deploy["run"] == 'bash infra/environments/single-host/release.sh "$COMPONENT"'
+    assert deploy["env"] == {
+        "COMPONENT": "${{ inputs.component }}",
+        "SOURCE_SHA": "${{ inputs.source_sha }}",
+        "BUILT_SHA": "${{ inputs.built_sha }}",
+        "IMAGE": "${{ inputs.image }}",
+        "DEPLOY_HOST": "${{ vars.DEPLOY_HOST }}",
+        "DEPLOY_SSH_KEY": "${{ secrets.DEPLOY_SSH_KEY }}",
+        "DEPLOY_KNOWN_HOSTS": "${{ secrets.DEPLOY_KNOWN_HOSTS }}",
+        "GHCR_TOKEN": "${{ github.token }}",
+    }
 
 
 def test_releases_are_manual_and_keep_backend_separate_from_boxie() -> None:
-    playground = workflow("release")
-    boxie = yaml.load((WORKFLOWS / "boxie-release.yml").read_text(), Loader=yaml.BaseLoader)
+    playground = workflow("cli-playground-release.yml")
+    boxie = workflow("boxie-release.yml")
     assert playground["name"] == "🚀 cli-playground Release"
     assert boxie["name"] == "🚀 Boxie Release"
     for release, components in [
@@ -152,7 +182,7 @@ def test_releases_are_manual_and_keep_backend_separate_from_boxie() -> None:
 
 
 def test_only_manual_setup_can_provision_cloud_resources() -> None:
-    setup = workflow("setup")
+    setup = workflow("sanctuary-setup.yml")
     assert set(setup["on"]) == {"workflow_dispatch"}
     provision = setup["jobs"]["provision"]
     assert provision["environment"] == "sanctuary"
@@ -173,7 +203,7 @@ def test_deployment_ssh_keeps_silent_readiness_checks_connected(
     transport: str, tmp_path: Path
 ) -> None:
     if transport == "setup":
-        script = workflow("setup")["jobs"]["provision"]["steps"][-1]["run"]
+        script = workflow("sanctuary-setup.yml")["jobs"]["provision"]["steps"][-1]["run"]
     else:
         script = (WORKFLOWS.parent.parent / "infra/environments/single-host/release.sh").read_text()
     config = tmp_path / "ssh_config"
@@ -193,7 +223,8 @@ def test_deployment_ssh_keeps_silent_readiness_checks_connected(
 @pytest.mark.parametrize("status", [0, 1, 2])
 def test_setup_reports_bootstrap_failure_without_ignoring_it(status: int) -> None:
     commands = "\n".join(
-        step.get("run", "") for step in workflow("setup")["jobs"]["provision"]["steps"]
+        step.get("run", "")
+        for step in workflow("sanctuary-setup.yml")["jobs"]["provision"]["steps"]
     )
     remote = commands.split("<<'BOOTSTRAP'\n", 1)[1].split("\nBOOTSTRAP", 1)[0]
     result = subprocess.run(
@@ -218,7 +249,7 @@ def test_setup_reports_bootstrap_failure_without_ignoring_it(status: int) -> Non
 
 @pytest.mark.parametrize("status", [0, 1, 2])
 def test_setup_stops_before_upload_when_bootstrap_fails(status: int) -> None:
-    script = workflow("setup")["jobs"]["provision"]["steps"][-1]["run"]
+    script = workflow("sanctuary-setup.yml")["jobs"]["provision"]["steps"][-1]["run"]
     script = script[script.index("echo 'Waiting for host bootstrap'") :]
     result = subprocess.run(
         [
@@ -246,7 +277,7 @@ def test_setup_pulls_all_images_before_starting_boxie() -> None:
 
 
 def test_preview_controller_keeps_privileged_code_on_the_default_branch() -> None:
-    preview = workflow("preview")
+    preview = workflow("cli-playground-preview.yml")
     assert preview["on"]["workflow_run"] == {
         "workflows": ["🏗️ cli-playground PR binary builds"],
         "types": ["in_progress", "completed"],
@@ -274,7 +305,7 @@ def test_preview_controller_keeps_privileged_code_on_the_default_branch() -> Non
 def test_infrastructure_checks_require_trusted_dispatch_or_opted_in_schedule() -> None:
     path = WORKFLOWS / "sanctuary-infra-check.yml"
     assert path.exists(), "Protected infrastructure review workflow is missing"
-    check = workflow("infra-check")
+    check = workflow("sanctuary-infra-check.yml")
     assert set(check["on"]) == {"workflow_dispatch", "schedule"}
     selection = check["jobs"]["revision"]
     assert "github.ref == 'refs/heads/master'" in selection["if"]
@@ -300,7 +331,7 @@ def test_infrastructure_checks_require_trusted_dispatch_or_opted_in_schedule() -
 
 
 def test_infrastructure_review_does_not_stage_application_installation() -> None:
-    steps = workflow("infra-check")["jobs"]["check"]["steps"]
+    steps = workflow("sanctuary-infra-check.yml")["jobs"]["check"]["steps"]
     commands = "\n".join(step.get("run", "") for step in steps)
     assert ".installation" not in commands
     assert "sourceDirectory" not in commands
@@ -312,7 +343,7 @@ def test_infrastructure_review_resolves_only_existing_full_commit_ids(
 ) -> None:
     path = WORKFLOWS / "sanctuary-infra-check.yml"
     assert path.exists(), "Protected infrastructure review workflow is missing"
-    selection = workflow("infra-check")["jobs"]["revision"]
+    selection = workflow("sanctuary-infra-check.yml")["jobs"]["revision"]
     script = next(step["run"] for step in selection["steps"] if step.get("id") == "resolve")
     head = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
     revision = "" if requested == "default" else head if requested == "head" else requested
@@ -340,7 +371,7 @@ def test_infrastructure_review_resolves_only_existing_full_commit_ids(
 def test_drift_check_only_previews_refresh_and_preserves_failure_status(
     tmp_path: Path, exit_code: int
 ) -> None:
-    steps = workflow("infra-check")["jobs"]["check"]["steps"]
+    steps = workflow("sanctuary-infra-check.yml")["jobs"]["check"]["steps"]
     script = next(step["run"] for step in steps if "Detect drift" in step.get("name", ""))
     calls = tmp_path / "calls"
     binary = tmp_path / "pulumi"
