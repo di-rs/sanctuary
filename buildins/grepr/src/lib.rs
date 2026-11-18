@@ -107,7 +107,8 @@ where
     while let bytes = reader.read_line(&mut line)?
         && bytes != 0
     {
-        let matches_pattern = pattern.is_match(&line);
+        let contents = line.strip_suffix('\n').unwrap_or(&line);
+        let matches_pattern = pattern.is_match(contents);
         if matches_pattern ^ invert {
             cb(&line)?;
             log::debug!("matched input line");

@@ -5,3 +5,8 @@ args = ["--insensitive", "--recursive", "--count", "--verbose", "hello", "welcom
 [[cases]]
 name = "inverted-match"
 args = ["--invert-match", "--quiet", "ERROR", "app.log"]
+
+[[cases]]
+name = "anchored-matches"
+args = ["^alpha$"]
+stdin = "alpha\nbeta\nalpha\n"

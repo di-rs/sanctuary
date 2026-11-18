@@ -121,6 +121,44 @@ origin = { exit = 1, reason = "BSD grep returns 1 for no matches; grepr returns 
 expect = { stdout = "0\n" }
 
 [[cases]]
+name = "anchored_matching_lines"
+args = ["^alpha$"]
+stdin = { mode = "pipe", text = "alpha\n\nbeta\nalpha" }
+origin = { manual = "The first and last records are alpha. grepr preserves their original bytes and BSD grep appends LF to its final output record." }
+expect = { stdout = "alpha\nalpha" }
+
+[[cases]]
+name = "anchored_blank_line"
+args = ["^$"]
+stdin = { mode = "pipe", text = "alpha\n\nbeta\n" }
+expect = { stdout = "\n" }
+
+[[cases]]
+name = "anchored_match_count"
+args = ["-c", "^alpha$"]
+stdin = { mode = "pipe", text = "alpha\n\nbeta\nalpha" }
+expect = { stdout = "2\n" }
+
+[[cases]]
+name = "anchored_inverted_lines"
+args = ["-v", "^alpha$"]
+stdin = { mode = "pipe", text = "alpha\n\nbeta\nomega" }
+origin = { manual = "Inverting the alpha match selects the blank, beta and omega records. grepr writes them verbatim, including omega's missing final LF." }
+expect = { stdout = "\nbeta\nomega" }
+
+[[cases]]
+name = "anchored_inverted_count"
+args = ["-vc", "^alpha$"]
+stdin = { mode = "pipe", text = "alpha\n\nbeta\nalpha" }
+expect = { stdout = "2\n" }
+
+[[cases]]
+name = "anchored_carriage_return"
+args = ["^alpha\r$"]
+stdin = { mode = "pipe", text = "alpha\r\nalpha\n" }
+expect = { stdout = "alpha\r\n" }
+
+[[cases]]
 name = "empty_stdin_empty_regex_count"
 args = ["--count", ""]
 stdin = { mode = "pipe", text = "" }
