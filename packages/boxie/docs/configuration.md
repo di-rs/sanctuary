@@ -60,10 +60,15 @@ artifacts. Each setting is a positive integer.
 
 An upload occupies one object and needs room for the compressed ZIP and the
 expanded files while both are present. Once published, the object is charged for
-its expanded file bytes. Allow disk headroom for filesystem overhead, Docker and
-other data on the same volume. Configure each installation against its available
-storage. A lower quota blocks new uploads as needed while existing artifacts
-remain available for use or retirement. Restart the supervisor to apply changes.
+its expanded file bytes. Keep the per-consumer limits below the installation
+limits to leave capacity for other consumers. To fit two consumers using their
+full budgets at the same time, set `total_bytes` to at least twice
+`consumer_bytes` and `total_objects` to at least twice `consumer_objects`.
+Allow disk headroom for filesystem overhead, Docker and other data on the same
+volume when choosing these limits.
+
+A lower quota blocks new uploads as needed while existing artifacts remain
+available for use or retirement. Restart the supervisor to apply changes.
 See [the database guide](database.md#artifact-storage-and-collection) for upgrade
 and collection behavior.
 
