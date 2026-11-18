@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   local-recordings:
-    name: Local CLI recordings${{ github.event.action == 'labeled' && github.event.label.name != 'run-ci' && ' (label metadata only)' || '' }}
+    name: Local CLI recordings
     if: >-
       ${{ (github.event.action != 'labeled' || github.event.label.name == 'run-ci') &&
           (!github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'run-ci')) }}

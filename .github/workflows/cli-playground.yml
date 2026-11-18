@@ -33,7 +33,7 @@ concurrency:
 
 jobs:
   build:
-    name: 🏗️ Build affected CLI preview binaries${{ github.event.action == 'labeled' && github.event.label.name != 'run-ci' && ' (label metadata only)' || '' }}
+    name: 🏗️ Build affected CLI preview binaries
     if: >-
       ${{
         (github.event.action != 'labeled' || github.event.label.name == 'run-ci') &&
