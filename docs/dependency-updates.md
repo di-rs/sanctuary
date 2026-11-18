@@ -56,3 +56,21 @@ checksums. Update these deliberately:
 Dependency alerts and security updates remain GitHub features. The scheduled
 [maintenance workflow](../.github/workflows/maintenance.yml) also runs Rust
 vulnerability and license checks. Neither replaces reviewing dependency PRs.
+
+## Verify Python and frontend audits before release
+
+For a release that ships Python or frontend dependencies, run the applicable
+dependency audits from the Actions tab and match each run's commit SHA to the
+release source. Open the job summary and require a **Clean** result. **Affected**
+means the scanner reported a known advisory. **Incomplete** means the scanner
+failed or the report's package coverage could not be verified. Hold the release
+for either result, or when the applicable audit was skipped or is missing. Fix
+affected dependencies or retry an incomplete audit after resolving its reported
+cause. The release operator checks this evidence before starting the release.
+[Python dependency audit](../.github/workflows/python-audit.yml) ·
+[Frontend dependency audit](../.github/workflows/frontend-audit.yml)
+
+The Python audit covers locked third-party packages across workspace groups and
+extras whose environment markers apply to the Ubuntu runner. The frontend audit
+covers package versions in both the application and package-manager sections of
+the pnpm lockfile, including development dependencies.
