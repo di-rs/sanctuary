@@ -40,26 +40,9 @@ behavior is enforced by the adapter, not by the certificate's privileges.
 
 ## Connect Codex through SSH
 
-Use a trusted SSH alias that already reaches the production host. Verify its host
-key through your normal operator process first. The remote user must be able to
-run Docker and read `/etc/sanctuary/boxie.env`; in the current deployment this is
-the root operator. That SSH authority is broader than the adapters' tool access.
-
-Run these commands on the computer running Codex, replacing `sanctuary-production`
-with that alias:
-
-```bash
-codex mcp add production-grafana -- \
-  ssh -T -o BatchMode=yes -o StrictHostKeyChecking=yes sanctuary-production \
-  /usr/local/bin/sanctuary-mcp grafana
-codex mcp add production-temporal -- \
-  ssh -T -o BatchMode=yes -o StrictHostKeyChecking=yes sanctuary-production \
-  /usr/local/bin/sanctuary-mcp temporal
-```
-
-In a new Codex chat, ask it to list production dashboards and call Temporal's
-`check_connection` for target `production`. Registration alone does not establish
-connectivity; both calls must succeed. No backend credential is copied to Codex.
+The current deployment uses the root operator to launch the read-only adapters.
+Use the local operator guide to register both tools, verify a real read and
+diagnose connection failures. [Debug production with Codex and MCP](../../../docs/production-mcp.md)
 
 ## Connect ChatGPT through a private tunnel
 
