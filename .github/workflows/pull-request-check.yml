@@ -152,7 +152,7 @@ jobs:
       }}
     name: 🎨 Frontend checks, builds and browser tests${{ github.event.action == 'labeled' && github.event.label.name != 'run-ci' && ' (label metadata only)' || '' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: tools/cli-playground/frontend
@@ -184,10 +184,13 @@ jobs:
         run: pnpm test
       - name: 🏗️ Build production frontend assets
         run: pnpm build
+      - name: 🐳 Build the cli-playground deployment image
+        working-directory: .
+        run: docker build --file tools/cli-playground/infra/docker/CliPlayground.Dockerfile .
       - name: 📦 Verify isolated service packages and Compose topology
         working-directory: .
         run: |
-          uv sync --all-packages
+          uv sync --locked --all-packages
           uv run pytest packages/boxie/tests/test_packaging.py -m integration
       - name: 🌐 Install Chromium and browser dependencies
         run: pnpm exec playwright install --with-deps chromium
