@@ -2,8 +2,10 @@
 
 import json
 import os
+import shutil
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -27,6 +29,22 @@ def test_workspace_records_validate_discovered_targets(tmp_path: Path) -> None:
             binaries=("invalid",),
             library=False,
         )
+
+
+def test_repository_globs_discover_new_builtins_and_applications(tmp_path: Path) -> None:
+    manifest = Path(__file__).resolve().parents[3] / "Cargo.toml"
+    workspace = tomllib.loads(manifest.read_text())["workspace"]
+    members = [path for path in workspace["members"] if path.startswith(("buildins/", "packages/"))]
+    write(
+        tmp_path,
+        "Cargo.toml",
+        f"[workspace]\nmembers = {json.dumps(members)}\nexclude = {json.dumps(workspace['exclude'])}\n",
+    )
+    write(tmp_path, "packages/boxie/pyproject.toml", '[project]\nname = "boxie"\n')
+    for name, parent in [("new-builtin", "buildins"), ("new-app", "packages")]:
+        write(tmp_path, f"{parent}/{name}/Cargo.toml", f'[package]\nname = "{name}"\n')
+        write(tmp_path, f"{parent}/{name}/src/main.rs", "fn main() {}")
+    assert {p.name for p in discover(tmp_path) if p.is_cli} == {"new-builtin", "new-app"}
 
 
 def write(root: Path, path: str, content: str) -> None:
@@ -278,10 +296,20 @@ def run_check(root: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
     )
 
 
+def inherit_schema(root: Path, cli: Path) -> None:
+    write(root, "utils/cli-schema/Cargo.toml", '[package]\nname = "cli-schema"\n')
+    write(root, "utils/cli-schema/src/lib.rs", "")
+    with (root / "Cargo.toml").open("a") as manifest:
+        manifest.write('\n[workspace.dependencies]\ncli-schema = { path = "utils/cli-schema" }\n')
+    with (cli / "Cargo.toml").open("a") as manifest:
+        manifest.write("\n[dependencies]\ncli-schema.workspace = true\n")
+
+
 @pytest.fixture
 def workspace(tmp_path: Path) -> Path:
     write(tmp_path, "Cargo.toml", '[workspace]\nmembers = ["buildins/*", "utils/*"]\n')
     add_cli(tmp_path)
+    inherit_schema(tmp_path, tmp_path / "buildins/echo")
     write(tmp_path, "README.md", "# Tools\n\nTry [echo](buildins/echo/README.md).\n")
     write(
         tmp_path,
@@ -293,6 +321,7 @@ def workspace(tmp_path: Path) -> Path:
         "buildins/echo/benches/cli-bench.toml",
         'binary = "echo"\n[[cases]]\nname = "basic"\nargs = []\n',
     )
+    assert run_check(tmp_path, "index").returncode == 0
     return tmp_path
 
 
@@ -402,6 +431,117 @@ def test_root_readme_must_link_each_cli(workspace: Path) -> None:
     assert "root README" in result.stderr
 
 
+def test_index_tracks_workspace_changes_without_touching_authored_markdown(workspace: Path) -> None:
+    readme = workspace / "README.md"
+    before = "# Tools\r\n\r\nA user-written introduction.\r\n\r\n## Commands\r\n\r\nChoose a tool.\r\n\r\n"
+    after = "\r\nKeep this note.\r\n\r\n## More\r\n\r\n```md\r\n## Commands\r\n```\r\n"
+    readme.write_bytes(
+        (before + "| Project | Purpose |\r\n| --- | --- |\r\n| old | old |\r\n" + after).encode()
+    )
+    new_cli = workspace / "buildins/alpha"
+    write(new_cli, "Cargo.toml", '[package]\nname = "alpha"\ndescription.workspace = true\n')
+    with (workspace / "Cargo.toml").open("a") as manifest:
+        manifest.write('\n[workspace.package]\ndescription = "Check | [records] <here>"\n')
+    write(new_cli, "src/main.rs", "fn main() {}")
+    package_readme = "# alpha\n\nCheck records.\n\n## Try it\n\n```sh\nalpha\n```\n"
+    write(new_cli, "README.md", package_readme)
+    result = run_check(workspace, "docs", "-p", "echo")
+    assert result.returncode == 1 and "uv run --locked sdev index" in result.stderr
+    result = run_check(workspace, "index", "--json")
+    assert json.loads(result.stdout)["data"] == {"updated": True, "path": "README.md"}
+    generated = readme.read_bytes().decode()
+    assert generated.startswith(before) and generated.endswith(after)
+    assert "\n" not in generated.replace("\r\n", "")
+    assert "[alpha](buildins/alpha/README.md) | Check \\| \\[records\\] &lt;here&gt;" in generated
+    assert generated.index("[alpha]") < generated.index("[echo]")
+    assert "[cli-schema]" not in generated and "[cli-testing]" not in generated
+    assert (new_cli / "README.md").read_text() == package_readme
+    assert run_check(workspace, "docs").returncode == 0
+    stamp = readme.stat().st_mtime_ns
+    assert json.loads(run_check(workspace, "--json", "index").stdout)["data"]["updated"] is False
+    assert readme.stat().st_mtime_ns == stamp
+
+    moved = workspace / "new packages #1/alpha"
+    moved.parent.mkdir()
+    new_cli.rename(moved)
+    manifest_path = workspace / "Cargo.toml"
+    manifest_path.write_text(
+        manifest_path.read_text().replace('"utils/*"]', '"utils/*", "new packages #1/*"]')
+    )
+    assert run_check(workspace, "docs", "-p", "echo").returncode == 1
+    assert run_check(workspace, "index").returncode == 0
+    assert "(new%20packages%20%231/alpha/README.md)" in readme.read_text()
+    assert "buildins/alpha" not in readme.read_text()
+    manifest_path.write_text(manifest_path.read_text().replace(', "new packages #1/*"', ""))
+    shutil.rmtree(moved)
+    assert run_check(workspace, "docs").returncode == 1
+    assert run_check(workspace, "index").returncode == 0
+    assert "[alpha]" not in readme.read_text() and run_check(workspace, "docs").returncode == 0
+
+
+def test_duplicate_index_rows_are_fixed_and_damaged_markers_preserve_prose(workspace: Path) -> None:
+    readme = workspace / "README.md"
+    clean = readme.read_text()
+    row = next(line for line in clean.splitlines(keepends=True) if line.startswith("| [echo]"))
+    readme.write_text(clean.replace(row, row * 2))
+    result = run_check(workspace, "--json", "docs")
+    assert result.returncode == 1
+    assert json.loads(result.stdout)["data"]["diagnostics"][0]["rule"] == "index"
+    assert run_check(workspace, "index").returncode == 0 and readme.read_text() == clean
+    broken = clean.replace("<!-- END generated CLI index -->", "human prose")
+    readme.write_text(broken)
+    result = run_check(workspace, "index")
+    assert result.returncode == 1 and "restore one ordered pair" in result.stderr
+    assert readme.read_text() == broken
+
+
+def test_converting_the_last_binary_to_a_library_clears_the_index(workspace: Path) -> None:
+    source = workspace / "buildins/echo/src/main.rs"
+    source.rename(source.with_name("lib.rs"))
+    assert run_check(workspace, "docs").returncode == 1
+    assert run_check(workspace, "index").returncode == 0
+    readme = (workspace / "README.md").read_text()
+    assert "| [echo]" not in readme and "Try [echo]" in readme
+    assert run_check(workspace, "docs").returncode == 0
+
+
+def test_index_uses_package_readme_when_cargo_has_no_description(workspace: Path) -> None:
+    write(
+        workspace,
+        "buildins/echo/README.md",
+        "# echo\n\n![badge](./badge.svg)\n\nPrint `arguments` and [files](guide.md)\nverbatim."
+        "\n\n## Try it\n\n```sh\necho hello\n```\n",
+    )
+    assert run_check(workspace, "docs", "-p", "echo").returncode == 1
+    assert run_check(workspace, "index").returncode == 0
+    assert (
+        "| [echo](buildins/echo/README.md) | Print arguments and files verbatim. |"
+        in (workspace / "README.md").read_text()
+    )
+    assert run_check(workspace, "docs").returncode == 0
+
+
+@pytest.mark.parametrize("member", ["buildins/echo", "utils/cli-testing"])
+def test_schema_consumers_must_inherit_the_workspace_dependency(
+    workspace: Path, member: str
+) -> None:
+    path = workspace / member / "Cargo.toml"
+    original = path.read_text()
+    if member == "buildins/echo":
+        path.write_text(original.replace("cli-schema.workspace = true", ""))
+        assert "layout:schema-dependency" in run_check(workspace, "layout", "-p", "echo").stderr
+    else:
+        original += "\n[build-dependencies]\ncli-schema.workspace = true\n"
+    relative = os.path.relpath(workspace / "utils/cli-schema", path.parent)
+    path.write_text(
+        original.replace("cli-schema.workspace = true", f'cli-schema = {{ path = "{relative}" }}')
+    )
+    result = run_check(workspace, "layout", "-p", path.parent.name)
+    assert result.returncode == 1 and "cli-schema.workspace = true" in result.stderr
+    path.write_text(original)
+    assert run_check(workspace, "layout").returncode == 0
+
+
 def test_docs_leave_general_links_to_lychee(workspace: Path) -> None:
     write(workspace, "buildins/echo/a b.md", "# Details\n")
     write(workspace, "buildins/echo/logo.svg", "<svg/>\n")
@@ -475,6 +615,7 @@ def test_root_cli_readme_is_already_indexed(tmp_path: Path) -> None:
     add_cli(root, directory=".")
     manifest = root / "Cargo.toml"
     manifest.write_text(manifest.read_text() + "\n[workspace]\nmembers = []\n")
+    inherit_schema(root, root)
     write(root, "README.md", "# echo\nPrint arguments.\n\n## Try it\n\n```sh\necho hello\n```\n")
     write(root, "benches/basic.toml", 'binary = "echo"\n[[cases]]\nname = "basic"\nargs = []\n')
     result = run_check(root)
@@ -542,14 +683,17 @@ def test_missing_cargo_is_actionable(tmp_path: Path) -> None:
     assert "Traceback" not in result.stderr
 
 
-def test_root_index_resolves_reference_links_and_encoded_paths(workspace: Path) -> None:
+def test_reference_link_in_prose_does_not_replace_the_generated_index(workspace: Path) -> None:
     write(
         workspace,
         "README.md",
         "# Tools\n\nTry [echo][cli].\n\n[cli]: buildins/%65cho/README.md#echo\n",
     )
     result = run_check(workspace, "docs")
-    assert result.returncode == 0, result.stderr
+    assert result.returncode == 1 and "uv run --locked sdev index" in result.stderr
+    assert run_check(workspace, "index").returncode == 0
+    assert run_check(workspace, "docs").returncode == 0
+    assert "[cli]: buildins/%65cho/README.md#echo" in (workspace / "README.md").read_text()
     assert not (workspace / "Cargo.lock").exists()
 
 

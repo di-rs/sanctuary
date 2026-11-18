@@ -35,11 +35,13 @@ starting a persistent playground and inspecting a worktree's services.
    stdin, stdout, stderr, status and file effects. For a compatibility claim,
    name the implementation and platform that produced the expected behavior.
 2. Add a Cargo package under `buildins/` for a standalone utility, or `packages/`
-   for an application. Builtins are workspace members by glob. Register other
-   packages in the root manifest and update the lockfile. Give the directory,
-   package and single `src/main.rs` binary the same name. Inherit the workspace
-   lints. A library target in the same crate can expose an API.
-3. Export the actual parser through [cli-schema](../utils/cli-schema/README.md).
+   for an application. Cargo discovers crates under both directories by glob.
+   The root manifest excludes Python-only services under `packages/`. Update
+   the lockfile for the new crate. Give the directory,
+   package and single `src/main.rs` binary the same name. Inherit the
+   workspace lints. A library target in the same crate can expose an API.
+3. Add `cli-schema.workspace = true` under `[dependencies]` and export the
+   actual parser through [cli-schema](../utils/cli-schema/README.md).
    Use [cli-log](../utils/cli-log/README.md) when the command needs structured
    logging. Keep stdout available to pipelines. Share library code when two
    commands have the same contract, including errors and byte handling.
@@ -49,9 +51,12 @@ starting a persistent playground and inspecting a worktree's services.
    [catr](../buildins/catr/README.md) has both catalog and native tests.
 5. Give the package a README with its name as the title, a short purpose, and a
    runnable shell example in the first section. Describe the result and document
-   flags, exit behavior and limitations where readers need them. Link it from the
-   [root index](../README.md). Applications in `packages/` also have a
-   `docs/architecture.md`. Keep agent instructions in `AGENTS.md` and skills.
+   flags, exit behavior and limitations where readers need them. Run
+   `uv run --locked sdev index` and commit the refreshed
+   [command index](../README.md#commands). The table uses Cargo’s package
+   description or, when it is empty, the README’s opening paragraph. Refresh it
+   after moving or removing a CLI or editing its listed purpose. Applications in `packages/` also
+   have a `docs/architecture.md`. Keep agent instructions in `AGENTS.md` and skills.
 6. Add a package-owned [benchmark suite](../tools/cli-bench/README.md) or document
    a finite-benchmark exemption in the manifest. Add browser examples beside the
    native tests, then run the checks below.

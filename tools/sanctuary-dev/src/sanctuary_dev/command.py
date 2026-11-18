@@ -7,6 +7,7 @@ from pathlib import Path
 
 ROUTES = {
     "check": ("cli-check", "verify"),
+    "index": ("cli-check", "index"),
     "test": ("cli-testing",),
     "bench": ("cli-bench",),
     "record": ("cli-record",),

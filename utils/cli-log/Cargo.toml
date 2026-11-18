@@ -12,7 +12,7 @@ readme = "README.md"
 clap = { workspace = true, features = ["env"] }
 log.workspace = true
 flexi_logger = { version = "0.31.10", default-features = false, features = ["json", "kv"] }
-cli-schema = { version = "0.1.0", path = "../cli-schema" }
+cli-schema.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true

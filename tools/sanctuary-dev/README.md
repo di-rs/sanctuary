@@ -17,6 +17,7 @@ name is `sanctuary-dev`.
 | Command | What it runs |
 | --- | --- |
 | `sdev check echor` | `cli-check verify echor` runs policy, formatting, Clippy and native tests. |
+| `sdev index` | `cli-check index` refreshes the root README’s command index from Cargo metadata. |
 | `sdev test --suite buildins/echor/tests/cases.toml list` | `cli-testing` reads the package's fixture catalog. |
 | `sdev bench buildins/echor/benches/cli-bench.toml --list` | `cli-bench` lists the benchmark suite's cases. |
 | `sdev record echor no-newline` | `cli-record` films the selected demo for the PR. |

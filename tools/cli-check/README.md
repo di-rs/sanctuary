@@ -24,10 +24,16 @@ for invalid arguments.
 | --- | --- |
 | `cli-check layout -p echor` | One matching package, directory, and binary, using `src/main.rs` |
 | `cli-check tests -p echor` | CLI integration test registration, helper dependency, and fixture layout |
-| `cli-check docs -p echor` | Package README, root index entry, and local link targets |
+| `cli-check docs -p echor` | Package README and the workspace command index |
 | `cli-check benches -p echor` | Benchmark suite or explicit exemption |
 | `cli-check verify echor` | Run package policy and the native toolchain checks |
 | `cli-check check-pr --body-file pr.md` | Verify recording evidence for direct CLI changes against the merge base |
+
+Run `uv run --locked sdev index` to refresh the root README when a Cargo binary
+is added, moved, renamed or removed, or its listed purpose changes. The
+standalone command is `cli-check index`. It rewrites the marked command table
+and reports whether it updated the file. The `docs` check compares the table
+with the whole workspace, including when you check one package.
 
 | Argument or option | Meaning |
 | --- | --- |

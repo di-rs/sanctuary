@@ -15,6 +15,7 @@ LAUNCHER = Path(sys.executable).with_name("sdev")
     ("route", "runner", "delegate"),
     [
         ("check", "uv", ["cli-check", "verify"]),
+        ("index", "uv", ["cli-check", "index"]),
         ("test", "cargo", []),
         ("bench", "uv", ["cli-bench"]),
         ("record", "uv", ["cli-record"]),
