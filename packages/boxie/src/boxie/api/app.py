@@ -6,8 +6,7 @@ from typing import Self
 from uuid import UUID
 
 from fastapi import FastAPI, Request, Response
-from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from starlette.datastructures import Headers
 from starlette.middleware.base import RequestResponseEndpoint
@@ -19,6 +18,7 @@ from boxie.api.terminal import terminal_routes
 from boxie.application.admission import JobPolicy
 from boxie.application.ports import ArtifactAccess, JobAccess, ReadyLifecycle, TerminalAccess
 from boxie.domain.errors import BoxieError
+from boxie.http import boxie_error_response, buffer_post_body, create_private_app
 from boxie.observability.logging import RequestLogging
 
 
@@ -51,24 +51,8 @@ def create_app(
     deliver: Callable[[UUID], Awaitable[None]] | None = None,
     request_completed: Callable[[str, str, str, float], None] | None = None,
 ) -> FastAPI:
-    app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+    app = create_private_app()
     auth = ConsumerAuth(config.consumers)
-
-    @app.exception_handler(Exception)
-    async def unhandled_error(request: Request, _error: Exception) -> PlainTextResponse:
-        return PlainTextResponse(
-            "Internal Server Error",
-            status_code=500,
-            headers={"X-Request-ID": request.state.request_id},
-        )
-
-    @app.exception_handler(BoxieError)
-    async def application_error(_request: Request, error: BoxieError) -> JSONResponse:
-        return JSONResponse({"detail": error.public_detail}, status_code=error.status)
-
-    @app.exception_handler(RequestValidationError)
-    async def invalid_request(_request: Request, _error: RequestValidationError) -> JSONResponse:
-        return JSONResponse({"detail": "invalid request"}, status_code=422)
 
     @app.middleware("http")
     async def authenticate_and_bound(
@@ -77,15 +61,11 @@ def create_app(
         try:
             if request.url.path != "/healthz":
                 request.state.principal = auth.resolve(request.headers.get("Authorization", ""))
-            if request.method == "POST":
-                body = bytearray()
-                async for chunk in request.stream():
-                    if len(body) + len(chunk) > 65536:
-                        return JSONResponse({"detail": "request too large"}, status_code=413)
-                    body.extend(chunk)
-                request._body = bytes(body)
+            rejection = await buffer_post_body(request)
         except BoxieError as error:
-            return JSONResponse({"detail": error.public_detail}, status_code=error.status)
+            return boxie_error_response(error)
+        if rejection is not None:
+            return rejection
         return await call_next(request)
 
     @app.get("/healthz")
