@@ -6,6 +6,8 @@
 
 From the repository root:
 
+<!-- cli-example -->
+
 ```sh
 cargo run -q -p calr -- -m 3 2025
 ```

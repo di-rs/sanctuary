@@ -76,6 +76,8 @@ Advisory secret scans must not publish credential values and run without credent
   build scripts as trusted local code. PR policy only reads the attachment links.
 - **Local fixture recipes and recordings:** CLI test catalogs and their reference
   commands are trusted repository code, executed with the developer's permissions.
+  Marked CLI README examples run as test code under the same permissions locally
+  and in the unprivileged PR test jobs.
   Temporary test workspaces do not sandbox host access. `cli-testing record`
   stages output outside committed fixtures; `apply` is an explicit promotion of a
   reviewed capture. Validate catalog ownership, allowed paths, input/expectation

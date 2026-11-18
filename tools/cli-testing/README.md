@@ -10,7 +10,19 @@ and manual Rust tests. This page covers inspecting and regenerating fixtures.
 Ordinary Cargo and nextest tests only read committed expectations; generation
 and promotion are explicit CLI operations.
 
-## Install and check setup
+## Check setup
+
+From the repository root with the pinned Rust toolchain, run the setup check.
+
+<!-- cli-example -->
+
+```sh
+cargo run -q -p cli-testing -- doctor
+```
+
+`doctor` reports the tool version, its offline mode, and how to select a suite.
+
+## Install the command
 
 From the repository root with the pinned Rust toolchain:
 

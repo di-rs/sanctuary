@@ -107,3 +107,5 @@ fn exports_public_cli_schema_without_application_side_effects()
         .stderr("");
     Ok(())
 }
+
+cli_testing::readme_example!(0, "red\n");

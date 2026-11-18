@@ -6,6 +6,8 @@
 
 From the repository root:
 
+<!-- cli-example -->
+
 ```sh
 work=$(mktemp -d)
 printf 'blue\nred\n' > "$work/left"

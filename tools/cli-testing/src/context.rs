@@ -102,6 +102,29 @@ impl Workspace {
         crate::std_command(&self.context.binary, self.path())
     }
 
+    /// Run the introductory README example using the built CLI in this workspace.
+    /// # Errors
+    /// Reports an unreadable README or malformed example.
+    pub fn readme_cmd(&self) -> Result<assert_cmd::Command> {
+        self.readme_std_command().map(crate::assert_command)
+    }
+
+    /// Configure a README example for custom pipes or a PTY.
+    /// # Errors
+    /// Reports an unreadable README or malformed example.
+    pub fn readme_std_command(&self) -> Result<Command> {
+        let readme = self.context.package_dir.join("README.md");
+        let script = crate::readme::script(&readme, &self.context.binary)?;
+        eprintln!("readme_example: {}", readme.display());
+        let mut command = crate::std_command("/bin/sh", self.path());
+        command
+            .args(["-ec", &script])
+            .arg(readme)
+            .arg(&self.context.binary)
+            .env("TMPDIR", self.path());
+        Ok(command)
+    }
+
     /// Copy one input file as raw bytes, creating destination parents.
     /// # Errors
     /// Rejects invalid relative names and reports fixture or write failures.

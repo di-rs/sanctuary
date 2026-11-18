@@ -10,6 +10,16 @@ use std::fs;
 
 type TestResult<T = ()> = std::result::Result<T, Box<dyn std::error::Error>>;
 
+cli_testing::readme_example!(
+    0,
+    concat!(
+        "cli-testing ",
+        env!("CARGO_PKG_VERSION"),
+        ": offline; authentication not required\n",
+        "No suite selected. Use discover --root DIR, then --suite PATH.\n",
+    )
+);
+
 #[test]
 fn usage_and_argument_errors() {
     cargo_bin_cmd!()

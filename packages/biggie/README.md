@@ -7,8 +7,10 @@ delimited or CSV fields, exact-size bytes, and sorted overlapping pairs.
 
 From the repository root, generate four records without creating a file:
 
+<!-- cli-example -->
+
 ```sh
-cargo run -p biggie -- records --record apple --record pear --repeat 2 -
+cargo run -q -p biggie -- records --record apple --record pear --repeat 2 -
 ```
 
 ```text

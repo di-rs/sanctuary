@@ -6,6 +6,22 @@ use std::{
     path::{Path, PathBuf},
 };
 
+#[cfg(unix)]
+#[cli_testing::cli_test]
+fn readme_example(cx: &cli_testing::TestContext) -> Result<()> {
+    let workspace = cx.workspace()?;
+    workspace
+        .readme_cmd()?
+        .assert()
+        .code(0)
+        .stdout("apple\napple\npear\npear\n")
+        .stderr("");
+    if workspace.path().read_dir()?.next().is_some() {
+        return Err("stdout example created files in the workspace".into());
+    }
+    Ok(())
+}
+
 fn command() -> cli_testing::Command {
     cargo_bin_cmd!()
 }

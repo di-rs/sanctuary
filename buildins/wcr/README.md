@@ -6,6 +6,8 @@
 
 From the repository root:
 
+<!-- cli-example -->
+
 ```sh
 printf 'red blue\n' | cargo run -q -p wcr -- -w
 ```

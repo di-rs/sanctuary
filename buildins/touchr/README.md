@@ -6,6 +6,8 @@
 
 From the repository root:
 
+<!-- cli-example -->
+
 ```sh
 work=$(mktemp -d)
 cargo run -q -p touchr -- "$work/example.txt"

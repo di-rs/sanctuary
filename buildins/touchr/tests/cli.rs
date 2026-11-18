@@ -9,6 +9,32 @@ use std::{
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
+#[cfg(unix)]
+#[cli_test]
+fn readme_example(cx: &TestContext) -> Result<()> {
+    let workspace = cx.workspace()?;
+    workspace
+        .readme_cmd()?
+        .assert()
+        .code(0)
+        .stdout("")
+        .stderr("");
+
+    let entries = workspace
+        .path()
+        .read_dir()?
+        .collect::<std::io::Result<Vec<_>>>()?;
+    let [temporary] = entries.as_slice() else {
+        return Err("expected one temporary directory from mktemp".into());
+    };
+    let file = temporary.path().join("example.txt");
+    let metadata = file.symlink_metadata()?;
+    if !metadata.is_file() || metadata.len() != 0 {
+        return Err(format!("expected an empty regular file at {}", file.display()).into());
+    }
+    Ok(())
+}
+
 #[allow(
     clippy::panic_in_result_fn,
     reason = "Assertions fail the test; Result propagates fixture I/O errors."

@@ -6,12 +6,14 @@
 
 From the repository root:
 
+<!-- cli-example -->
+
 ```sh
-cargo run -q -p true
-printf '%s\n' "$?"
+cargo run -q -p true --
 ```
 
-The second command prints `0`.
+The command exits with status 0. Run `printf '%s\n' "$?"` immediately afterward
+to display `0`.
 
 ## Arguments and options
 

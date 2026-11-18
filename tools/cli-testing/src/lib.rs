@@ -9,6 +9,7 @@ pub mod catalog;
 mod context;
 mod error;
 mod harness;
+mod readme;
 pub mod recording;
 pub mod reference;
 pub use context::{Context, TestContext, Workspace, customize};
@@ -31,7 +32,11 @@ pub use assert_cmd::cargo::cargo_bin;
 /// blocked stdin writer. Run tests under nextest's outer CI timeout as well.
 #[must_use]
 pub fn command(binary: impl AsRef<OsStr>, package_dir: impl AsRef<Path>) -> Command {
-    let mut command = Command::from_std(std_command(binary, package_dir));
+    assert_command(std_command(binary, package_dir))
+}
+
+fn assert_command(command: std::process::Command) -> Command {
+    let mut command = Command::from_std(command);
     command.timeout(Duration::from_secs(30));
     command
 }
@@ -90,6 +95,26 @@ macro_rules! cargo_bin_cmd {
     };
     ($name:expr) => {
         $crate::command($crate::cargo_bin!($name), env!("CARGO_MANIFEST_DIR"))
+    };
+}
+
+/// Register the package's introductory README case on Unix. The case compares
+/// the exact exit status and stdout and expects empty stderr.
+#[macro_export]
+macro_rules! readme_example {
+    ($exit:expr, $stdout:expr) => {
+        #[cfg(unix)]
+        #[test]
+        fn readme_example() -> $crate::Result {
+            $crate::context!()
+                .workspace()?
+                .readme_cmd()?
+                .assert()
+                .code($exit)
+                .stdout($stdout)
+                .stderr("");
+            Ok(())
+        }
     };
 }
 

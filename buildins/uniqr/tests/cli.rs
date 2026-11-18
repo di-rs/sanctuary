@@ -360,3 +360,5 @@ fn writes_to_fifo(cx: &TestContext) -> Result<()> {
     assert_eq!(&output, b"a\nb\n");
     Ok(())
 }
+
+cli_testing::readme_example!(0, "red\nblue\n");

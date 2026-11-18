@@ -314,7 +314,7 @@ def workspace(tmp_path: Path) -> Path:
     write(
         tmp_path,
         "buildins/echo/README.md",
-        "# echo\nPrint arguments.\n\n## Try it\n\n```sh\necho hello\n```\n",
+        "# echo\nPrint arguments.\n\n## Try it\n\n<!-- cli-example -->\n\n```sh\ncargo run -q -p echo -- hello\n```\n",
     )
     write(
         tmp_path,
@@ -443,7 +443,7 @@ def test_index_tracks_workspace_changes_without_touching_authored_markdown(works
     with (workspace / "Cargo.toml").open("a") as manifest:
         manifest.write('\n[workspace.package]\ndescription = "Check | [records] <here>"\n')
     write(new_cli, "src/main.rs", "fn main() {}")
-    package_readme = "# alpha\n\nCheck records.\n\n## Try it\n\n```sh\nalpha\n```\n"
+    package_readme = "# alpha\n\nCheck records.\n\n## Try it\n\n<!-- cli-example -->\n\n```sh\ncargo run -q -p alpha --\n```\n"
     write(new_cli, "README.md", package_readme)
     result = run_check(workspace, "docs", "-p", "echo")
     assert result.returncode == 1 and "uv run --locked sdev index" in result.stderr
@@ -510,7 +510,7 @@ def test_index_uses_package_readme_when_cargo_has_no_description(workspace: Path
         workspace,
         "buildins/echo/README.md",
         "# echo\n\n![badge](./badge.svg)\n\nPrint `arguments` and [files](guide.md)\nverbatim."
-        "\n\n## Try it\n\n```sh\necho hello\n```\n",
+        "\n\n## Try it\n\n<!-- cli-example -->\n\n```sh\ncargo run -q -p echo -- hello\n```\n",
     )
     assert run_check(workspace, "docs", "-p", "echo").returncode == 1
     assert run_check(workspace, "index").returncode == 0
@@ -548,7 +548,7 @@ def test_docs_leave_general_links_to_lychee(workspace: Path) -> None:
     write(
         workspace,
         "buildins/echo/README.md",
-        "# echo\nPrint arguments.\n\n## Try it\n\n```sh\necho hello\n```\n\n[details][guide]\n\n[guide]: a%20b.md#details\n\n"
+        "# echo\nPrint arguments.\n\n## Try it\n\n<!-- cli-example -->\n\n```sh\ncargo run -q -p echo -- hello\n```\n\n[details][guide]\n\n[guide]: a%20b.md#details\n\n"
         "![logo](logo.svg)\n[web](https://example.invalid)\n[section](#echo)\n"
         "```md\n[ignored](missing.md)\n```\n",
     )
@@ -616,7 +616,11 @@ def test_root_cli_readme_is_already_indexed(tmp_path: Path) -> None:
     manifest = root / "Cargo.toml"
     manifest.write_text(manifest.read_text() + "\n[workspace]\nmembers = []\n")
     inherit_schema(root, root)
-    write(root, "README.md", "# echo\nPrint arguments.\n\n## Try it\n\n```sh\necho hello\n```\n")
+    write(
+        root,
+        "README.md",
+        "# echo\nPrint arguments.\n\n## Try it\n\n<!-- cli-example -->\n\n```sh\ncargo run -q -p echo -- hello\n```\n",
+    )
     write(root, "benches/basic.toml", 'binary = "echo"\n[[cases]]\nname = "basic"\nargs = []\n')
     result = run_check(root)
     assert result.returncode == 0, result.stderr
@@ -749,3 +753,16 @@ def test_readme_requires_user_purpose_and_first_use(workspace: Path) -> None:
     assert "use the CLI name" in result.stderr
     assert "introduce the component" in result.stderr
     assert "runnable shell example" in result.stderr
+
+
+def test_marked_readme_example_cannot_follow_an_untested_shell_fence(workspace: Path) -> None:
+    readme = workspace / "buildins/echo/README.md"
+    readme.write_text(
+        readme.read_text().replace(
+            "<!-- cli-example -->",
+            "```bash\ncargo run -q -p echo -- earlier\n```\n\n<!-- cli-example -->",
+        )
+    )
+    result = run_check(workspace, "docs", "-p", "echo")
+    assert result.returncode == 1
+    assert "buildins/echo/README.md: put <!-- cli-example --> before the first" in result.stderr
