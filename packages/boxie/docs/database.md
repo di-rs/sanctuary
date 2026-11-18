@@ -47,8 +47,8 @@ and artifact reconciliation.
 ## Preserve data
 
 Keep `postgres-data` during releases and shutdown. Never use
-`docker compose down --volumes` in production. This package does not implement
-backups; arrange and test them before relying on the deployment.
+`docker compose down --volumes` in production. Capture and test an independent [off-host recovery point](../../../infra/docs/off-host-recovery.md)
+before relying on the deployment.
 
 Compose sets `PGDATA` to the path mounted from `postgres-data`. Recreating a
 container with the same PostgreSQL major version reopens the same cluster. A
@@ -129,7 +129,6 @@ sole owning supervisor. An unavailable database authorizes no orphan deletion.
 
 ## Recovery prerequisite for production activation
 
-Backup and restore implementation belongs to the production activation increment.
 Before enabling deployment, demonstrate restoration of all three PostgreSQL
 databases (Boxie, Temporal persistence and Temporal visibility) and Boxie's artifact
 data into a fresh installation, using off-host backups and a documented recovery
