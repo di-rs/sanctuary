@@ -6,14 +6,25 @@ import re
 import shutil
 import struct
 import zipfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 from cli_playground.catalog import CATALOG_NAME, MAX_CATALOG, Catalog, parse_catalog
+from cli_playground.zip_metadata import validate_directory
 
 MAX_BINARY = 64 * 1024 * 1024
 MAX_ARCHIVE = 512 * 1024 * 1024
 MAX_CLIS = 1024
 CLI_PATTERN = r"[a-z][a-z0-9_-]{0,63}"
+
+
+@contextmanager
+def _open_archive(source: Path | bytes) -> Iterator[zipfile.ZipFile]:
+    with source.open("rb") if isinstance(source, Path) else io.BytesIO(source) as stream:
+        validate_directory(stream, max_entries=MAX_CLIS + 1)
+        with zipfile.ZipFile(stream) as archive:
+            yield archive
 
 
 def validate_elf_header(header: bytes) -> None:
@@ -57,7 +68,7 @@ def binary_archive(data: bytes) -> dict[str, bytes]:
     if len(data) > MAX_ARCHIVE:
         raise ValueError("artifact exceeds size limit")
     binaries = {}
-    with zipfile.ZipFile(io.BytesIO(data)) as archive:
+    with _open_archive(data) as archive:
         for member in archive_members(archive):
             if member.filename == CATALOG_NAME:
                 continue
@@ -69,7 +80,7 @@ def binary_archive(data: bytes) -> dict[str, bytes]:
 
 def stage_archive(source: Path, destination: Path, max_binary_bytes: int) -> list[str]:
     """Validate and stage one member at a time so large batches stay off the heap."""
-    with zipfile.ZipFile(source) as archive:
+    with _open_archive(source) as archive:
         members = [member for member in archive_members(archive) if member.filename != CATALOG_NAME]
         if any(member.file_size > max_binary_bytes for member in members):
             raise OverflowError("binary exceeds the upload limit")
@@ -101,7 +112,7 @@ def canonical_archive(staged: Path, clis: list[str], destination: Path) -> str:
 
 
 def archive_catalog(source: Path | bytes, sha: str, binaries: dict[str, str]) -> Catalog | None:
-    with zipfile.ZipFile(io.BytesIO(source) if isinstance(source, bytes) else source) as archive:
+    with _open_archive(source) as archive:
         if CATALOG_NAME not in archive.namelist():
             return None
         member = archive.getinfo(CATALOG_NAME)
