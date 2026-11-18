@@ -173,6 +173,14 @@ labels:
   - label: risk:high
     sync: true
     matcher:
+      files:
+        any: &production_persistence
+          - "packages/boxie/infra/postgres/**"
+          - "packages/boxie/infra/temporal/compose.yml"
+          - "packages/boxie/infra/temporal/schema.sh"
+          - "packages/boxie/alembic/versions/**"
+          - "tools/cli-playground/infra/postgres/**"
+          - "tools/cli-playground/src/cli_playground/alembic/versions/**"
       body: '<!-- labels:risk -->\s*(?:- \[ \] [^\r\n]*\r?\n\s*)*- \[[xX]\] `risk:high`[^\r\n]*\r?\n\s*(?:- \[ \] [^\r\n]*\r?\n\s*)*<!-- /labels:risk -->'
   - label: impact:breaking
     sync: true
@@ -185,6 +193,8 @@ labels:
   - label: impact:persistence
     sync: true
     matcher:
+      files:
+        any: *production_persistence
       body: '<!-- labels:impact -->\s*(?:- \[(?: |[xX])\] `(?:impact:breaking|impact:security|impact:performance|impact:cross-platform)`[^\r\n]*\r?\n\s*|- \[ \] `impact:(?:none|persistence)`[^\r\n]*\r?\n\s*)*- \[[xX]\] `impact:persistence`[^\r\n]*\r?\n\s*(?:- \[(?: |[xX])\] `(?:impact:breaking|impact:security|impact:performance|impact:cross-platform)`[^\r\n]*\r?\n\s*|- \[ \] `impact:(?:none|persistence)`[^\r\n]*\r?\n\s*)*<!-- /labels:impact -->'
   - label: impact:performance
     sync: true

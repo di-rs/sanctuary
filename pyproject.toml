@@ -15,6 +15,7 @@ dependencies = [
 ]
 
 [dependency-groups]
+pr-review = ["markdown-it-py>=4,<5", "pyyaml>=6.0.3"]
 dev = [
     "boxie-test-support",
     "mypy",
@@ -23,7 +24,7 @@ dev = [
     "pulumi-hcloud==1.43.4",
     "pulumi-tls==5.6.2",
     "pytest>=9.2.0",
-    "pyyaml>=6.0.3",
+    { include-group = "pr-review" },
     "ruff",
     "types-pyyaml>=6.0.12.20261113",
 ]

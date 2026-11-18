@@ -77,10 +77,17 @@ updates:
     patterns: ['*']
     multi-ecosystem-group: container-images
   - package-ecosystem: docker-compose
+    directory: /packages/boxie/infra/postgres
+    schedule:
+      interval: weekly
+    labels: ["dependencies", "type:dependencies", "docker", "risk:high", "impact:persistence"]
+    commit-message:
+      prefix: ':arrow_up: deps'
+      include: scope
+  - package-ecosystem: docker-compose
     directories:
       - /packages/boxie/infra/ingress
       - /packages/boxie/infra/observability
-      - /packages/boxie/infra/postgres
       - /packages/boxie/infra/temporal
       - /tools/cli-playground/infra
     patterns: ['*']

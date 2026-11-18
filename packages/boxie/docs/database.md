@@ -54,6 +54,18 @@ Compose sets `PGDATA` to the path mounted from `postgres-data`. Recreating a
 container with the same PostgreSQL major version reopens the same cluster. A
 major-version upgrade requires a tested PostgreSQL migration or dump and restore.
 
+Shared-host setup and Playground provisioning check the selected volume before
+replacing the database container. They compare its `PG_VERSION` with the major
+version reported by the pinned image in a read-only probe. If they disagree,
+the installer stops while the current container is still in place. Prepare and
+verify the migrated cluster during a planned cutover before retrying setup.
+
+By default, production uses `boxie-postgres_postgres-data`. After an operator
+has cut over to a different named volume, record its name on one line in
+`/etc/sanctuary/boxie/postgres-volume`. Setup reuses that external volume and
+checks that the existing database container is attached to it. A missing or
+empty volume on an initialized host requires operator recovery.
+
 For isolated checks, run from the repository root:
 
 ```sh

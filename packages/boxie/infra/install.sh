@@ -29,7 +29,7 @@ for network in boxie-control boxie-consumers boxie-metrics boxie-grafana-origin 
 done
 postgres() { timeout 180 docker compose --env-file /etc/sanctuary/boxie.env -f "$owner/postgres/compose.yml" "$@"; }
 temporal() { timeout 180 docker compose --env-file /etc/sanctuary/boxie.env -f "$owner/temporal/compose.yml" -f "$owner/temporal/compose.observability.yml" "$@"; }
-postgres up -d --no-build --wait --wait-timeout 150
+timeout 180 python3 "$owner/postgres/start.py" /etc/sanctuary
 # Initialization is explicit and never runs upstream schema upgrades on an installed stack.
 if [[ ! -f /etc/sanctuary/temporal-schema-ready ]]; then
     for store in temporal visibility; do

@@ -3,6 +3,8 @@
 import asyncio
 import json
 import re
+import shutil
+import sys
 from datetime import timedelta
 from pathlib import Path
 from typing import Any
@@ -23,6 +25,48 @@ from temporalio.service import TLSConfig
 from temporalio.worker import UnsandboxedWorkflowRunner, Worker
 
 ROOT = Path(__file__).parents[3]
+
+
+@pytest.mark.integration
+def test_postgres_setup_preserves_live_v17_when_candidate_is_v18(tmp_path: Path) -> None:
+    stack = ProductionStack(tmp_path)
+    stack.env["COMPOSE_PROJECT_NAME"] = stack.postgres
+    owner = tmp_path / "postgres"
+    shutil.copytree(ROOT / "packages/boxie/infra/postgres", owner)
+    manifest = owner / "compose.yml"
+    candidate = manifest.read_text()
+    spec = yaml.safe_load(candidate)
+    spec["services"]["postgres"]["image"] = (
+        "postgres:17.11@sha256:2d2b8998d31037bf721cfdf764d76ba74171b4fab3431b7f72c27c56ddbdf9e3"
+    )
+    manifest.write_text(yaml.safe_dump(spec))
+    (tmp_path / "boxie.env").touch()
+    (tmp_path / "boxie").mkdir()
+    selector = tmp_path / "boxie/postgres-volume"
+    start = [sys.executable, str(owner / "start.py"), str(tmp_path)]
+    compose = ["docker", "compose", "-f", str(manifest)]
+    sql = [*compose, "exec", "-T", "postgres", "psql", "-U", "postgres", "-Atc"]
+    stack.command(["docker", "network", "create", "--internal", stack.name])
+    try:
+        stack.command(start)
+        stack.command([*sql, "CREATE TABLE preserved AS SELECT 73 AS value"])
+        selector.write_text(f"{stack.postgres}_postgres-data\n")
+        stack.command(start)
+        original = stack.command([*compose, "ps", "-q", "postgres"])
+        assert original
+        manifest.write_text(candidate)
+        with pytest.raises(RuntimeError, match=r"contains PostgreSQL 17.*image runs PostgreSQL 18"):
+            stack.command(start)
+        selector.write_text(f"{stack.postgres}_other\n")
+        with pytest.raises(RuntimeError, match="Refusing to switch"):
+            stack.command(start)
+        assert stack.command([*compose, "ps", "-q", "postgres"]) == original
+        assert stack.command([*sql, "SELECT value FROM preserved"]) == "73"
+    finally:
+        try:
+            stack.command([*compose, "down", "--volumes"])
+        finally:
+            stack.command(["docker", "network", "rm", stack.name])
 
 
 @pytest.mark.integration
