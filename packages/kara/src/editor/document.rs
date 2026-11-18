@@ -4,6 +4,8 @@ use super::{
 };
 pub use super::{cursor::Direction, persistence::SaveOutcome};
 use std::{
+    fs::File,
+    io,
     path::{Path, PathBuf},
     time::Instant,
 };
@@ -12,40 +14,55 @@ use std::{
 pub struct Document {
     text: Buffer,
     cursor: Cursor,
-    filename: Option<PathBuf>,
+    file: Option<persistence::SavedFile>,
     modified_at: Option<Instant>,
     revision: u64,
     highlights: super::highlight::HighlightCache,
 }
 impl Document {
-    pub fn open(filename: &str) -> std::io::Result<Self> {
+    pub fn open(filename: &str) -> io::Result<Self> {
+        let (text, file) = persistence::open(filename.into())?;
         Ok(Self {
-            text: persistence::open(Path::new(filename))?,
-            filename: Some(filename.into()),
+            text,
+            file: Some(file),
             ..Self::default()
         })
     }
-    pub fn save(&mut self) -> std::io::Result<SaveOutcome> {
-        let outcome = self
-            .filename
-            .as_ref()
-            .map_or(Ok(SaveOutcome::Saved), |path| {
-                persistence::save(&self.text, path)
-            })?;
-        self.modified_at = None;
-        Ok(outcome)
+    pub fn save(&mut self) -> io::Result<SaveOutcome> {
+        let Some(file) = &self.file else {
+            return Ok(SaveOutcome::Unchanged);
+        };
+        self.save_to(file.path.clone(), File::sync_all)
     }
-    pub fn save_as(&mut self, filename: &str) -> std::io::Result<SaveOutcome> {
-        self.save_as_with(filename, persistence::save)
+    pub fn save_as(&mut self, filename: &str) -> io::Result<SaveOutcome> {
+        self.save_to(filename.into(), File::sync_all)
     }
-    fn save_as_with(
+    fn save_to(
         &mut self,
-        filename: &str,
-        save: impl FnOnce(&Buffer, &Path) -> std::io::Result<SaveOutcome>,
-    ) -> std::io::Result<SaveOutcome> {
-        let path = Path::new(filename);
-        let outcome = save(&self.text, path)?;
-        self.filename = Some(path.to_path_buf());
+        path: PathBuf,
+        sync_directory: impl FnOnce(&File) -> io::Result<()>,
+    ) -> io::Result<SaveOutcome> {
+        let same_path = self.filename() == Some(path.as_path());
+        if same_path && !self.is_modified() {
+            return Ok(SaveOutcome::Unchanged);
+        }
+        let destination = persistence::resolve_destination(&path).map_err(|error| {
+            if same_path && error.kind() == io::ErrorKind::NotFound {
+                persistence::save_conflict()
+            } else {
+                error
+            }
+        })?;
+        let expected = self
+            .file
+            .as_ref()
+            .filter(|file| same_path || file.matches_destination(&destination));
+        if expected.is_some() && !self.is_modified() {
+            return Ok(SaveOutcome::Unchanged);
+        }
+        let (file, outcome) =
+            persistence::save(&self.text, path, destination, expected, sync_directory)?;
+        self.file = Some(file);
         self.modified_at = None;
         Ok(outcome)
     }
@@ -53,10 +70,10 @@ impl Document {
         super::file_type::FileType::detect(self.filename())
     }
     pub fn filename(&self) -> Option<&Path> {
-        self.filename.as_deref()
+        self.file.as_ref().map(|file| file.path.as_path())
     }
     pub const fn has_file(&self) -> bool {
-        self.filename.is_some()
+        self.file.is_some()
     }
     pub fn insert_char(&mut self, character: char) {
         let old_height = self.height();
@@ -166,7 +183,7 @@ impl Document {
 
 #[cfg(test)]
 mod save_tests {
-    use super::{Document, SaveOutcome, persistence};
+    use super::{Document, SaveOutcome};
     use std::{fs, io};
 
     #[test]
@@ -185,14 +202,9 @@ mod save_tests {
             super::super::file_type::FileType::PlainText
         );
         buffer.insert_char('X');
-        let result = buffer.save_as_with(
-            destination.to_str().ok_or("non-UTF-8 fixture")?,
-            |text, path| {
-                persistence::save_with_sync(text, path, |_| {
-                    Err(io::Error::other("injected directory sync failure"))
-                })
-            },
-        )?;
+        let result = buffer.save_to(destination.clone(), |_| {
+            Err(io::Error::other("injected directory sync failure"))
+        })?;
         assert!(matches!(result, SaveOutcome::DurabilityWarning(_)));
         assert_eq!(buffer.filename(), Some(destination.as_path()));
         assert!(!buffer.is_modified());
@@ -215,9 +227,12 @@ mod save_tests {
         fs::write(&original, b"12")?;
         let mut document = Document::open(original.to_str().ok_or("invalid path")?)?;
         document.insert_char('3');
-        let failed = document.save_as_with("failed.rs", |_, _| {
-            Err(io::Error::new(io::ErrorKind::PermissionDenied, "denied"))
-        });
+        let failed = document.save_as(
+            dir.path()
+                .join("missing/failed.rs")
+                .to_str()
+                .ok_or("invalid path")?,
+        );
         assert!(failed.is_err());
         assert_eq!(document.filename(), Some(original.as_path()));
         assert_eq!(

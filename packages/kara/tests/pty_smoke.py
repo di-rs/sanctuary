@@ -14,6 +14,7 @@ import sys
 import tempfile
 import termios
 import time
+from collections.abc import Callable, Sequence
 from pathlib import Path
 
 from macos_acl import read_acl
@@ -49,7 +50,11 @@ def restrict_acl(path: Path) -> None:
 
 
 def session(
-    binary: str, directory: Path, keys: list[bytes], *, args: tuple[str, ...] = ("original",)
+    binary: str,
+    directory: Path,
+    steps: Sequence[bytes | Callable[[], None]],
+    *,
+    args: tuple[str, ...] = ("original",),
 ) -> bytes:
     pid, fd = pty.fork()
     if pid == 0:
@@ -78,9 +83,12 @@ def session(
         while b"\x1b[?25h" not in captured and time.monotonic() < deadline:
             drain()
         assert b"\x1b[?25h" in captured, f"editor did not become ready: {bytes(captured)!r}"
-        for key in keys:
-            os.write(fd, key)
-            drain()
+        for step in steps:
+            if isinstance(step, bytes):
+                os.write(fd, step)
+                drain()
+            else:
+                step()
         deadline = time.monotonic() + 3
         while time.monotonic() < deadline:
             done, status = os.waitpid(pid, os.WNOHANG)
@@ -117,11 +125,11 @@ def main() -> None:
         write_only.write_bytes(b"KEEP\n")
         write_only.chmod(0o200)
         try:
-            session(binary, directory, [b":w write-only\r", b"\x11"])
+            session(binary, directory, [b":w write-only\r", b"iX\x1b", b"\x13", b"\x11"])
             assert stat.S_IMODE(write_only.stat().st_mode) == 0o200
         finally:
             write_only.chmod(0o600)
-        assert write_only.read_bytes() == b"original\n", "save-as rejected a write-only destination"
+        assert write_only.read_bytes() == b"Xoriginal\n", "save rejected a write-only destination"
         secured = directory / "secured"
         secured.write_bytes(b"KEEP\n")
         alternate_groups = [gid for gid in os.getgroups() if gid != directory.stat().st_gid]

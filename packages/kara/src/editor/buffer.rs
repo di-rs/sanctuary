@@ -1,4 +1,4 @@
-use std::io::{self, Read, Write};
+use std::io::{self, BufRead, Read, Write};
 
 use ropey::Rope;
 use unicode_segmentation::UnicodeSegmentation;
@@ -43,6 +43,23 @@ impl Buffer {
 
     pub fn write_to(&self, writer: impl Write) -> io::Result<()> {
         self.text.write_to(writer)
+    }
+
+    pub fn matches_bytes(&self, mut reader: impl BufRead) -> io::Result<bool> {
+        for chunk in self.text.chunks() {
+            let mut expected = chunk.as_bytes();
+            while !expected.is_empty() {
+                let actual = reader.fill_buf()?;
+                let count = actual.len().min(expected.len());
+                let (prefix, rest) = expected.split_at(count);
+                if count == 0 || !actual.starts_with(prefix) {
+                    return Ok(false);
+                }
+                reader.consume(count);
+                expected = rest;
+            }
+        }
+        Ok(reader.fill_buf()?.is_empty())
     }
 
     pub fn insert_char(&mut self, character: char, at: TextPosition) {

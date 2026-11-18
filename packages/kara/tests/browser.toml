@@ -4,3 +4,33 @@ args = ["welcome.txt"]
 ready = "NAVIGATE"
 keys = ["i", "X", "Escape", "Control+s", "Control+q"]
 after = "head -n 1 welcome.txt"
+
+[[cases]]
+name = "save-after-external-edit"
+args = ["draft.txt"]
+setup = '''
+printf 'Original draft\n' > draft.txt
+kara() {
+  command kara "$@" | python3 -u -c '
+import os, time
+from pathlib import Path
+path = Path("draft.txt")
+written = False
+while chunk := os.read(0, 65536):
+    if not written and b"NAVIGATE" in chunk:
+        path.write_text("External draft\n")
+        written = True
+    message = b"elsewhere."
+    if message in chunk:
+        end = chunk.index(message) + len(message)
+        os.write(1, chunk[:end])
+        time.sleep(2)
+        chunk = chunk[end:]
+    os.write(1, chunk)
+'
+}
+clear
+'''
+ready = "NAVIGATE"
+keys = ["i", "X", "Escape", "Control+s", ":", "w", "Space", "c", "o", "p", "y", "Enter", "Control+q"]
+after = "clear; printf 'draft.txt: '; cat draft.txt; printf 'copy: '; cat copy"
