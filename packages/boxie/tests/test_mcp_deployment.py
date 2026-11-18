@@ -54,7 +54,8 @@ def mcp_probe(command: list[str], tool: str, arguments: dict[str, Any]) -> dict[
     """Exercise the stdio handshake, tool discovery and one call with a deadline."""
     name = "sanctuary-mcp-probe-" + uuid4().hex[:12]
     assert command[:2] == ["docker", "run"]
-    command = command[:2] + ["--name", name] + command[2:]
+    # The bind-mounted private credentials belong to the pytest user.
+    command = command[:2] + ["--name", name, "--user", f"{os.getuid()}:{os.getgid()}"] + command[2:]
     with tempfile.TemporaryFile() as errors:
         process = subprocess.Popen(
             command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=errors
@@ -262,8 +263,6 @@ def test_real_grafana_provision_and_retry(tmp_path: Path) -> None:
                 "-i",
                 "--network",
                 f"container:{name}",
-                "--user",
-                "0:0",
                 "--read-only",
                 "--cap-drop",
                 "ALL",
@@ -303,8 +302,6 @@ def test_temporal_mcp_loads_tls_and_exposes_read_only_tools(tmp_path: Path) -> N
             "-i",
             "--network",
             "none",
-            "--user",
-            "0:0",
             "--read-only",
             "--cap-drop",
             "ALL",
