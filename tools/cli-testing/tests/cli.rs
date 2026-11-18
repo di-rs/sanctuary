@@ -267,6 +267,88 @@ fn recording_stages_raw_bytes_then_explicit_apply_promotes_them() -> TestResult 
 
 #[test]
 #[cfg(unix)]
+fn partial_promotion_reports_the_failed_write_and_requires_a_fresh_recording() -> TestResult {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = reference_package(b"old")?;
+    let blocked = dir.path().join("tests/expected/second");
+    fs::write(&blocked, b"old second")?;
+    let catalog = dir.path().join("tests/cases.toml");
+    fs::write(
+        &catalog,
+        format!(
+            "{}\n{}",
+            fs::read_to_string(&catalog)?,
+            r#"
+[[cases]]
+name = "second"
+args = []
+origin = { reference = "shell", args = ["-c", "printf second"], reason = "Fixed reference output." }
+expect = { exit = 0, stdout_file = "second", stderr = "" }
+"#,
+        ),
+    )?;
+    let stage = dir.path().join("recorded");
+    fixture_command(&dir)
+        .args(["record", "--output"])
+        .arg(&stage)
+        .assert()
+        .code(0)
+        .stderr("");
+    let original_permissions = fs::metadata(&blocked)?.permissions();
+    fs::set_permissions(&blocked, fs::Permissions::from_mode(0o444))?;
+    if fs::OpenOptions::new().write(true).open(&blocked).is_ok() {
+        eprintln!("write-denial probe requires an unprivileged user");
+        return Ok(());
+    }
+    fixture_command(&dir)
+        .arg("apply")
+        .arg(&stage)
+        .assert()
+        .code(1)
+        .stdout("")
+        .stderr(
+            predicate::str::contains("tests/expected/second")
+                .and(predicate::str::contains(
+                    r#"already wrote ["expected/raw"]"#,
+                ))
+                .and(predicate::str::contains("cannot write destination")),
+        );
+    let first = dir.path().join("tests/expected/raw");
+    assert_eq!(fs::read(&first)?, b"\xff\0\r\nlast");
+    assert_eq!(fs::read(&blocked)?, b"old second");
+
+    fs::set_permissions(&blocked, original_permissions)?;
+    fixture_command(&dir)
+        .arg("apply")
+        .arg(&stage)
+        .assert()
+        .code(1)
+        .stdout("")
+        .stderr(predicate::str::contains("stale recording"));
+    assert_eq!(fs::read(&blocked)?, b"old second");
+
+    let fresh = dir.path().join("fresh");
+    fixture_command(&dir)
+        .args(["record", "--output"])
+        .arg(&fresh)
+        .assert()
+        .code(0)
+        .stderr("");
+    fixture_command(&dir)
+        .arg("apply")
+        .arg(&fresh)
+        .assert()
+        .code(0)
+        .stdout(predicate::str::contains("1 fixture files changed"))
+        .stderr("");
+    assert_eq!(fs::read(&first)?, b"\xff\0\r\nlast");
+    assert_eq!(fs::read(&blocked)?, b"second");
+    Ok(())
+}
+
+#[test]
+#[cfg(unix)]
 fn stale_or_tampered_recordings_leave_expectations_untouched() -> TestResult {
     for changed in [
         "tests/inputs/raw",
