@@ -46,6 +46,27 @@ bytes, in a private regular file (mode `0600`). Consumer API credentials must no
 be reused here. Access logging is disabled by the entry point; credentials are
 never accepted in URLs.
 
+### Artifact storage budgets
+
+Set `artifact_quota` in the supervisor JSON to limit ZIP staging and retained
+artifacts. Each setting is a positive integer.
+
+| Field | Default | Scope |
+| --- | ---: | --- |
+| `consumer_bytes` | 8 GiB (`8589934592`) | Each consumer |
+| `total_bytes` | 16 GiB (`17179869184`) | Entire installation |
+| `consumer_objects` | 256 | Each consumer |
+| `total_objects` | 1024 | Entire installation |
+
+An upload occupies one object and needs room for the compressed ZIP and the
+expanded files while both are present. Once published, the object is charged for
+its expanded file bytes. Allow disk headroom for filesystem overhead, Docker and
+other data on the same volume. Configure each installation against its available
+storage. A lower quota blocks new uploads as needed while existing artifacts
+remain available for use or retirement. Restart the supervisor to apply changes.
+See [the database guide](database.md#artifact-storage-and-collection) for upgrade
+and collection behavior.
+
 ## Start the API
 
 Run the separate consumer API without a Docker socket or artifact host mounts:

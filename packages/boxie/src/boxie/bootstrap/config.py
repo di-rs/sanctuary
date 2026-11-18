@@ -14,6 +14,7 @@ from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, Settings
 
 from boxie.domain.models import LifetimePolicy, SupervisorIdentity
 from boxie.domain.policy import validate_policy
+from boxie.persistence.artifacts import ArtifactQuota
 
 
 def read_credential(path: Path, *, allow_spaces: bool = False) -> bytes:
@@ -83,6 +84,7 @@ class SupervisorConfig(FileOwnedSettings):
     bind_port: int = 8091
     postgres_dsn_file: Path | None = None
     lifecycle: LifecycleConfig | None = None
+    artifact_quota: ArtifactQuota = Field(default_factory=ArtifactQuota)
 
     @model_validator(mode="after")
     def valid_domain_values(self) -> Self:
@@ -96,6 +98,8 @@ class SupervisorConfig(FileOwnedSettings):
         data = json.loads(path.read_text())
         if "lifecycle" in data:
             data["lifecycle"] = validate_file_model(LifecycleConfig, data["lifecycle"])
+        if "artifact_quota" in data:
+            data["artifact_quota"] = validate_file_model(ArtifactQuota, data["artifact_quota"])
         identity = data.pop("identity")
         data["identity"] = SupervisorIdentity(
             UUID(identity["installation_id"]), identity["host_id"]

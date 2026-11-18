@@ -115,7 +115,10 @@ def _main(metrics: Metrics, config_path: Path) -> None:
                 pool_timeout=0.1,
             ) as telemetry_sessions,
         ):
-            artifacts = PostgresArtifactStore(sessions, config.data_dir / "artifacts")
+            artifacts = PostgresArtifactStore(
+                sessions, config.data_dir / "artifacts", quota=config.artifact_quota
+            )
+            await artifacts.prepare()
             docker = DockerBackend(config.docker_timeout)
             supervisor = Supervisor(
                 config,

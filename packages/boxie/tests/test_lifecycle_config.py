@@ -41,6 +41,14 @@ def test_supervisor_file_ignores_environment_and_rejects_unknown_keys(
     monkeypatch.setenv("BOXIE_DATA_DIR", str(tmp_path / "unapproved"))
     assert SupervisorConfig.from_file(config_path).data_dir == tmp_path / "approved"
 
+    config_path.write_text(json.dumps({**data, "artifact_quota": {"consumer_objects": 2}}))
+    monkeypatch.setenv("ARTIFACT_QUOTA", '{"consumer_objects": 2000}')
+    assert SupervisorConfig.from_file(config_path).artifact_quota.consumer_objects == 2
+
+    config_path.write_text(json.dumps({**data, "artifact_quota": {"consumer_bytes": 0}}))
+    with pytest.raises(ValueError, match="consumer_bytes"):
+        SupervisorConfig.from_file(config_path)
+
     config_path.write_text(json.dumps({**data, "secret-value": "secret-value"}))
     with pytest.raises(ValueError) as raised:
         SupervisorConfig.from_file(config_path)
