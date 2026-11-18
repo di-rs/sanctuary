@@ -214,10 +214,10 @@ def catalog_bundle(binaries: Path) -> tuple[str, bytes, int]:
     return revision, binary_bundle(files | {"catalog.json": catalog.canonical()}), len(files)
 
 
-async def serve(root: Path) -> None:
+async def serve(root: Path, workspaces: Path) -> None:
     binaries = Path("/opt/artifact")
     revision, bundle, count = catalog_bundle(binaries)
-    daemon = LocalDaemon(root / "workspaces", binaries, Path("/opt/fixtures"))
+    daemon = LocalDaemon(workspaces, binaries, Path("/opt/fixtures"))
     print("[dev] Starting development Boxie transport and playground API", flush=True)
     async with boxie_network(root / "supervisor", daemon=daemon) as network:
         async with product_server(
@@ -279,9 +279,12 @@ def main() -> None:
         os.environ["CLI_PLAYGROUND_DATABASE_URL"] = url
         print("[dev] Applying playground database migrations", flush=True)
         migrate(url)
-        with tempfile.TemporaryDirectory(prefix="playground-dev-") as directory:
+        with (
+            tempfile.TemporaryDirectory(prefix="playground-dev-") as directory,
+            tempfile.TemporaryDirectory(dir="/var/lib/playground-sessions") as sessions,
+        ):
             with suppress(KeyboardInterrupt):
-                asyncio.run(serve(Path(directory)))
+                asyncio.run(serve(Path(directory), Path(sessions)))
     finally:
         with psycopg.connect(admin, autocommit=True) as connection:
             connection.execute(

@@ -1,0 +1,9 @@
+[[cases]]
+name = "skip-missing"
+args = ["-c", "absent"]
+after = "ls -a"
+
+[[cases]]
+name = "set-time"
+args = ["-t", "202601011200", "stamped"]
+after = "date -u -r stamped '+%F %R UTC'"

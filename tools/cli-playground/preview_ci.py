@@ -21,7 +21,7 @@ from typing import Protocol, cast
 
 import anyio
 import httpx
-from cli_check.affected import affected_packages, changed_paths
+from cli_check.affected import binary_changes, changed_paths
 from cli_check.checks.layout import check as check_layout
 from cli_check.workspace import discover as discover_workspace
 from githubkit import BaseAuthStrategy, GitHub, TokenAuthStrategy
@@ -198,29 +198,7 @@ def discover(root: Path = ROOT) -> dict[str, str]:
 def select(
     packages: dict[str, str], paths: list[str], base: str, head: str, *, root: Path = ROOT
 ) -> list[str]:
-    paths = [
-        path
-        for path in paths
-        if not path.endswith(".md") and not {"tests", "docs"}.intersection(Path(path).parts)
-    ]
-    global_paths = {
-        "Cargo.toml",
-        "rust-toolchain.toml",
-        "tools/cli-playground/Build.Dockerfile",
-        "tools/cli-playground/Build.Dockerfile.dockerignore",
-        "tools/cli-playground/preview_ci.py",
-        "tools/cli-playground/src/cli_playground/catalog_build.py",
-        "tools/cli-playground/src/cli_playground/catalog.py",
-        WORKFLOW,
-    }
-    if any(
-        path in global_paths
-        or path.startswith(".cargo/")
-        or path.startswith("tools/cli-check/src/")
-        for path in paths
-    ):
-        return sorted(packages)
-    return sorted(packages.keys() & affected_packages(root, base, head, paths))
+    return binary_changes(root, packages, paths, base, head)
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -490,6 +468,47 @@ def lifecycle(
     return message
 
 
+def preview_deployment(
+    api: GitHub[TokenAuthStrategy], base: str, number: int, sha: str, binaries: dict[str, str]
+) -> int:
+    environment = f"cli-playground/pr-{number}"
+    digest = hashlib.sha256(json.dumps(binaries, sort_keys=True).encode()).hexdigest()
+    query = urllib.parse.urlencode({"environment": environment, "task": "deploy", "per_page": 1})
+    latest = array(github_json(api, f"{base}/deployments?{query}"))
+    if latest:
+        deployment = table(latest[0])
+        payload = deployment.get("payload")
+        previous = payload.get("binaries_sha256") if isinstance(payload, dict) else None
+        # Existing deployments predate content digests. A SHA match can identify a retry.
+        same = previous == digest if previous is not None else deployment.get("sha") == sha
+        if (
+            same
+            and deployment.get("task") == "deploy"
+            and deployment.get("environment") == environment
+            and deployment.get("creator") is not None
+            and table(deployment["creator"]).get("login") == "github-actions[bot]"
+        ):
+            return positive(deployment.get("id"))
+    created = table(
+        github_json(
+            api,
+            f"{base}/deployments",
+            method="POST",
+            body={
+                "ref": sha,
+                "auto_merge": False,
+                "required_contexts": [],
+                "environment": environment,
+                "payload": {"binaries_sha256": digest},
+                "description": f"cli-playground for PR #{number}",
+                "transient_environment": True,
+                "production_environment": False,
+            },
+        )
+    )
+    return positive(created.get("id"))
+
+
 def publish(
     api: GitHub[TokenAuthStrategy],
     repo: str,
@@ -553,7 +572,7 @@ def publish(
     ]
     if not configured:
         paragraphs.append(
-            "**Configuration needed:** set repository variable `CLI_PLAYGROUND_URL` and secret "
+            "**Configuration needed:** set the preview environment variable `CLI_PLAYGROUND_URL` and secret "
             "`CLI_PLAYGROUND_DEPLOY_TOKEN` after deploying the backend. "
             "Live previews are unavailable; binaries can be downloaded below."
         )
@@ -589,6 +608,7 @@ def publish(
     )
     publish_failed = False
     url: str | None = None
+    binary_digests: dict[str, str] = {}
     if artifact is None:
         expired = any(
             item.get("name") == ARTIFACT_NAME and item.get("expired") for item in artifacts
@@ -618,11 +638,10 @@ def publish(
                     api, f"{base}/actions/artifacts/{artifact_id}/zip", limit=MAX_ARCHIVE
                 )
                 binaries = binary_archive(bundle)
-                archive_catalog(
-                    bundle,
-                    sha,
-                    {name: hashlib.sha256(binary).hexdigest() for name, binary in binaries.items()},
-                )
+                binary_digests = {
+                    name: hashlib.sha256(binary).hexdigest() for name, binary in binaries.items()
+                }
+                archive_catalog(bundle, sha, binary_digests)
                 count = len(binaries)
                 response = upload(
                     api,
@@ -664,25 +683,10 @@ def publish(
     if not current_pull(api, repo, number, sha):
         return None
     if url:
-        deployment = table(
-            github_json(
-                api,
-                f"{base}/deployments",
-                method="POST",
-                body={
-                    "ref": sha,
-                    "auto_merge": False,
-                    "required_contexts": [],
-                    "environment": f"cli-playground/pr-{number}",
-                    "description": f"cli-playground for PR #{number}",
-                    "transient_environment": True,
-                    "production_environment": False,
-                },
-            )
-        )
+        deployment_id = preview_deployment(api, base, number, sha, binary_digests)
         github_request(
             api,
-            f"{base}/deployments/{positive(deployment.get('id'))}/statuses",
+            f"{base}/deployments/{deployment_id}/statuses",
             method="POST",
             body={
                 "state": "success",

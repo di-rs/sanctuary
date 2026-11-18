@@ -1,0 +1,7 @@
+[[cases]]
+name = "logical"
+args = ["-L"]
+
+[[cases]]
+name = "physical"
+args = ["-P"]

@@ -1,0 +1,7 @@
+[[cases]]
+name = "count-matches"
+args = ["--insensitive", "--recursive", "--count", "--verbose", "hello", "welcome.txt"]
+
+[[cases]]
+name = "inverted-match"
+args = ["--invert-match", "--quiet", "ERROR", "app.log"]

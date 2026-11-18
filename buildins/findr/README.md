@@ -2,6 +2,16 @@
 
 `findr` recursively lists paths filtered by entry type and filename regular expressions.
 
+## Find Rust source files
+
+From the repository root:
+
+```sh
+cargo run -q -p findr -- buildins/findr/src -t f -n 'main[.]rs$'
+```
+
+The result includes `buildins/findr/src/main.rs`.
+
 ## Arguments and options
 
 | Argument or option | Meaning |

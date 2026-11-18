@@ -2,6 +2,17 @@
 
 `touchr` creates missing files and sets file modification times.
 
+## Create an empty file
+
+From the repository root:
+
+```sh
+work=$(mktemp -d)
+cargo run -q -p touchr -- "$work/example.txt"
+```
+
+The temporary directory now contains an empty `example.txt`.
+
 ## Arguments and options
 
 | Argument or option | Meaning |

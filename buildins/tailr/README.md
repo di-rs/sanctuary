@@ -2,6 +2,16 @@
 
 `tailr` prints the end of files or stdin, or their contents starting at a chosen line or byte.
 
+## Read the final line
+
+From the repository root:
+
+```sh
+printf 'red\nblue\n' | cargo run -q -p tailr -- -n 1 -
+```
+
+The output is `blue`.
+
 ## Arguments and options
 
 | Argument or option | Meaning |

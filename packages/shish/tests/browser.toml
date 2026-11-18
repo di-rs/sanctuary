@@ -1,0 +1,17 @@
+[[cases]]
+name = "posix-command"
+args = ["--posix", "-c", "printf hello"]
+
+[[cases]]
+name = "bash-stdin"
+args = ["--bash", "-s"]
+stdin = "printf hello"
+
+[[cases]]
+name = "syntax-only"
+args = ["-n", "-c", "touch syntax-only"]
+after = "ls -a"
+
+[[cases]]
+name = "foreground-child"
+args = ["-i", "-c", "sleep 1 && /bin/echo foreground child finished"]

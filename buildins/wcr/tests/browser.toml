@@ -1,0 +1,7 @@
+[[cases]]
+name = "count-text"
+args = ["--lines", "--words", "--chars", "welcome.txt"]
+
+[[cases]]
+name = "count-bytes"
+args = ["--bytes", "welcome.txt"]

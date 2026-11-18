@@ -2,6 +2,16 @@
 
 `pwdr` prints the current working directory as an absolute path.
 
+## Print the working directory
+
+From the repository root:
+
+```sh
+cargo run -q -p pwdr -- -P
+```
+
+The output is the absolute physical path to the current directory.
+
 ## Arguments and options
 
 | Argument or option | Meaning |

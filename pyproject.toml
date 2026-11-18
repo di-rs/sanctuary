@@ -6,6 +6,8 @@ dependencies = [
     "cli-bench",
     "cli-check",
     "local-dev",
+    "cli-record",
+    "sanctuary-dev",
     "githubkit>=0.17.1,<0.18",
     "httpx",
     "anyio",
@@ -31,7 +33,7 @@ package = false
 required-version = ">=0.13.0"
 
 [tool.uv.workspace]
-members = ["infra/host", "packages/boxie", "packages/boxie/tests/support", "tools/cli-playground", "packages/boxie/infra", "tools/cli-playground/infra", "tools/cli-bench", "tools/cli-check", "tools/local-dev"]
+members = ["infra/host", "packages/boxie", "packages/boxie/tests/support", "tools/cli-playground", "packages/boxie/infra", "tools/cli-playground/infra", "tools/cli-bench", "tools/cli-check", "tools/local-dev", "tools/cli-record", "tools/sanctuary-dev"]
 
 [tool.ruff]
 target-version = "py315"
@@ -50,13 +52,15 @@ strict = true
 exclude = ["infra/environments/single-host/__main__.py"]
 
 [tool.pytest]
-testpaths = ["infra/host/tests", "infra/environments/single-host/tests", "packages/boxie/tests", "tools/cli-bench/tests", "tools/cli-playground/tests", "tools/cli-check/tests", "tools/local-dev/tests"]
+testpaths = ["infra/host/tests", "infra/environments/single-host/tests", "packages/boxie/tests", "tools/cli-bench/tests", "tools/cli-playground/tests", "tools/cli-check/tests", "tools/local-dev/tests", "tools/cli-record/tests", "tools/sanctuary-dev/tests"]
 pythonpath = ["tools", "tools/cli-bench", "infra/host/tests", "packages/boxie/tests"]
 addopts = ["--strict-config", "--strict-markers", "-p", "boxie_test_support.dependencies", "-m", "not integration"]
 markers = ["integration: real isolated builds/installations and external-tool checks; prerequisites required"]
 
 [tool.uv.sources]
 local-dev = { workspace = true }
+cli-record = { workspace = true }
+sanctuary-dev = { workspace = true }
 cli-bench = { workspace = true }
 cli-check = { workspace = true }
 boxie = { workspace = true }

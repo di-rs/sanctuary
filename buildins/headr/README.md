@@ -2,6 +2,16 @@
 
 `headr` prints the beginning of files or piped input.
 
+## Read the first line
+
+From the repository root:
+
+```sh
+printf 'red\nblue\n' | cargo run -q -p headr -- -n 1
+```
+
+The output is `red`.
+
 ## Arguments and options
 
 | Argument or option | Meaning |

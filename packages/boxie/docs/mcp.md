@@ -68,8 +68,8 @@ ChatGPT cannot use the local SSH command directly. Use OpenAI's
 to relay MCP requests outbound from the server. The tunnel configuration belongs
 to your OpenAI account, separately from this repository's Cloudflare tunnel.
 
-Create two tunnels in [Platform tunnel settings](https://platform.openai.com/settings/organization/tunnels),
-one per adapter, and associate them with the intended ChatGPT workspace. Follow
+Sign in to the OpenAI Platform and open **Settings → Organization → Tunnels**.
+Create one tunnel per adapter and associate both with the intended ChatGPT workspace. Follow
 the current OpenAI guide to install `tunnel-client` on the production host and
 provide a restricted runtime key through `CONTROL_PLANE_API_KEY`, without placing
 the literal key in shell history or this repository. Tunnel setup requires account

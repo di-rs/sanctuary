@@ -138,6 +138,8 @@ def commands(root: Path, hook: str, paths: list[str]) -> list[list[str]]:
         args = ["check"] if hook == "ruff" else ["format", "--check"]
         return [[*UV, "ruff", *args, "--force-exclude", "--", *sorted(targets)]] if targets else []
     if hook.startswith("cargo-") or hook == "cli-check":
+        if hook == "cli-check" and any(Path(path).name == "README.md" for path in paths):
+            return [[*UV, "cli-check"]]
         if hook == "cli-check" and any(
             path in {"README.md", "pyproject.toml", "uv.lock", "prek.toml"}
             or path.startswith("tools/cli-check/")

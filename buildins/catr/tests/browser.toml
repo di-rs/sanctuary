@@ -1,0 +1,7 @@
+[[cases]]
+name = "number-lines"
+args = ["--number", "--squeeze-blank", "--unbuffered", "welcome.txt"]
+
+[[cases]]
+name = "number-nonblank"
+args = ["--number-nonblank", "welcome.txt"]

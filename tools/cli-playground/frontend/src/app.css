@@ -605,6 +605,11 @@ main {
   text-decoration: underline;
   text-underline-offset: 4px;
 }
+.builder button:disabled,
+.builder-header button:disabled {
+  /* Lock input immediately without flashing dimmed controls between PTY frames. */
+  transition: opacity 0s 120ms;
+}
 .builder {
   padding: 18px 20px;
 }

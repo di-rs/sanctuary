@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+from cli_check.browser import Demos
 from cli_check.diagnostics import Diagnostic
 from cli_check.workspace import Package, table, tables
 
@@ -31,6 +32,10 @@ def check(root: Path, packages: list[Package]) -> list[Diagnostic]:
             package.manifest.get("dev-dependencies", {})
         ):
             error("Cargo.toml", "helper", "requires cli-testing in [dev-dependencies]")
+        try:
+            Demos.read(package.directory / "tests/browser.toml")
+        except ValueError as cause:
+            error("tests/browser.toml", "browser", str(cause))
         catalog = package.directory / "tests/cases.toml"
         runner = package.directory / "tests/catalog.rs"
         if catalog.exists() or runner.exists():

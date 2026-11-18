@@ -1,0 +1,7 @@
+[[cases]]
+name = "month"
+args = ["-m", "3", "2025"]
+
+[[cases]]
+name = "year"
+args = ["--year"]

@@ -1,0 +1,13 @@
+[project]
+name = "sanctuary-dev"
+version = "0.1.0"
+description = "Launch the development tools in a Sanctuary checkout"
+requires-python = ">=3.15"
+dependencies = []
+
+[project.scripts]
+sdev = "sanctuary_dev.command:main"
+
+[build-system]
+requires = ["uv_build==0.13.8"]
+build-backend = "uv_build"

@@ -20,6 +20,7 @@
     "vite.config.ts",
     "playwright*.config.ts",
     "e2e/**/*.ts",
-    "e2e-native/**/*.ts"
+    "e2e-native/**/*.ts",
+    "e2e-record/**/*.ts"
   ]
 }

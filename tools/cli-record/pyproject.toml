@@ -1,0 +1,17 @@
+[project]
+name = "cli-record"
+version = "0.1.0"
+description = "Record selected CLI demonstrations in the local browser playground"
+requires-python = ">=3.15"
+dependencies = ["cli-check", "local-dev"]
+
+[project.scripts]
+cli-record = "cli_record.command:main"
+
+[build-system]
+requires = ["uv_build==0.13.8"]
+build-backend = "uv_build"
+
+[tool.uv.sources]
+cli-check = { workspace = true }
+local-dev = { workspace = true }

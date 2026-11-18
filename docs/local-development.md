@@ -1,7 +1,7 @@
 # Local development
 
 Run the playground, PostgreSQL, all workspace CLIs, and real Bash terminal sessions
-with the Python `local-dev` CLI. Each worktree gets its own Compose project and
+with `sdev local`, which runs the standalone `local-dev` tool. Each worktree gets its own Compose project and
 Docker-assigned loopback port, so several checkouts can run concurrently.
 
 ## Start the stack
@@ -15,7 +15,7 @@ Linux amd64 emulation to preserve the artifact validator's executable format.
 From the checkout root:
 
 ```sh
-uv run local-dev up
+uv run --locked sdev local up
 ```
 
 The launcher prints every Compose command, streams build progress, waits for
@@ -24,9 +24,10 @@ URL. The root redirects to the local preview with the command explorer and
 terminal. Type `biggie --help` or choose a CLI in the sidebar.
 
 Logs continue in the console. Ctrl+C stops following logs and leaves the stack
-running. Stop and remove it with `uv run local-dev down`. PostgreSQL uses temporary
-storage: removing or recreating its container discards preview data. Recreating
-the playground container discards terminal sessions and files.
+running. Stop and remove it with `uv run --locked sdev local down`. PostgreSQL uses temporary storage. Recreating its container discards preview data.
+Recreating the playground starts fresh sessions. Session files use a private
+Docker volume that supports Linux access ACLs, including Kara's atomic saves.
+`down` removes that volume and this worktree's disposable data.
 
 ## Commands
 
@@ -34,27 +35,30 @@ Run these from the checkout root:
 
 | Command | Effect |
 | --- | --- |
-| `uv run local-dev up` | Build, start, wait for health, then follow logs |
-| `uv run local-dev start` | Build and start, then return after readiness |
-| `uv run local-dev up --detach` | Same as `start` |
-| `uv run local-dev start --no-build` | Start using existing images |
-| `uv run local-dev build` | Build images without starting containers |
-| `uv run local-dev logs` | Follow the last 100 lines and new logs |
-| `uv run local-dev logs --no-follow` | Print recent logs and return |
-| `uv run local-dev status` | Show this worktree's services, health, and ports |
-| `uv run local-dev url` | Print its currently assigned URL |
-| `uv run local-dev down` | Remove this worktree's containers and network |
-| `uv run local-dev config` | Inspect resolved Compose configuration; no daemon needed |
-| `uv run local-dev doctor` | Check Docker, show its context/version, and validate configuration |
-| `uv run local-dev --help` | List commands without requiring Docker |
+| `uv run --locked sdev local up` | Build, start, wait for health, then follow logs |
+| `uv run --locked sdev local start` | Build and start, then return after readiness |
+| `uv run --locked sdev local up --detach` | Same as `start` |
+| `uv run --locked sdev local start --no-build` | Start using existing images |
+| `uv run --locked sdev local build` | Build images without starting containers |
+| `uv run --locked sdev local logs` | Follow the last 100 lines and new logs |
+| `uv run --locked sdev local logs --no-follow` | Print recent logs and return |
+| `uv run --locked sdev local status` | Show this worktree's services, health, and ports |
+| `uv run --locked sdev local url` | Print its currently assigned URL |
+| `uv run --locked sdev local down` | Remove this worktree's containers and network |
+| `uv run --locked sdev local config` | Inspect resolved Compose configuration; no daemon needed |
+| `uv run --locked sdev local doctor` | Check Docker, show its context/version, and validate configuration |
+| `uv run --locked sdev local --help` | List commands without requiring Docker |
 
 `up` also accepts `--no-build`. Source files are copied into images; there is no
 live reload or host source mount. After edits, run `start` again and reload the
 browser using the printed URL. A recreated container may receive a different port.
 
+For local CLI verification and reviewable WebM videos, follow the
+[CLI recording guide](cli-development.md#record-a-visible-change).
+
 ## Multiple worktrees
 
-Run `uv run local-dev start` in each worktree. Project names contain the checkout
+Run `uv run --locked sdev local start` in each worktree. Project names contain the checkout
 folder name and a hash of its canonical absolute path. Two folders named
 `sanctuary` still get different networks, containers, images, and database data.
 Repeated commands in one worktree operate on its existing project. Docker chooses
@@ -62,10 +66,10 @@ ports atomically when publishing containers; the launcher does not reserve ports
 with a separate probe or maintain a state file.
 
 The CLI can find the checkout from a subdirectory. To select another checkout
-explicitly, put `--root` before the command:
+from elsewhere, use the installed launcher.
 
 ```sh
-uv run local-dev --root /path/to/another/worktree status
+sdev --root /path/to/another/worktree local status
 ```
 
 Use a local Docker context: the printed loopback URL refers to the Docker host.
@@ -76,7 +80,7 @@ stopped by this command.
 
 ## What runs
 
-The [Python launcher](../tools/local-dev/src/local_dev/command.py) executes the
+The [Python launcher](../tools/local-dev/src/local_dev/stack.py) executes the
 [Compose manifest](../tools/cli-playground/compose.dev.yml) with an explicit
 project name and file path. `config` shows the resolved paths and services. There
 are no hidden background launchers or host service installs.
@@ -96,7 +100,7 @@ use the native Linux setup below. Local previews have no merge-base comparison.
 
 | Symptom | Action |
 | --- | --- |
-| Docker is unreachable | Start the daemon and run `uv run local-dev doctor`; check the active context |
+| Docker is unreachable | Start the daemon and run `uv run --locked sdev local doctor`; check the active context |
 | Unknown Compose option | Update the Compose plugin to support `up --wait` and `--wait-timeout` |
 | Build fails | Read the streamed error, fix the source or dependency access, and rerun `start` |
 | Health check fails | Startup prints service status and recent logs; use `logs` to investigate, then rerun `start` |
@@ -127,14 +131,13 @@ pnpm --dir tools/cli-playground/frontend test
 pnpm --dir tools/cli-playground/frontend build
 ```
 
-Run affected packages' checks directly. The playground browser suite uses port
-8765 and its own PostgreSQL test database, so stop the development stack first:
+Run affected packages' checks directly. The playground browser integration suite
+uses host port 8765 and a separate PostgreSQL test database. The worktree stack
+uses a dynamically assigned port.
 
 ```sh
-uv run local-dev down
 uv run --all-packages pytest -m integration \
   tools/cli-playground/tests/test_browser.py -q
-uv run local-dev start
 ```
 
 Build the frontend before that browser test; it serves the compiled assets.

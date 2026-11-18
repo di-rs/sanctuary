@@ -2,6 +2,16 @@
 
 `uniqr` collapses consecutive runs of matching text lines.
 
+## Collapse adjacent lines
+
+From the repository root:
+
+```sh
+printf 'red\nred\nblue\n' | cargo run -q -p uniqr
+```
+
+The output has two lines, `red` and `blue`.
+
 ## Arguments and options
 
 | Argument or option | Meaning |

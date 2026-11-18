@@ -118,6 +118,13 @@ def discover(root: Path) -> list[Package]:
     return sorted(result, key=lambda package: package.directory)
 
 
+def cli_package(root: Path, name: str) -> Package:
+    for package in discover(root):
+        if package.name == name and package.is_cli:
+            return package
+    raise ValueError(f"Unknown CLI package: {name}")
+
+
 def find_root(start: Path) -> Path:
     for directory in (start.resolve(), *start.resolve().parents):
         path = directory / "Cargo.toml"

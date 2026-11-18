@@ -175,6 +175,20 @@ fn posix_term_trap_handles_signal() {
 }
 
 #[test]
+fn interactive_command_strings_and_scripts_can_run_foreground_programs() -> anyhow::Result<()> {
+    let home = assert_fs::TempDir::new()?;
+    let body = "/bin/sh -c 'echo foreground-ready; exit 23'";
+    let script = home.child("foreground.sh");
+    script.write_str(body)?;
+    for args in [vec!["-i", "-c", body], vec!["-i", script.to_str().unwrap()]] {
+        let mut terminal = support::pty::Pty::new(home.path(), &args, &[])?;
+        terminal.expect("foreground-ready")?;
+        terminal.finish(23)?;
+    }
+    Ok(())
+}
+
+#[test]
 fn foreground_interrupt_returns_control_to_shell() -> anyhow::Result<()> {
     let home = assert_fs::TempDir::new()?;
     let mut terminal = support::pty::Pty::new(home.path(), &["-i"], &[])?;

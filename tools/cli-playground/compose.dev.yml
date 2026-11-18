@@ -15,6 +15,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    volumes:
+      - session-files:/var/lib/playground-sessions
     read_only: true
     tmpfs: ["/tmp:exec,mode=1777"]
     cap_drop: [ALL]
@@ -38,3 +40,6 @@ services:
       interval: 2s
       timeout: 3s
       retries: 30
+
+volumes:
+  session-files:

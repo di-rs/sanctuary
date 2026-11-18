@@ -1,0 +1,3 @@
+[[cases]]
+name = "find-file"
+args = [".", "--name", "welcome", "--type", "f"]

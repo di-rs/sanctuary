@@ -13,11 +13,14 @@ permissions: {}
 
 jobs:
   publish:
-    environment: cli-playground-preview
+    environment:
+      name: cli-playground-preview
+      deployment: false
     name: 🌐 Publish cli-playground previews and PR links
     if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.display_title != '⏭️ CI skipped' }}
     concurrency:
-      group: cli-playground-publish-${{ github.event.workflow_run.head_repository.full_name }}-${{ github.event.workflow_run.head_branch }}
+      group: cli-playground-controller-${{ github.event.workflow_run.head_repository.full_name }}-${{ github.event.workflow_run.head_branch }}
+      queue: max
       cancel-in-progress: false
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -46,11 +49,14 @@ jobs:
           CLI_PLAYGROUND_DEPLOY_TOKEN: ${{ secrets.CLI_PLAYGROUND_DEPLOY_TOKEN }}
         run: uv run --no-dev python tools/cli-playground/preview_ci.py publish --repo "$REPOSITORY" --run-id "$RUN_ID"
   lifecycle:
-    environment: cli-playground-preview
+    environment:
+      name: cli-playground-preview
+      deployment: false
     name: 🧹 Reconcile cli-playground preview lifecycle
     if: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.base.repo.full_name == github.repository && github.event.pull_request.base.ref == 'master' && (github.event.action == 'closed' || !github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'run-ci')) }}
     concurrency:
-      group: cli-playground-lifecycle-${{ github.repository }}-${{ github.event.pull_request.number }}
+      group: cli-playground-controller-${{ github.event.pull_request.head.repo.full_name }}-${{ github.event.pull_request.head.ref }}
+      queue: max
       cancel-in-progress: false
     runs-on: ubuntu-24.04
     timeout-minutes: 10

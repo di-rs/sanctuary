@@ -4,7 +4,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
-from local_dev.command import DevError, Stack, project_name, repository
+from local_dev.stack import DevError, Stack, project_name, repository
 
 
 def test_worktree_identity(tmp_path: Path) -> None:

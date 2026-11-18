@@ -630,6 +630,47 @@ test("unsupported shell syntax and programs do not receive builder edits", async
   await expect(page.locator(".cli-grid button:enabled")).toHaveCount(0);
 });
 
+test("command output keeps the sidebar reference in place until the next prompt", async ({
+  page,
+}) => {
+  const [session] = await openPlayground(page);
+  await openExplorer(page);
+  output(session, Buffer.from("catr "));
+  const flag = page.getByRole("button", { name: "Insert --number", exact: true });
+  await expect(flag).toBeEnabled();
+  const top = await flag.evaluate((node) => node.getBoundingClientRect().top);
+  output(session, Buffer.from("\x1b]133;C\x07\r\nRunning program"));
+  await expect(page.getByText("Waiting for a shell prompt…")).toBeVisible();
+  await expect(flag).toBeDisabled();
+  expect(await flag.evaluate((node) => node.getBoundingClientRect().top)).toBe(top);
+  await expect(page.locator(".cli-grid")).toHaveCount(0);
+  output(session, Buffer.from("\r\n\x1b]133;A\x07$ \x1b]133;B\x07"));
+  await expect(page.getByRole("button", { name: "Insert catr", exact: true })).toBeEnabled();
+});
+
+test("a quickly submitted command keeps the same CLI grid across terminal frames", async ({
+  page,
+}) => {
+  await page.clock.install();
+  const [session] = await openPlayground(page);
+  await openExplorer(page);
+  const grid = await page.locator(".cli-grid").elementHandle();
+  await page.clock.pauseAt(new Date(await page.evaluate(() => Date.now() + 1000)));
+  for (const frame of ["catr ", "\x1b]133;C\x07\r\n", "\x1b]133;A\x07$ \x1b]133;B\x07"]) {
+    const previous = session.messages.filter((message) => message.type === "ack").length;
+    output(session, Buffer.from(frame));
+    await expect
+      .poll(async () => {
+        await page.clock.runFor(16);
+        return session.messages.filter((message) => message.type === "ack").length;
+      })
+      .toBeGreaterThan(previous);
+  }
+  await page.clock.runFor(250);
+  await expect(page.getByRole("button", { name: "Insert catr", exact: true })).toBeEnabled();
+  expect(await grid!.evaluate((node) => node.isConnected)).toBe(true);
+});
+
 test("catalog stays pinned through build polling and metadata renders as text", async ({
   page,
 }) => {

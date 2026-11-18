@@ -1,0 +1,3 @@
+[[cases]]
+name = "xml-to-json"
+args = ["--json", "sample.xml"]

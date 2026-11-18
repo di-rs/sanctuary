@@ -3,6 +3,7 @@ name: 📦 Binary size execution
 # Keep this condition aligned with the first job: downstream workflows skip without a runner.
 run-name: >-
   ${{
+    (github.event.action != 'labeled' || github.event.label.name == 'run-ci') &&
     (!github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'run-ci')) &&
     format('📦 Binary sizes for PR #{0}', github.event.pull_request.number) || '⏭️ CI skipped'
   }}
@@ -11,18 +12,33 @@ on:
   pull_request:
     branches: [master]
     types: [opened, synchronize, reopened, ready_for_review, labeled]
+    paths:
+      - '**/src/**'
+      - '**/build.rs'
+      - '**/Cargo.toml'
+      - 'Cargo.lock'
+      - 'rust-toolchain.toml'
+      - '.cargo/**'
+      - '!**/*.md'
+      - '!**/*.py'
+      - '!**/*.pyi'
+      - '!tools/cli-playground/**'
 
 permissions:
   contents: read
 
 concurrency:
-  group: cli-size-${{ github.event.pull_request.number }}
+  group: cli-size-${{ github.event.pull_request.number }}-${{ github.event.action == 'labeled' && github.event.label.name != 'run-ci' && github.run_id || 'checks' }}
   cancel-in-progress: true
 
 jobs:
   sizes:
     name: 📦 Measure Linux binary sizes
-    if: ${{ !github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'run-ci') }}
+    if: >-
+      ${{
+        (github.event.action != 'labeled' || github.event.label.name == 'run-ci') &&
+        (!github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'run-ci'))
+      }}
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     steps:

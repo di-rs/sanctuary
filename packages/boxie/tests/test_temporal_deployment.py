@@ -39,13 +39,29 @@ def test_postgres_requires_operator_supplied_control_network(tmp_path: Path) -> 
 
 
 @pytest.mark.integration
-def test_postgres_preserves_operator_owned_control_network(tmp_path: Path) -> None:
+def test_recreating_postgres_preserves_cluster_and_operator_network(tmp_path: Path) -> None:
     stack = ProductionStack(tmp_path)
     stack.write_overrides()
     network = stack.env["BOXIE_CONTROL_NETWORK"]
     command(["docker", "network", "create", "--internal", network])
     try:
         stack.compose("postgres", "up", "--detach", "--wait", "--wait-timeout", "90")
+        query = [
+            "exec",
+            "-T",
+            "postgres",
+            "psql",
+            "-U",
+            "postgres",
+            "-Atc",
+            "SELECT system_identifier FROM pg_control_system()",
+        ]
+        cluster = stack.compose("postgres", *query)
+        assert cluster.isdecimal()
+        stack.compose(
+            "postgres", "up", "--detach", "--force-recreate", "--wait", "--wait-timeout", "90"
+        )
+        assert stack.compose("postgres", *query) == cluster
         stack.compose("postgres", "down", "--volumes", "--remove-orphans")
         info = json.loads(command(["docker", "network", "inspect", network]))
         assert info[0]["Internal"] is True

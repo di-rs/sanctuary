@@ -106,3 +106,15 @@ def affected_packages(root: Path, base: str, head: str, paths: list[str]) -> set
         ):
             changed.add(member.name)
     return changed
+
+
+def binary_changes(
+    root: Path, packages: dict[str, str], paths: list[str], base: str, head: str
+) -> list[str]:
+    """Return affected workspace CLIs, including consumers of changed shared code."""
+    if any(
+        path in {"Cargo.toml", "rust-toolchain.toml"} or path.startswith(".cargo/")
+        for path in paths
+    ):
+        return sorted(packages)
+    return sorted(packages.keys() & affected_packages(root, base, head, paths))

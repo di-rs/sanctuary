@@ -71,7 +71,9 @@ Advisory secret scans must not publish credential values and run without credent
   reporting and release automation. CLI reflection runs only in the unprivileged
   build, with elapsed-time/output limits and without ambient credentials; the
   publisher and gateway validate metadata without executing uploaded code.
-  Those capture bounds do not isolate a malicious process from its build runner.
+  Contributors run selected browser demos inside the disposable local playground and
+  publish WebM recordings of synthetic session data. Treat the checkout and its
+  build scripts as trusted local code. PR policy only reads the attachment links.
 - **Local fixture recipes and recordings:** CLI test catalogs and their reference
   commands are trusted repository code, executed with the developer's permissions.
   Temporary test workspaces do not sandbox host access. `cli-testing record`
@@ -104,7 +106,7 @@ not untrusted PR execution: sessions share a container and its private developme
 network, and have no gVisor or Temporal isolation. Publish only its loopback UI
 port; never mount host directories, production credentials, or the Docker socket.
 The local-dev launcher scopes Compose resources by canonical worktree path; Docker
-allocates the published loopback port. PostgreSQL remains private to each project.
+allocates the published loopback port. Session files use a Docker-managed, project-scoped volume removed by `local-dev down`. PostgreSQL remains private to each project.
 Its development-only adapter translates loopback Host ports to the internal
 authority after requiring any Origin to match the original Host exactly. It
 rejects non-loopback hosts and duplicate authorities; production host validation

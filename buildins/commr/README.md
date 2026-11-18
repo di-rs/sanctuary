@@ -2,6 +2,19 @@
 
 `commr` compares two sorted text inputs and prints lines unique to either input or common to both.
 
+## Compare sorted files
+
+From the repository root:
+
+```sh
+work=$(mktemp -d)
+printf 'blue\nred\n' > "$work/left"
+printf 'red\n' > "$work/right"
+cargo run -q -p commr -- -1 -2 "$work/left" "$work/right"
+```
+
+Only `red` occurs in both files.
+
 ## Arguments and options
 
 | Argument or option | Meaning |

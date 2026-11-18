@@ -45,7 +45,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3.0.4
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         if: github.event_name == 'pull_request'
         id: paths
         with:
@@ -245,7 +245,7 @@ jobs:
       - name: 📦 Fetch locked Rust dependencies
         run: cargo fetch
       - name: 🧪 Run Rust workspace tests
-        run: cargo nextest run --workspace --hide-progress-bar --failure-output final | tee target/ci/tests.log
+        run: cargo nextest run --locked --workspace --profile ci --hide-progress-bar --failure-output final | tee target/ci/tests.log
       - name: 📚 Run Rust documentation examples
         run: cargo test --workspace --doc | tee target/ci/doctests.log
       - name: 🧹 Verify tests leave the checkout unchanged
@@ -445,9 +445,28 @@ jobs:
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           version: '0.13.0'
-      - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
+      - uses: taiki-e/install-action@4a76afe23f9e08d2d9550fb56e556444e8611d21 # v2.90.4
         with:
           tool: prek@0.5.5
           fallback: none
       - run: prek run check-added-large-files --all-files --show-diff-on-failure
       - run: uv run --frozen cli-check
+
+  validation:
+    name: Sanctuary validation${{ github.event.action == 'labeled' && github.event.label.name != 'run-ci' && ' (label metadata only)' || '' }}
+    if: >-
+      ${{ always() && (github.event.action != 'labeled' || github.event.label.name == 'run-ci') &&
+          (!github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'run-ci')) }}
+    needs: [select, quality, python, frontend, tests, packages, docs-policy, dependencies, workflows, secrets, repository-policy]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require all selected checks to pass
+        env:
+          JOBS: ${{ toJSON(needs) }}
+        run: |
+          jq -e '. as $jobs
+            | all("select", "docs-policy", "secrets", "repository-policy"; $jobs[.].result == "success")
+            and all({quality:"rust", tests:"rust", packages:"rust", dependencies:"rust",
+                     python:"python", frontend:"frontend", workflows:"actions"} | to_entries[];
+                $jobs[.key].result == (if $jobs.select.outputs[.value] == "true" then "success" else "skipped" end))' <<< "$JOBS"

@@ -1,7 +1,7 @@
 [project]
 name = "local-dev"
 version = "0.1.0"
-description = "Worktree-scoped local Sanctuary development stack"
+description = "Manage the worktree-scoped local Sanctuary development stack"
 requires-python = ">=3.15"
 dependencies = []
 

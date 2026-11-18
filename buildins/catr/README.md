@@ -2,6 +2,16 @@
 
 `catr` concatenates UTF-8 text files or piped input to standard output.
 
+## Number two lines
+
+From the repository root:
+
+```sh
+printf 'red\nblue\n' | cargo run -q -p catr -- -n
+```
+
+Each output line begins with its line number.
+
 ## Arguments and options
 
 | Argument or option | Meaning |

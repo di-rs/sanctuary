@@ -1,0 +1,6 @@
+[[cases]]
+name = "edit-and-save"
+args = ["welcome.txt"]
+ready = "NAVIGATE"
+keys = ["i", "X", "Escape", "Control+s", "Control+q"]
+after = "head -n 1 welcome.txt"

@@ -1,8 +1,9 @@
 # cli-check
 
 `cli-check` checks the workspace's CLI package layout, tests, documentation, and
-benchmark declarations. It reads repository files; it does not execute the CLIs
-or prove that their behavior is correct.
+benchmark declarations. By default it inspects workspace metadata and files.
+Use `cli-check verify echor` to run those checks followed by formatting, Clippy
+and native tests for one CLI.
 
 ## Check a package
 
@@ -25,6 +26,8 @@ for invalid arguments.
 | `cli-check tests -p echor` | CLI integration test registration, helper dependency, and fixture layout |
 | `cli-check docs -p echor` | Package README, root index entry, and local link targets |
 | `cli-check benches -p echor` | Benchmark suite or explicit exemption |
+| `cli-check verify echor` | Run package policy and the native toolchain checks |
+| `cli-check check-pr --body-file pr.md` | Verify recording evidence for direct CLI changes against the merge base |
 
 | Argument or option | Meaning |
 | --- | --- |
@@ -60,10 +63,10 @@ from the rules themselves.
 
 ## Installed use and JSON
 
-From the repository root, `make install-python` installs cli-check and cli-bench
-in isolated uv environments, with commands in `~/.local/bin`. Add that directory
-to `PATH`. Installation requires uv and Python 3.15+. Checking requires Cargo;
-there is no authentication or service dependency.
+From the repository root, run `uv tool install ./tools/cli-check` to install
+`cli-check` on its own, or `make install-python` to install all four standalone
+Python tools. Add `~/.local/bin` to `PATH`. Installation requires uv and Python
+3.15+. Checking requires Cargo.
 
 ```sh
 cli-check --json --root /path/to/workspace --list-packages
