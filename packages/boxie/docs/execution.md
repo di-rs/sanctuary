@@ -88,10 +88,12 @@ then starts the container under the existing SQL stop lock. Temporal redelivery
 must pass the same authorization check. The absolute deadline and control lease
 apply throughout execution. Idle and disconnect timers apply only to terminals.
 
-One SQL commit publishes exit status and result bytes. Container cleanup
-releases accounting independently. Operational logs and workflow history carry
-identifiers and lifecycle facts. The command output is available through the
-owner-authenticated result endpoint.
+One SQL commit publishes exit status and result bytes. On restart, the supervisor
+reports confirmed job removals to PostgreSQL before polling Temporal. A
+reconnecting client can see the outcome while the next workflow task is pending.
+Container cleanup releases accounting independently. Operational logs and workflow
+history carry identifiers and lifecycle facts. The command output is available
+through the owner-authenticated result endpoint.
 
 The [restart test](../tests/integration/test_job_recovery.py) kills the supervisor
 at each boundary and checks an append counter outside the supervisor process.

@@ -48,7 +48,10 @@ def run_supervisor(
     class Receipts(JobReceipts):
         async def authorize(self, request: EnsureRequest, boot: UUID) -> bool:
             await barrier("before_authorization")
-            return await super().authorize(request, boot)
+            claimed = await super().authorize(request, boot)
+            if claimed:
+                await barrier("before_start_journal")
+            return claimed
 
         async def complete(self, boot: UUID, result: JobResult) -> None:
             await barrier("after_effect")

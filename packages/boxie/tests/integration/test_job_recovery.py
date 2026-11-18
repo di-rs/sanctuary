@@ -125,12 +125,31 @@ async def job_api(
 async def wait_for_cleanup(
     client: httpx.AsyncClient, route: str, life: PostgresLifecycle, expected: str
 ) -> None:
-    async with asyncio.timeout(95):
+    try:
+        async with asyncio.timeout(95):
+            while (await counts(life.sessions))[1:3] != (0, 0):
+                await asyncio.sleep(0.1)
+    except TimeoutError:
+        status = await client.get(route)
+        pytest.fail(f"capacity and artifact still reserved, job status {status.text}")
+    status = await client.get(route)
+    assert status.status_code == 200 and status.json()["state"] == expected
+
+
+async def wait_for_provision_ack(env: WorkflowEnvironment, identifier: UUID) -> None:
+    handle = env.client.get_workflow_handle(f"boxie/sandbox/{identifier}")
+    async with asyncio.timeout(20):
         while True:
-            if (await counts(life.sessions))[1:3] == (0, 0):
-                status = await client.get(route)
-                assert status.status_code == 200 and status.json()["state"] == expected
-                return
+            scheduled = None
+            completed = False
+            for event in (await handle.fetch_history()).events:
+                activity = event.activity_task_scheduled_event_attributes
+                if activity.activity_type.name == "ensure_sandbox":
+                    scheduled = event.event_id
+                if event.activity_task_completed_event_attributes.scheduled_event_id == scheduled:
+                    completed = True
+                if completed and event.HasField("timer_started_event_attributes"):
+                    return
             await asyncio.sleep(0.1)
 
 
@@ -181,6 +200,7 @@ async def assert_expired_receipt(
     ("boundary", "expected", "effects"),
     [
         ("before_authorization", "succeeded", 1),
+        ("before_start_journal", "outcome_unknown", 0),
         ("after_authorization", "outcome_unknown", 0),
         ("after_effect", "outcome_unknown", 1),
         ("after_result", "failed", 1),
@@ -251,12 +271,17 @@ def test_private_job_recovery(
                 assert (counter / "effects").exists() == (
                     boundary in ("after_effect", "after_result")
                 )
+                if boundary == "after_effect":
+                    # No provisioning activity remains to drive boot handover on redelivery.
+                    await wait_for_provision_ack(env, identifier)
             async with (
                 supervisor_process(config, postgres_dsn, address, listener, tmp_path, None),
                 httpx.AsyncClient(base_url=url, headers=CONSUMER_AUTH) as fresh,
             ):
                 replay = await fresh.post("/v1/jobs", json=body, headers=key)
                 assert replay.status_code == 202 and replay.json()["id"] == str(identifier)
+                if expected == "outcome_unknown":
+                    assert replay.json()["state"] == "outcome_unknown"
                 assert (
                     await fresh.post(
                         "/v1/jobs", headers=key, json={**body, "command": ["/bin/true"]}

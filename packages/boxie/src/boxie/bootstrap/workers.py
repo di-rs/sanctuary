@@ -1,9 +1,11 @@
 """SDK workers embedded in the supervisor, with isolated maintenance capacity."""
 
 import asyncio
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import timedelta
+from uuid import UUID
 
 from temporalio.client import Client
 from temporalio.worker import Worker
@@ -22,14 +24,33 @@ from boxie.temporal.maintenance import Maintenance, MaintenanceActivities
 from boxie.temporal.workflows import SandboxLifecycle
 
 
-def lifecycle_worker(
+async def _project_recovered_job(activities: LifecycleActivities, identifier: UUID) -> None:
+    try:
+        async with asyncio.timeout(5):
+            await activities.inspect_and_renew(str(identifier))
+    except Exception:
+        # Normal lifecycle inspection retries when PostgreSQL is available again.
+        logging.getLogger(__name__).warning("job recovery projection pending for %s", identifier)
+
+
+@asynccontextmanager
+async def lifecycle_worker(
     client: Client,
     activities: LifecycleActivities,
     *,
     task_queue: str = TASK_QUEUE,
     context_resolver: ActivityContextResolver | None = None,
-) -> Worker:
-    return Worker(
+) -> AsyncIterator[None]:
+    # Bind retained jobs to this boot and report what startup found in Docker,
+    # even when Temporal has no task to deliver to the replacement worker yet.
+    await asyncio.gather(
+        *(
+            _project_recovered_job(activities, record.id)
+            for record in activities.supervisor.records.values()
+            if record.spec.is_job
+        )
+    )
+    async with Worker(
         client,
         task_queue=task_queue,
         workflows=[SandboxLifecycle],
@@ -37,7 +58,8 @@ def lifecycle_worker(
         interceptors=[SafeActivityErrors(context_resolver=context_resolver)],
         max_concurrent_activities=32,
         graceful_shutdown_timeout=timedelta(seconds=25),
-    )
+    ):
+        yield
 
 
 @asynccontextmanager
