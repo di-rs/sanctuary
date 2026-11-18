@@ -2,8 +2,9 @@
 
 import zipfile
 
+from github_transport import github_pages, github_request
 from githubkit import GitHub, TokenAuthStrategy
-from report import MAX_ZIP, github_pages, github_request, integer, read_zip, seconds
+from report import MAX_ZIP, integer, read_zip, seconds
 from size_data import BinarySize, SizeReport
 
 JOB = "📦 Measure Linux binary sizes"
