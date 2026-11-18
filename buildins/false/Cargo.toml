@@ -9,7 +9,7 @@ name = "sanctuary_false"
 
 [dependencies]
 cli-log.workspace = true
-cli-schema = { version = "0.1.0", path = "../../utils/cli-schema" }
+cli-schema.workspace = true
 
 [dev-dependencies]
 cli-testing.workspace = true

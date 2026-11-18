@@ -70,18 +70,35 @@ def archive(
     return output.getvalue()
 
 
+def write_workspace(root: Path, members: list[str]) -> None:
+    schema = root / "utils/cli-schema"
+    (schema / "src").mkdir(parents=True)
+    (schema / "src/lib.rs").write_text("")
+    (schema / "Cargo.toml").write_text('[package]\nname = "cli-schema"\nversion = "0.1.0"\n')
+    (root / "Cargo.toml").write_text(
+        f"[workspace]\nmembers = {json.dumps(members)}\n"
+        '[workspace.dependencies]\ncli-schema = { path = "utils/cli-schema" }\n'
+    )
+
+
+def cli_manifest(name: str) -> str:
+    return f'[package]\nname = "{name}"\nversion = "0.1.0"\n[dependencies]\ncli-schema.workspace = true\n'
+
+
 def workspace(root: Path) -> dict[str, str]:
-    (root / "Cargo.toml").write_text('[workspace]\nmembers = ["buildins/*", "utils/*"]\n')
+    write_workspace(root, ["buildins/*", "utils/*"])
     for name, directory in (("echor", "buildins/echor"), ("catr", "buildins/catr")):
         target = root / directory
         (target / "src").mkdir(parents=True)
-        (target / "Cargo.toml").write_text(f'[package]\nname = "{name}"\n')
+        (target / "Cargo.toml").write_text(cli_manifest(name))
         (target / "src/main.rs").write_text("fn main() {}")
     library = root / "utils/shared"
     library.mkdir(parents=True)
-    (library / "Cargo.toml").write_text('[package]\nname = "shared"\n')
+    (library / "Cargo.toml").write_text('[package]\nname = "shared"\nversion = "0.1.0"\n')
     (library / "src").mkdir()
     (library / "src/lib.rs").write_text("pub fn shared() {}\n")
+    with (root / "buildins/echor/Cargo.toml").open("a") as manifest:
+        manifest.write('shared = { path = "../../utils/shared" }\n')
     return {"catr": "buildins/catr", "echor": "buildins/echor"}
 
 
@@ -121,12 +138,8 @@ def test_global_build_changes_select_all_packages(path: str) -> None:
 @pytest.mark.parametrize("change", ["source", "library", "lock", "rename", "comment"])
 def test_build_packages_only_affected_clis(tmp_path: Path, change: str) -> None:
     workspace(tmp_path)
-    lock = (
-        'version = 4\n[[package]]\nname = "echor"\nversion = "0.1.0"\n'
-        'dependencies = ["shared"]\n[[package]]\nname = "catr"\nversion = "0.1.0"\n'
-        '[[package]]\nname = "shared"\nversion = "0.1.0"\n'
-    )
-    (tmp_path / "Cargo.lock").write_text(lock)
+    subprocess.run(["cargo", "generate-lockfile", "--offline"], cwd=tmp_path, check=True)
+    lock = (tmp_path / "Cargo.lock").read_text()
     env = clean_git_env()
     subprocess.run(["git", "init", "-q", str(tmp_path)], env=env, check=True)
     subprocess.run(["git", "-C", str(tmp_path), "add", "."], env=env, check=True)
@@ -144,7 +157,8 @@ def test_build_packages_only_affected_clis(tmp_path: Path, change: str) -> None:
         )
     elif change == "rename":
         (tmp_path / "buildins/echor").rename(tmp_path / "buildins/touch")
-        (tmp_path / "buildins/touch/Cargo.toml").write_text('[package]\nname = "touch"\n')
+        manifest = tmp_path / "buildins/touch/Cargo.toml"
+        manifest.write_text(manifest.read_text().replace('name = "echor"', 'name = "touch"'))
         (tmp_path / "Cargo.lock").write_text(lock.replace('name = "echor"', 'name = "touch"'))
         expected = ["touch"]
     else:
@@ -206,7 +220,9 @@ def test_discovery_rejects_an_additional_binary(tmp_path: Path) -> None:
 def test_discovery_includes_root_package(tmp_path: Path) -> None:
     root = tmp_path / "rootcli"
     (root / "src").mkdir(parents=True)
-    (root / "Cargo.toml").write_text('[workspace]\nmembers = []\n[package]\nname = "rootcli"\n')
+    write_workspace(root, [])
+    with (root / "Cargo.toml").open("a") as manifest:
+        manifest.write(cli_manifest("rootcli"))
     (root / "src/main.rs").write_text("fn main() {}\n")
     assert preview_ci.discover(root) == {"rootcli": "."}
 
@@ -215,9 +231,8 @@ def test_discovery_rejects_explicit_binary_outside_main(tmp_path: Path) -> None:
     workspace(tmp_path)
     package = tmp_path / "buildins/echor"
     (package / "src/main.rs").unlink()
-    (package / "Cargo.toml").write_text(
-        '[package]\nname = "echor"\n[[bin]]\nname = "echor"\npath = "app.rs"\n'
-    )
+    with (package / "Cargo.toml").open("a") as manifest:
+        manifest.write('[[bin]]\nname = "echor"\npath = "app.rs"\n')
     (package / "app.rs").write_text("fn main() {}\n")
     with pytest.raises(ValueError, match="src/main.rs"):
         preview_ci.discover(tmp_path)

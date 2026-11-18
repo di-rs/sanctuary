@@ -13,7 +13,7 @@ anyhow.workspace = true
 assert_cmd.workspace = true
 assert_fs.workspace = true
 clap = { workspace = true, features = ["derive"] }
-cli-schema = { version = "0.1.0", path = "../../utils/cli-schema" }
+cli-schema.workspace = true
 cli-testing-macros = { version = "0.1.0", path = "macros" }
 libtest-mimic = "0.8.2"
 serde = { version = "1.0.229", features = ["derive"] }

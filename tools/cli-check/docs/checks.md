@@ -18,7 +18,9 @@ command-line options.
 
 The inventory comes from `cargo metadata --locked --no-deps` and includes Cargo's
 resolved workspace members and enabled targets. CLI packages have one matching
-binary in `src/main.rs` and can also expose a library. All members inherit the
+binary in `src/main.rs` and can also expose a library. Each CLI declares
+`cli-schema.workspace = true` in `[dependencies]`. Libraries that use
+`cli-schema` also inherit the workspace dependency. All members inherit the
 workspace lint configuration when the root declares one.
 
 The tests group requires the shared `cli-testing` development dependency; the
@@ -43,9 +45,12 @@ Contributors select the example that shows their change using the [CLI developme
 The docs group checks a single level-one title and introductory prose in component
 READMEs. Each Cargo CLI uses its own name as the title and a fenced shell example
 in its first section. The full workspace check includes the root, infrastructure,
-and direct service, library and tool READMEs. The group parses Markdown links, images and reference links while ignoring
-code blocks. It resolves local paths relative to their document, including
-URL-encoded filenames. It skips external URLs and fragment-only links; links
-with a filename and fragment validate the filename only. Existing link, spelling
-and Rust documentation checks cover their broader scopes.
-For a CLI at the workspace root, the root README is already its index entry.
+and direct service, library and tool READMEs. Lychee checks links and fragments.
+
+The command index lists Cargo CLI packages alphabetically, using the resolved
+package description and a link to each package’s README. When the description
+is empty, the table uses the README’s opening paragraph as plain text. A library with a
+binary appears once. A library-only crate has no command entry. Run
+`uv run --locked sdev index` to refresh the table between the generated index
+comments in the root README. The command preserves the surrounding Markdown.
+The docs check reports drift without modifying files.

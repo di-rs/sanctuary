@@ -44,35 +44,39 @@ output, rebuilding, shutdown, and the separate full Boxie service setup.
 
 ## Applications
 
-| Project                             | Purpose                                                 |
-| ----------------------------------- | ------------------------------------------------------- |
-| [biggie](packages/biggie/README.md) | Generate text, records, fields, bytes, and sorted pairs |
-| [boxie](packages/boxie/README.md)   | Run isolated sandboxes through a private service API    |
-| [kara](packages/kara/README.md)     | Edit text in a terminal                                 |
-| [parsu](packages/parsu/README.md)   | Parse a restricted XML-like language                    |
-| [shish](packages/shish/README.md)   | Run shell commands                                      |
+[Boxie](packages/boxie/README.md) runs isolated sandboxes through a private
+service API. The [command index](#commands) includes the Rust applications.
 
 ## Commands
 
-| Project                             | Purpose                                   |
-| ----------------------------------- | ----------------------------------------- |
-| [calr](buildins/calr/README.md)     | Print month or year calendars             |
-| [catr](buildins/catr/README.md)     | Concatenate and number text lines         |
-| [commr](buildins/commr/README.md)   | Compare two sorted inputs                 |
-| [cutr](buildins/cutr/README.md)     | Select bytes, characters, or fields       |
-| [echor](buildins/echor/README.md)   | Print arguments                           |
-| [false](buildins/false/README.md)   | Return failure without output             |
-| [findr](buildins/findr/README.md)   | Find paths by name and file type          |
-| [grepr](buildins/grepr/README.md)   | Search text with regular expressions      |
-| [headr](buildins/headr/README.md)   | Print the start of text inputs            |
-| [lsr](buildins/lsr/README.md)       | List paths and file metadata              |
-| [mkdirr](buildins/mkdirr/README.md) | Create directories                        |
-| [pwdr](buildins/pwdr/README.md)     | Print the working directory               |
-| [tailr](buildins/tailr/README.md)   | Print the end of files                    |
-| [touchr](buildins/touchr/README.md) | Create files or update timestamps         |
-| [true](buildins/true/README.md)     | Return success without output             |
-| [uniqr](buildins/uniqr/README.md)   | Filter or count adjacent repeated lines   |
-| [wcr](buildins/wcr/README.md)       | Count lines, words, bytes, and characters |
+<!-- BEGIN generated CLI index -->
+
+| Command | Purpose |
+| --- | --- |
+| [biggie](packages/biggie/README.md) | A tool to generate large files |
+| [calr](buildins/calr/README.md) | calr prints a month or year as a Sunday-first text calendar. |
+| [catr](buildins/catr/README.md) | catr concatenates UTF-8 text files or piped input to standard output. |
+| [cli-testing](tools/cli-testing/README.md) | Shared process setup and byte-exact fixtures for CLI integration tests |
+| [commr](buildins/commr/README.md) | commr compares two sorted text inputs and prints lines unique to either input or common to both. |
+| [cutr](buildins/cutr/README.md) | cutr selects fields, Unicode characters, or bytes from text input. |
+| [echor](buildins/echor/README.md) | echor prints its text arguments separated by spaces. |
+| [false](buildins/false/README.md) | false exits with status 1 and produces no output. |
+| [findr](buildins/findr/README.md) | findr recursively lists paths filtered by entry type and filename regular expressions. |
+| [grepr](buildins/grepr/README.md) | A tool to search files |
+| [headr](buildins/headr/README.md) | headr prints the beginning of files or piped input. |
+| [kara](packages/kara/README.md) | A small modal terminal text editor |
+| [lsr](buildins/lsr/README.md) | lsr lists files and immediate directory contents on Unix systems. |
+| [mkdirr](buildins/mkdirr/README.md) | mkdirr creates directories, including missing parent directories by default. |
+| [parsu](packages/parsu/README.md) | Simple XML parser with combinators |
+| [pwdr](buildins/pwdr/README.md) | pwdr prints the current working directory as an absolute path. |
+| [shish](packages/shish/README.md) | Sanctuary shell |
+| [tailr](buildins/tailr/README.md) | tailr prints the end of files or stdin, or their contents starting at a chosen line or byte. |
+| [touchr](buildins/touchr/README.md) | touchr creates missing files and sets file modification times. |
+| [true](buildins/true/README.md) | true exits with status 0 and produces no output. |
+| [uniqr](buildins/uniqr/README.md) | uniqr collapses consecutive runs of matching text lines. |
+| [wcr](buildins/wcr/README.md) | wcr counts lines, words, characters, and bytes in UTF-8 text. |
+
+<!-- END generated CLI index -->
 
 ## Development tools
 
@@ -83,7 +87,6 @@ output, rebuilding, shutdown, and the separate full Boxie service setup.
 | [local-dev](tools/local-dev/README.md)           | Build and manage a worktree’s local playground stack                               |
 | [cli-bench](tools/cli-bench/README.md)           | Run per-CLI benchmark suites with Biggie and hyperfine                             |
 | [cli-check](tools/cli-check/README.md)           | Check CLI package boundaries, tests, documentation, and benchmark coverage         |
-| [cli-testing](tools/cli-testing/README.md)       | Author CLI tests and inspect, compare, and record reference fixtures               |
 | [cli-playground](tools/cli-playground/README.md) | Try Rust CLIs in a browser terminal with disposable files and a preview URL per PR |
 
 ## Shared libraries
@@ -91,7 +94,8 @@ output, rebuilding, shutdown, and the separate full Boxie service setup.
 | Project                            | Purpose                                            |
 | ---------------------------------- | -------------------------------------------------- |
 | [cli-log](utils/cli-log/README.md) | Shared structured file logging and error reporting |
-| [cli-testing](tools/cli-testing/README.md) | Shared CLI test setup and byte fixture loading |
+| [cli-schema](utils/cli-schema/README.md) | Export a CLI's parser for the playground |
+| [cli-testing](tools/cli-testing/docs/testing.md) | Shared CLI test setup and byte fixture loading |
 
 ## Find your way around
 

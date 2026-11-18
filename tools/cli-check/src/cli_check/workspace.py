@@ -52,6 +52,7 @@ class Binary(WorkspaceRecord):
 
 class Package(WorkspaceRecord):
     name: str
+    description: str = ""
     directory: Path
     manifest: dict[str, object]
     binaries: tuple[Binary, ...]
@@ -90,9 +91,11 @@ def discover(root: Path) -> list[Package]:
             continue
         manifest = Path(string(package["manifest_path"], "manifest_path")).resolve()
         targets = tables(package["targets"])
+        description = package.get("description")
         result.append(
             Package(
                 name=string(package["name"], "package.name"),
+                description=description if isinstance(description, str) else "",
                 directory=manifest.parent,
                 manifest=load_toml(manifest),
                 binaries=tuple(
@@ -118,11 +121,15 @@ def discover(root: Path) -> list[Package]:
     return sorted(result, key=lambda package: package.directory)
 
 
-def cli_package(root: Path, name: str) -> Package:
-    for package in discover(root):
+def select_cli(packages: list[Package], name: str) -> Package:
+    for package in packages:
         if package.name == name and package.is_cli:
             return package
     raise ValueError(f"Unknown CLI package: {name}")
+
+
+def cli_package(root: Path, name: str) -> Package:
+    return select_cli(discover(root), name)
 
 
 def find_root(start: Path) -> Path:
