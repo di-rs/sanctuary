@@ -1,13 +1,20 @@
 """Trusted profile reloads freeze admitted versions and reject unsafe configuration."""
 
+import asyncio
 import json
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
+import httpx
 import pytest
+from boxie.contracts.jobs import CreateJob
 from boxie.domain.errors import BoxieError
+from boxie.domain.models import LifetimePolicy
 from boxie.sandbox.profiles import ProfileRegistry
-from boxie_test_support.supervisor import IMAGE, configuration
+from boxie.sandbox.transport.client import SupervisorClient
+from boxie_test_support.supervisor import AUTH, IMAGE, configuration
+from boxie_test_support.terminal_network import network
 
 
 def test_reload_is_atomic_and_retains_approved_snapshot(tmp_path: Path) -> None:
@@ -60,17 +67,42 @@ def test_local_content_addressed_image_is_approved(tmp_path: Path) -> None:
     assert profiles.resolve_profile("shell", ("/bin/sh",), {}).image_digest == "sha256:" + "3" * 64
 
 
+def test_job_profile_resolution_fits_a_full_size_command(tmp_path: Path) -> None:
+    async def exercise() -> None:
+        async with network(tmp_path) as net:
+            job = CreateJob(
+                artifact_id=uuid4(), profile_id="batch", command=("/bin/true", *(["x" * 4086] * 16))
+            )
+            assert 65500 < len(job.model_dump_json().encode()) <= 65536
+            net.config.profiles_file.write_text(
+                json.dumps({"batch": {"image_digest": IMAGE, "commands": [job.command]}})
+            )
+            net.supervisor.profiles.reload()
+            policy = LifetimePolicy(max_seconds=900, idle_seconds=300, disconnect_seconds=60)
+            net.supervisor.config = net.config.model_copy(update={"policy_maximum": policy})
+            async with (
+                httpx.AsyncClient(base_url=net.supervisor_url, headers=AUTH) as control,
+                SupervisorClient(net.supervisor_url, b"supervisor-test-secret") as resolver,
+            ):
+                approval = await control.post(
+                    "/v1/profiles/resolve-job",
+                    json=job.model_dump(mode="json", exclude={"artifact_id"}),
+                )
+                assert approval.status_code == 200 and len(approval.content) < 1024
+                snapshot, effective = await resolver.resolve_admission(job.domain())
+                assert snapshot.command == job.command and effective == policy
+                assert (snapshot, effective) == await net.supervisor.resolve_admission(job.domain())
+
+    asyncio.run(exercise())
+
+
 @pytest.mark.integration
 def test_service_sighup_reload_is_atomic(
     tmp_path: Path, postgres_dsn: str, temporal_stack: Any
 ) -> None:
-    import asyncio
     import signal
     import socket
     import sys
-
-    import httpx
-    from boxie_test_support.supervisor import AUTH
 
     async def exercise() -> None:
         from boxie.persistence.migrate import migrate

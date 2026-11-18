@@ -48,6 +48,13 @@ class Sandbox(SQLModel, table=True):
     __table_args__ = (
         UniqueConstraint("consumer_id", "idempotency_key"),
         CheckConstraint(column("generation") > 0, name="sandbox_generation"),
+        CheckConstraint(column("reserved_result_bytes") >= 0, name="sandbox_result_bytes"),
+        Index(
+            "sandbox_result_reservations",
+            "consumer_id",
+            "reserved_result_bytes",
+            postgresql_where=column("reserved_result_bytes") > 0,
+        ),
         CheckConstraint(
             column("provisioning_outcome").in_(["ready", "failed", "stopped"]),
             name="sandbox_provisioning_outcome",
@@ -87,6 +94,9 @@ class Sandbox(SQLModel, table=True):
     request_hash: str
     spec: dict[str, Any] = Field(sa_column=Column(JSONB, nullable=False))
     snapshot: dict[str, Any] = Field(sa_column=Column(JSONB, nullable=False))
+    reserved_result_bytes: int = Field(
+        default=0, sa_type=BigInteger, sa_column_kwargs={"server_default": literal(0)}
+    )
     installation_id: UUID
     host_id: str
     generation: int = Field(

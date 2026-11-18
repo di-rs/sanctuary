@@ -5,6 +5,7 @@ import hashlib
 import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from dataclasses import asdict
 from datetime import datetime, timedelta
 from typing import cast
 from uuid import UUID, uuid4
@@ -19,6 +20,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from boxie.application.admission import (
     AdmissionReadiness,
     DependencyCheck,
+    JobPolicy,
 )
 from boxie.application.ports import AdmissionProfileResolver
 from boxie.contracts.consumer import SpecWire, ViewWire, spec_wire
@@ -97,9 +99,11 @@ class PostgresLifecycle:
         readiness: AdmissionReadiness | None = None,
         *,
         diagnostics: DiagnosticSink = emit,
+        job_policy: JobPolicy | None = None,
     ) -> None:
         self.sessions, self.resolver, self.identity = sessions, resolver, identity
         self.diagnostics = diagnostics
+        self.job_policy = job_policy or JobPolicy()
         self.dependencies, self.readiness = dependencies, readiness or AdmissionReadiness()
 
     async def _ready(self, session: AsyncSession) -> bool:
@@ -155,6 +159,9 @@ class PostgresLifecycle:
         ).hexdigest()
         try:
             async with consumer_session(self.sessions) as session:
+                # The reads after an advisory lock must see a preceding holder's
+                # committed key and reservation, even on a repeatable-read database.
+                await session.connection(execution_options={"isolation_level": "READ COMMITTED"})
                 await keyed_lock(session, json.dumps([principal.consumer_id, idempotency_key]))
                 receipt = (
                     await session.exec(
@@ -180,10 +187,14 @@ class PostgresLifecycle:
                     if old.request_hash != digest:
                         raise BoxieError(409, "idempotency key reused for different request")
                     return old.id
+                if spec.is_job and spec.profile_id not in self.job_policy.profile_grants.get(
+                    principal.consumer_id, ()
+                ):
+                    raise BoxieError(403, "job profile not granted to consumer")
                 if not await self._ready(session):
                     raise BoxieError(503, "orchestration not ready for new admission")
                 async with asyncio.timeout(self.readiness.dependency_timeout_seconds):
-                    snapshot = await self.resolver.resolve_admission(spec)
+                    snapshot, policy = await self.resolver.resolve_admission(spec)
                 artifact = (
                     await session.exec(
                         select(Artifact).where(Artifact.id == spec.artifact_id).with_for_update()
@@ -193,6 +204,10 @@ class PostgresLifecycle:
                     raise BoxieError(404, "artifact not found")
                 if artifact.retired:
                     raise BoxieError(409, "artifact is retired")
+                if spec.is_job:
+                    await self._check_output_budget(
+                        session, principal, snapshot.limits.output_bytes
+                    )
                 slot = (
                     await session.exec(
                         select(CapacitySlot)
@@ -212,12 +227,13 @@ class PostgresLifecycle:
                     idempotency_key=idempotency_key,
                     request_hash=digest,
                     creation_request_id=UUID(current_request_id() or str(uuid4())),
-                    spec=normalized,
+                    spec={**normalized, "policy": asdict(policy)},
                     snapshot=SnapshotWire.from_domain(snapshot).model_dump(mode="json"),
+                    reserved_result_bytes=snapshot.limits.output_bytes if spec.is_job else 0,
                     installation_id=self.identity.installation_id,
                     host_id=self.identity.host_id,
                     accepted_at=accepted,
-                    absolute_deadline=accepted + timedelta(seconds=spec.policy.max_seconds),
+                    absolute_deadline=accepted + timedelta(seconds=policy.max_seconds),
                 )
                 session.add(row)
                 if spec.is_job:
@@ -246,6 +262,29 @@ class PostgresLifecycle:
             return identifier
         except TimeoutError:
             raise BoxieError(503, "admission dependency timeout") from None
+
+    async def _check_output_budget(
+        self, session: AsyncSession, owner: Principal, requested: int
+    ) -> None:
+        # Only admission increases a reservation. Hold the shared lock through
+        # insertion so concurrent API processes cannot spend the same bytes.
+        await keyed_lock(session, "boxie/job-result-reservations")
+        reserved = col(Sandbox.reserved_result_bytes)
+        total, consumer = (
+            await session.exec(
+                select(
+                    func.coalesce(func.sum(reserved), 0),
+                    func.coalesce(
+                        func.sum(reserved).filter(col(Sandbox.consumer_id) == owner.consumer_id), 0
+                    ),
+                ).where(reserved > 0)
+            )
+        ).one()
+        if (
+            total + requested > self.job_policy.total_result_bytes
+            or consumer + requested > self.job_policy.consumer_result_bytes
+        ):
+            raise BoxieError(429, "job result storage capacity reached")
 
     @staticmethod
     async def _enqueue(
@@ -383,7 +422,7 @@ class PostgresLifecycle:
             row.supervisor_boot_id = boot_id
             if expected_boot != boot_id:
                 if row.spec.get("is_job"):
-                    await session.exec(
+                    interrupted = await session.exec(
                         update(Job)
                         .where(
                             col(Job.id) == sandbox_id,
@@ -392,6 +431,8 @@ class PostgresLifecycle:
                         )
                         .values(state="outcome_unknown")
                     )
+                    if interrupted.rowcount:
+                        row.reserved_result_bytes = 0
                 await session.exec(
                     delete(SupervisorObservationRecord).where(
                         col(SupervisorObservationRecord.sandbox_id) == sandbox_id
@@ -502,8 +543,8 @@ class PostgresLifecycle:
                             )
                         )
             if item.removal_confirmed:
-                if row.spec.get("is_job"):
-                    await settle_interrupted(session, row.id)
+                if row.spec.get("is_job") and await settle_interrupted(session, row.id):
+                    row.reserved_result_bytes = 0
                 slot = (
                     await session.exec(
                         select(CapacitySlot).where(CapacitySlot.sandbox_id == item.sandbox_id)
@@ -530,16 +571,30 @@ class PostgresLifecycle:
             cutoff = func.clock_timestamp() - RETENTION
             # Pending outbox delivery can retain sandbox metadata beyond the
             # result window. It does not need the consumer's output bytes.
-            expired_results = await session.exec(
-                delete(JobResult).where(
-                    col(JobResult.sandbox_id).in_(
-                        select(JobResult.sandbox_id)
-                        .join(Sandbox)
-                        .where(col(Sandbox.cleaned_at) <= cutoff)
-                        .limit(1000)
+            expired_results = (
+                (
+                    await session.exec(
+                        delete(JobResult)
+                        .where(
+                            col(JobResult.sandbox_id).in_(
+                                select(JobResult.sandbox_id)
+                                .join(Sandbox)
+                                .where(col(Sandbox.cleaned_at) <= cutoff)
+                                .limit(1000)
+                            )
+                        )
+                        .returning(col(JobResult.sandbox_id))
                     )
                 )
+                .scalars()
+                .all()
             )
+            if expired_results:
+                await session.exec(
+                    update(Sandbox)
+                    .where(col(Sandbox.id).in_(expired_results))
+                    .values(reserved_result_bytes=0)
+                )
             await session.exec(delete(Outbox).where(col(Outbox.delivered_at) < cutoff))
             rows = (
                 await session.exec(
@@ -563,4 +618,4 @@ class PostgresLifecycle:
                     await session.delete(observation)
                     await session.flush()
                 await session.delete(row)
-        return max(len(rows), expired_results.rowcount)
+        return max(len(rows), len(expired_results))

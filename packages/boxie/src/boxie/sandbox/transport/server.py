@@ -15,10 +15,14 @@ from starlette.types import Lifespan
 
 from boxie.application.ports import ArtifactAccess
 from boxie.contracts.common import ConsumerId
+from boxie.contracts.consumer import PolicyWire
 from boxie.contracts.execution import (
     AdmissionProfileRequest,
+    JobProfileApproval,
+    ProfileMetadata,
     SnapshotWire,
 )
+from boxie.contracts.jobs import JobProfileRequest
 from boxie.domain.errors import BoxieError
 from boxie.domain.models import Principal
 from boxie.domain.policy import validate_policy
@@ -94,6 +98,14 @@ def create_supervisor_app(
         validate_policy(body.policy.domain(), supervisor.config.policy_maximum)
         return SnapshotWire.from_domain(
             supervisor.profiles.resolve_profile(body.profile_id, body.command, body.env)
+        )
+
+    @app.post("/v1/profiles/resolve-job")
+    async def job_profile(body: JobProfileRequest) -> JobProfileApproval:
+        snapshot = supervisor.profiles.resolve_profile(body.profile_id, body.command, {}, job=True)
+        return JobProfileApproval(
+            profile=ProfileMetadata.model_validate(snapshot, from_attributes=True),
+            policy=PolicyWire(**asdict(supervisor.config.policy_maximum)),
         )
 
     @app.put("/v1/artifacts/{artifact_id}")

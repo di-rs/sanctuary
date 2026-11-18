@@ -12,6 +12,7 @@ from aiohttp import ClientTimeout
 from pydantic import BaseModel, ConfigDict, Field, StrictBool
 
 from boxie.domain.models import ProfileSnapshot
+from boxie.sandbox.capture_binary import JOB_CAPTURE_PATH, job_capture_mount
 
 
 class CreateRejected(Exception):
@@ -31,6 +32,20 @@ class ContainerInfo(BaseModel):
     id: str = Field(min_length=1)
     labels: dict[str, str]
     running: StrictBool
+    capture_ready: StrictBool = False
+
+
+def _has_job_capture(data: dict[str, Any]) -> bool:
+    return (
+        data["Config"].get("Entrypoint") == [JOB_CAPTURE_PATH, "--"]
+        and data.get("HostConfig", {}).get("Init") is False
+        and any(
+            mount.get("Type") == "bind"
+            and mount.get("Destination") == JOB_CAPTURE_PATH
+            and mount.get("RW") is False
+            for mount in data.get("Mounts", ())
+        )
+    )
 
 
 class ExecutionDocker(Protocol):
@@ -94,7 +109,10 @@ class DockerBackend:
         await self._client().containers.container(name).start()
 
     async def attach_job(self, identifier: str) -> Stream:
-        stream = self._client().containers.container(identifier).attach(stdout=True, stderr=True)
+        container = self._client().containers.container(identifier)
+        if not _has_job_capture(await container.show()):
+            raise RuntimeError("job container lacks the required capture program")
+        stream = container.attach(stdout=True, stderr=True)
         return await stream.__aenter__()
 
     async def job_exit_code(self, identifier: str) -> int:
@@ -112,7 +130,12 @@ class DockerBackend:
                 return None
             raise
         labels: dict[str, str] = data["Config"]["Labels"] or {}
-        return ContainerInfo(id=data["Id"], labels=labels, running=data["State"]["Running"])
+        return ContainerInfo(
+            id=data["Id"],
+            labels=labels,
+            running=data["State"]["Running"],
+            capture_ready=_has_job_capture(data),
+        )
 
     async def delete(self, name: str) -> None:
         async with asyncio.timeout(self.timeout):
@@ -134,10 +157,15 @@ class DockerBackend:
 
 
 def container_config(
-    snapshot: ProfileSnapshot, artifact: Path, labels: dict[str, str], *, terminal: bool = True
+    snapshot: ProfileSnapshot,
+    artifact: Path,
+    labels: dict[str, str],
+    *,
+    terminal: bool = True,
+    capture_root: Path | None = None,
 ) -> dict[str, Any]:
     limits = snapshot.limits
-    return {
+    config: dict[str, Any] = {
         "Image": snapshot.image_digest,
         "Cmd": list(snapshot.command),
         "Entrypoint": [],
@@ -177,3 +205,10 @@ def container_config(
             ],
         },
     }
+    if not terminal:
+        if capture_root is None:
+            raise ValueError("job capture requires the shared supervisor data directory")
+        config["Entrypoint"] = [JOB_CAPTURE_PATH, "--"]
+        config["HostConfig"]["Init"] = False
+        config["HostConfig"]["Mounts"].append(job_capture_mount(capture_root))
+    return config

@@ -1,10 +1,12 @@
 """Run one authorized non-TTY command and publish its bounded result."""
 
 import asyncio
+import struct
 from contextlib import suppress
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
+from uuid import UUID
 
-from aiodocker.stream import Stream
+from aiodocker.stream import Message, Stream
 
 from boxie.domain.models import TerminationReason
 from boxie.persistence.jobs import JobReceipts
@@ -13,6 +15,62 @@ from boxie.sandbox.docker import DockerBackend
 
 if TYPE_CHECKING:
     from boxie.sandbox.execution.sandbox import SandboxExecution
+
+
+class CaptureStream(Protocol):
+    async def read_out(self) -> Message | None: ...
+
+
+class _CaptureReader:
+    """Docker may split or combine the helper's writes at any byte boundary."""
+
+    def __init__(self, stream: CaptureStream) -> None:
+        self.stream = stream
+        self.pending = bytearray()
+
+    async def read(self, size: int) -> bytes:
+        while len(self.pending) < size:
+            message = await self.stream.read_out()
+            if message is None or message.stream != 1:
+                raise RuntimeError("job output capture interrupted")
+            self.pending.extend(message.data)
+        data = self.pending[:size]
+        del self.pending[:size]
+        return bytes(data)
+
+
+async def captured_result(stream: CaptureStream, job_id: UUID, limit: int) -> JobResult:
+    reader = _CaptureReader(stream)
+    if await reader.read(4) != b"BXJ1":
+        raise RuntimeError("job output capture unavailable")
+    nonce = await reader.read(16)
+    outputs = (bytearray(), bytearray())
+    counts = [0, 0]
+    remaining = limit
+    while True:
+        kind, size = struct.unpack(">BI", await reader.read(5))
+        if kind == 3:
+            if size != 33:
+                raise RuntimeError("invalid job completion record")
+            token, stdout_count, stderr_count, code = struct.unpack(
+                ">16sQQB", await reader.read(33)
+            )
+            if token != nonce or (stdout_count, stderr_count) != tuple(counts):
+                raise RuntimeError("job output capture incomplete")
+            return JobResult(
+                sandbox_id=job_id,
+                exit_code=code,
+                stdout=bytes(outputs[0]),
+                stderr=bytes(outputs[1]),
+                truncated=sum(counts) > limit,
+            )
+        if kind not in (1, 2) or not 0 < size <= 32768:
+            raise RuntimeError("invalid job output frame")
+        chunk = await reader.read(size)
+        counts[kind - 1] += size
+        retained = min(remaining, size)
+        outputs[kind - 1].extend(chunk[:retained])
+        remaining -= retained
 
 
 class JobRunner:
@@ -53,29 +111,12 @@ class JobRunner:
 
     async def _collect(self, execution: SandboxExecution, identifier: str, stream: Stream) -> None:
         owner, record = execution.owner, execution.record
-        stdout, stderr = bytearray(), bytearray()
-        remaining = record.snapshot.limits.output_bytes
-        truncated = False
         reason = TerminationReason.EXITED
         try:
-            while (frame := await stream.read_out()) is not None:
-                if frame.stream not in (1, 2):
-                    raise RuntimeError("unsupported job output stream")
-                data = frame.data[:remaining]
-                (stdout if frame.stream == 1 else stderr).extend(data)
-                truncated |= len(data) < len(frame.data)
-                remaining -= len(data)
-            code = await self.docker.job_exit_code(identifier)
-            await self.receipts.complete(
-                owner.boot_id,
-                JobResult(
-                    sandbox_id=record.id,
-                    exit_code=code,
-                    stdout=bytes(stdout),
-                    stderr=bytes(stderr),
-                    truncated=truncated,
-                ),
-            )
+            result = await captured_result(stream, record.id, record.snapshot.limits.output_bytes)
+            if await self.docker.job_exit_code(identifier) != result.exit_code:
+                raise RuntimeError("job exit status unconfirmed")
+            await self.receipts.complete(owner.boot_id, result)
         except Exception:
             reason = TerminationReason.PROVISIONING_FAILED
         finally:

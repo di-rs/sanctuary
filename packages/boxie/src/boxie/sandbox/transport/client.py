@@ -19,12 +19,15 @@ from websockets.exceptions import (
 from boxie.application.ports import TerminalConnection
 from boxie.contracts.consumer import ArtifactWire, spec_wire
 from boxie.contracts.execution import (
+    JobProfileApproval,
     ReadyWire,
     SnapshotWire,
 )
+from boxie.contracts.jobs import JobProfileRequest
 from boxie.domain.errors import BoxieError
 from boxie.domain.models import (
     ArtifactPutResult,
+    LifetimePolicy,
     Principal,
     ProfileSnapshot,
     SandboxSpec,
@@ -154,11 +157,20 @@ class SupervisorClient:
             "DELETE", f"/v1/artifacts/{artifact_id}", params={"consumer_id": principal.consumer_id}
         )
 
-    async def resolve_admission(self, spec: SandboxSpec) -> ProfileSnapshot:
-        body = spec_wire(spec).model_dump(mode="json", exclude={"artifact_id", "is_job"})
-        _status, response = await self._request("POST", "/v1/profiles/resolve", json=body)
+    async def resolve_admission(self, spec: SandboxSpec) -> tuple[ProfileSnapshot, LifetimePolicy]:
         try:
-            return SnapshotWire.model_validate_json(response).domain()
+            if spec.is_job:
+                # Omitting the public artifact ID keeps even a full-size consumer request in bounds.
+                job = JobProfileRequest(profile_id=spec.profile_id, command=spec.command)
+                _, response = await self._request(
+                    "POST", "/v1/profiles/resolve-job", json=job.model_dump(mode="json")
+                )
+                approval = JobProfileApproval.model_validate_json(response)
+                snapshot = approval.profile.snapshot(spec.profile_id, spec.command, {})
+                return snapshot, approval.policy.domain()
+            body = spec_wire(spec).model_dump(mode="json", exclude={"artifact_id", "is_job"})
+            _, response = await self._request("POST", "/v1/profiles/resolve", json=body)
+            return SnapshotWire.model_validate_json(response).domain(), spec.policy
         except ValidationError:
             raise dependency_error() from None
 

@@ -1,7 +1,9 @@
 """Installation credentials are stable, private, and never silently repaired."""
 
+import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -12,6 +14,71 @@ SCRIPT = ROOT / "packages/boxie/infra/credentials.sh"
 
 def credentials(directory: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(["bash", str(SCRIPT), str(directory)], text=True, capture_output=True)
+
+
+def test_configuration_rerun_preserves_job_policy_and_consumer_credentials(tmp_path: Path) -> None:
+    generate = [
+        sys.executable,
+        str(ROOT / "packages/boxie/infra/boxie_infra/config.py"),
+        "--output",
+        str(tmp_path),
+        "--data-dir",
+        str(tmp_path / "data"),
+        "--installation-id",
+        "00000000-0000-0000-0000-000000000001",
+        "--host-id",
+        "host",
+    ]
+    first = [*generate, "--consumer-id", "first"]
+    subprocess.run([*first, "--consumer-credential", "/run/secrets/first"], check=True)
+    api, supervisor = tmp_path / "api.json", tmp_path / "supervisor.json"
+    assert not json.loads(api.read_text())["job_policy"].get("profile_grants")
+    subprocess.run(
+        [
+            *generate,
+            "--consumer-id",
+            "second",
+            "--consumer-credential",
+            "/run/secrets/second",
+            "--job-profile",
+            "exports",
+        ],
+        check=True,
+    )
+    settings = json.loads(api.read_text())
+    policy = {
+        "profile_grants": {"first": ["reports"], "second": ["exports"]},
+        "consumer_result_bytes": 4096,
+        "total_downloads": 1,
+    }
+    settings["job_policy"] = policy
+    api.write_text(json.dumps(settings))
+    limits = {"max_seconds": 120, "idle_seconds": 30, "disconnect_seconds": 15}
+    supervisor.write_text(
+        json.dumps({**json.loads(supervisor.read_text()), "policy_maximum": limits})
+    )
+
+    subprocess.run(first, check=True)
+    assert json.loads(api.read_text()) == settings
+    assert json.loads(supervisor.read_text())["policy_maximum"] == limits
+
+    subprocess.run([*first, "--job-profile", "print", "--job-profile", "lint"], check=True)
+    updated = json.loads(api.read_text())
+    assert updated["job_policy"] == {
+        **policy,
+        "profile_grants": {"first": ["print", "lint"], "second": ["exports"]},
+    }
+    assert updated["consumer_credential_files"] == {
+        "first": "/run/secrets/first",
+        "second": "/run/secrets/second",
+    }
+    failed = subprocess.run(
+        [*generate, "--consumer-id", "third", "--consumer-credential", "/run/secrets/second"],
+        capture_output=True,
+        text=True,
+    )
+    assert failed.returncode == 2 and "distinct --consumer-credential" in failed.stderr
+    assert json.loads(api.read_text()) == updated
 
 
 def test_generated_credentials_survive_rerun_without_output(tmp_path: Path) -> None:

@@ -7,7 +7,7 @@ import multiprocessing
 import os
 import socket
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager, nullcontext
 from datetime import timedelta
 from multiprocessing.process import BaseProcess
 from pathlib import Path
@@ -16,7 +16,9 @@ from uuid import UUID
 import httpx
 import pytest
 from boxie.api.app import ApiConfig, create_app
+from boxie.application.admission import JobPolicy
 from boxie.bootstrap.config import SupervisorConfig
+from boxie.domain.models import LifetimePolicy
 from boxie.persistence.database import database
 from boxie.persistence.migrate import migrate
 from boxie.persistence.models import JobResult, Outbox, Sandbox
@@ -29,6 +31,7 @@ from boxie_test_support.api import CONSUMER_AUTH, FOREIGN_AUTH, artifact, serve
 from boxie_test_support.dependencies import POSTGRES_IMAGE, docker
 from boxie_test_support.supervisor import configuration
 from database_support import counts
+from fastapi import FastAPI
 from sqlalchemy import func, update
 from sqlmodel import col
 from temporal_test_server import test_server_path as pinned_server
@@ -90,7 +93,7 @@ async def supervisor_process(
 @asynccontextmanager
 async def job_api(
     config: SupervisorConfig, dsn: str, listener: socket.socket
-) -> AsyncIterator[tuple[str, WorkflowEnvironment, PostgresLifecycle]]:
+) -> AsyncIterator[tuple[FastAPI, WorkflowEnvironment, PostgresLifecycle]]:
     async with (
         await WorkflowEnvironment.start_time_skipping(
             test_server_existing_path=str(pinned_server()),
@@ -101,7 +104,13 @@ async def job_api(
             f"http://127.0.0.1:{listener.getsockname()[1]}", b"supervisor-test-secret"
         ) as control,
     ):
-        life = PostgresLifecycle(sessions, control, config.identity, control.ready)
+        life = PostgresLifecycle(
+            sessions,
+            control,
+            config.identity,
+            control.ready,
+            job_policy=JobPolicy(profile_grants={"one": frozenset({"batch"})}),
+        )
         delivery = CommandDelivery(
             PostgresOutbox(sessions, config.identity),
             env.client,
@@ -118,8 +127,7 @@ async def job_api(
             jobs=life,
             deliver=delivery.deliver_pending,
         )
-        async with serve(app) as url:
-            yield url, env, life
+        yield app, env, life
 
 
 async def wait_for_cleanup(
@@ -200,6 +208,8 @@ async def assert_expired_receipt(
     ("boundary", "expected", "effects"),
     [
         ("before_authorization", "succeeded", 1),
+        ("graceful_shutdown", "succeeded", 1),
+        ("cut_stream", "outcome_unknown", 1),
         ("before_start_journal", "outcome_unknown", 0),
         ("after_authorization", "outcome_unknown", 0),
         ("after_effect", "outcome_unknown", 1),
@@ -210,7 +220,15 @@ def test_private_job_recovery(
     postgres_dsn: str, tmp_path: Path, boundary: str, expected: str, effects: int
 ) -> None:
     migrate(postgres_dsn)
-    config = configuration(tmp_path)
+    policy = LifetimePolicy(max_seconds=900, idle_seconds=300, disconnect_seconds=60)
+    config = configuration(tmp_path, policy_maximum=policy)
+    replacement = config.model_copy(
+        update={
+            "policy_maximum": LifetimePolicy(
+                max_seconds=450, idle_seconds=150, disconnect_seconds=30
+            )
+        }
+    )
     counter = tmp_path / "counter"
     counter.mkdir()
     counter.chmod(0o777)
@@ -225,6 +243,17 @@ def test_private_job_recovery(
         "-c",
         f"printf 'effect\\n' >> /evidence/effects; {output}; exit {exit_code}",
     ]
+    if boundary == "before_authorization":
+        # Extra shell arguments are inert, but must survive both authenticated HTTP hops.
+        command.extend(["é" * 2048] * 15 + [""])
+        body_size = len(
+            httpx.Request(
+                "POST",
+                "/v1/jobs",
+                json={"artifact_id": str(UUID(int=0)), "profile_id": "batch", "command": command},
+            ).content
+        )
+        command[-1] = "x" * (65536 - body_size)
     config.profiles_file.write_text(
         json.dumps(
             {
@@ -241,7 +270,11 @@ def test_private_job_recovery(
 
     async def exercise(listener: socket.socket) -> None:
         key = {"Idempotency-Key": "one-operation"}
-        async with job_api(config, postgres_dsn, listener) as (url, env, life):
+        async with (
+            job_api(config, postgres_dsn, listener) as (app, env, life),
+            AsyncExitStack() as api,
+        ):
+            url = await api.enter_async_context(serve(app))
             address = env.client.service_client.config.target_host
             async with (
                 supervisor_process(
@@ -260,23 +293,50 @@ def test_private_job_recovery(
                 assert rejected.status_code == 422
                 submitted = await first.post("/v1/jobs", json=body, headers=key)
                 assert submitted.status_code == 202, submitted.text
+                if boundary == "before_authorization":
+                    assert len(submitted.request.content) == 65536
                 identifier = UUID(submitted.json()["id"])
                 route = f"/v1/jobs/{identifier}"
-                deadline = (await life.load_request(identifier)).absolute_deadline
+                admitted = await life.load_request(identifier)
+                assert admitted.spec.policy == policy
+                assert admitted.spec.command == admitted.snapshot.command == tuple(command)
+                deadline = admitted.accepted_at + timedelta(seconds=policy.max_seconds)
+                assert admitted.absolute_deadline == deadline
                 async with asyncio.timeout(35):
                     while not (tmp_path / "barrier").exists():
                         assert original.exitcode is None
                         await asyncio.sleep(0.05)
                 assert (tmp_path / "barrier").read_text() == boundary
                 assert (counter / "effects").exists() == (
-                    boundary in ("after_effect", "after_result")
+                    boundary in ("after_effect", "after_result", "cut_stream")
                 )
+                if boundary == "cut_stream":
+                    # Classification must follow the interrupted stream before the supervisor exits.
+                    await wait_for_cleanup(first, route, life, expected)
+                    assert (await first.get(route + "/result")).status_code == 409
                 if boundary == "after_effect":
                     # No provisioning activity remains to drive boot handover on redelivery.
                     await wait_for_provision_ack(env, identifier)
+                if boundary == "graceful_shutdown":
+                    # deploy.sh stops the API and supervisor and checks every
+                    # installation/host container, including stopped ones, before migration.
+                    await api.aclose()
+                    original.terminate()
+                    await asyncio.to_thread(original.join, 55)
+                    assert original.exitcode is not None
+                    assert not docker(
+                        "ps",
+                        "-aq",
+                        "--filter",
+                        f"label=boxie.installation={config.identity.installation_id}",
+                        "--filter",
+                        f"label=boxie.host={config.identity.host_id}",
+                    )
+                    assert (await counts(life.sessions))[1:3] == (1, 1)
             async with (
-                supervisor_process(config, postgres_dsn, address, listener, tmp_path, None),
-                httpx.AsyncClient(base_url=url, headers=CONSUMER_AUTH) as fresh,
+                supervisor_process(replacement, postgres_dsn, address, listener, tmp_path, None),
+                serve(app) if boundary == "graceful_shutdown" else nullcontext(url) as restored_url,
+                httpx.AsyncClient(base_url=restored_url, headers=CONSUMER_AUTH) as fresh,
             ):
                 replay = await fresh.post("/v1/jobs", json=body, headers=key)
                 assert replay.status_code == 202 and replay.json()["id"] == str(identifier)
@@ -300,7 +360,8 @@ def test_private_job_recovery(
                 history = await env.client.get_workflow_handle(
                     f"boxie/sandbox/{identifier}"
                 ).fetch_history()
-                assert (await life.load_request(identifier)).absolute_deadline == deadline
+                retried = await life.load_request(identifier)
+                assert retried.spec == admitted.spec and retried.absolute_deadline == deadline
                 provision_deadlines = []
                 for event in history.events:
                     payload = event.SerializeToString()

@@ -54,13 +54,14 @@ async def job_result(session: AsyncSession, owner: Principal, identifier: UUID) 
     )
 
 
-async def settle_interrupted(session: AsyncSession, identifier: UUID) -> None:
+async def settle_interrupted(session: AsyncSession, identifier: UUID) -> bool:
     # A completion transaction may have committed despite a lost acknowledgement.
-    await session.exec(
+    interrupted = await session.exec(
         update(Job)
         .where(col(Job.id) == identifier, col(Job.state).in_(("queued", "starting", "running")))
         .values(state=case((col(Job.state) == "queued", "not_started"), else_="outcome_unknown"))
     )
+    return interrupted.rowcount == 1
 
 
 class JobReceipts:
@@ -111,7 +112,7 @@ class JobReceipts:
         async with self.sessions.begin() as session:
             # Acquire locks in the same order as cleanup and boot handover.
             current = await session.scalar(
-                select(Sandbox.id)
+                select(Sandbox)
                 .where(
                     Sandbox.id == result.sandbox_id,
                     Sandbox.supervisor_boot_id == boot,
@@ -132,4 +133,8 @@ class JobReceipts:
             )
             if published.rowcount != 1:
                 raise BoxieError(409, "job attempt no longer owns completion")
+            size = len(result.stdout) + len(result.stderr)
+            if size > current.reserved_result_bytes:
+                raise BoxieError(409, "job result exceeds its reservation")
+            current.reserved_result_bytes = size
             session.add(result)

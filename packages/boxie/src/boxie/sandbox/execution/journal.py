@@ -32,6 +32,7 @@ class ExecutionRecord(WireModel):
     cleanup_pending: bool = False
     removal_confirmed: bool = False
     creation_uncertain: bool = False
+    discarding_container: bool = Field(default=False, exclude_if=lambda value: not value)
     start_uncertain: bool = False
     operation_id: UUID | None = None
     container_id: str | None = None

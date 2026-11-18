@@ -63,8 +63,8 @@ The supervisor continues draining terminal output independently.
 
 ## Submit a job and retrieve its result
 
-1. Upload the input ZIP and save its artifact ID. Ask the operator for the
-   profile ID and exact command arguments approved for your job.
+1. Upload the input ZIP and save its artifact ID. Ask the operator for a job
+   profile granted to your consumer and the exact command arguments it permits.
 2. Send `POST /v1/jobs` with an `Idempotency-Key`. Save the key before sending.
    For example, an operator can approve the following command to count bytes in
    an uploaded `input.txt`.
@@ -83,8 +83,8 @@ The supervisor continues draining terminal output independently.
    original key. Changing the input or reusing a job key for a sandbox returns 409.
 4. On `succeeded` or `failed`, read `GET /v1/jobs/{id}/result`. Decode
    `stdout_base64` and `stderr_base64` independently. The response includes the
-   integer `exit_code` and a `truncated` flag. Boxie retains bytes in arrival order
-   up to one shared limit across both streams and drains excess bytes until exit.
+   integer `exit_code` and a `truncated` flag. Boxie keeps the first bytes it
+   reads across both streams up to one shared limit and drains the rest until exit.
 
 | State | What the client can establish |
 | --- | --- |
@@ -93,13 +93,16 @@ The supervisor continues draining terminal output independently.
 | `running` | Docker acknowledged start. The command may finish before the next poll. |
 | `succeeded` / `failed` | Boxie committed the output and observed exit code. Zero means success. |
 | `not_started` | Execution ended before start authorization. |
-| `outcome_unknown` | The command may have run and changed external state. Check the effect before deciding whether to submit a new job with a fresh key. |
+| `outcome_unknown` | The command may have changed external state and may still be running. Confirm cleanup and check the effect before submitting again with a fresh key. |
 
 The result endpoint returns 409 while a result is unavailable and 410 once
 the seven-day window after confirmed cleanup expires. The job ID, terminal
 state and submission key remain available after expiry. A foreign job ID returns
-404 on both reads. See [job recovery](execution.md#noninteractive-job-recovery)
-for the interruption cases and test.
+404 on both reads. New submissions return 403 for a missing profile grant and
+429 when execution capacity or result storage is full. A result download can
+also return 429 while other downloads are in progress. Retry with the original
+key for submission or the same URL for download. See the
+[job recovery contract](execution.md#noninteractive-job-recovery).
 
 ## Connect a terminal
 

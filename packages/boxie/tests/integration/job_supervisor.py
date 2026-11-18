@@ -11,6 +11,7 @@ from typing import Any
 from uuid import UUID
 
 import uvicorn
+from aiodocker.stream import Message, Stream
 from boxie.bootstrap.config import SupervisorConfig
 from boxie.bootstrap.supervisor import create_supervisor_app
 from boxie.bootstrap.workers import lifecycle_worker
@@ -24,6 +25,7 @@ from boxie.persistence.start_guard import PostgresStartGuard
 from boxie.sandbox.docker import DockerBackend
 from boxie.sandbox.execution.job import JobRunner
 from boxie.sandbox.execution.ownership import acquire_owner_lock
+from boxie.sandbox.execution.sandbox import SandboxExecution
 from boxie.sandbox.execution.supervisor import Supervisor
 from boxie.temporal.activities import LifecycleActivities
 from boxie.temporal.contracts import lifecycle_queue
@@ -59,6 +61,36 @@ def run_supervisor(
             await barrier("after_result")
 
     class Docker(DockerBackend):
+        async def attach_job(self, identifier: str) -> Stream:
+            stream = await super().attach_job(identifier)
+            if interrupt == "cut_stream":
+                read = stream.read_out
+                header = bytearray()
+                delivered = 0
+                cutoff: int | None = None
+
+                async def cut_read() -> Message | None:
+                    nonlocal delivered, cutoff
+                    if delivered != cutoff:
+                        message = await read()
+                        assert message is not None
+                        if cutoff is None:
+                            header.extend(message.data[: 25 - len(header)])
+                            if len(header) == 25:
+                                assert header[:4] == b"BXJ1" and header[20] in (1, 2)
+                                cutoff = 25 + int.from_bytes(header[21:25], "big")
+                        part = (
+                            message.data if cutoff is None else message.data[: cutoff - delivered]
+                        )
+                        delivered += len(part)
+                        return Message(message.stream, part)
+                    assert await self.job_exit_code(identifier) == 0
+                    (root / "barrier").write_text("cut_stream")
+                    return None
+
+                stream.read_out = cut_read  # type: ignore[method-assign]
+            return stream
+
         async def create(self, name: str, config: dict[str, Any]) -> None:
             assert not config["Tty"] and not config["OpenStdin"] and not config["AttachStdin"]
             # Only this fixture can write the independent command-effect counter.
@@ -72,6 +104,11 @@ def run_supervisor(
             await barrier("after_authorization")
             await super().start(identifier)
 
+    class Runner(JobRunner):
+        async def launch(self, execution: SandboxExecution, identifier: str) -> None:
+            await barrier("graceful_shutdown")
+            await super().launch(execution, identifier)
+
     async def run() -> None:
         client = await Client.connect(address, data_converter=pydantic_data_converter)
         async with database(dsn) as sessions:
@@ -84,7 +121,7 @@ def run_supervisor(
                 PostgresStartGuard(sessions),
                 lambda: datetime.now(UTC),
                 time.monotonic,
-                jobs=JobRunner(docker, Receipts(sessions)),
+                jobs=Runner(docker, Receipts(sessions)),
             )
             repository = PostgresLifecycle(sessions, supervisor, config.identity, docker.ready)
 

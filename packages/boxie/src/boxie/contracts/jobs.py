@@ -10,13 +10,16 @@ from boxie.contracts.common import WireModel
 from boxie.domain.models import SandboxSpec
 
 
-class CreateJob(WireModel):
-    artifact_id: UUID
+class JobProfileRequest(WireModel):
     profile_id: Annotated[str, Field(min_length=1, max_length=128)]
     command: Annotated[
         tuple[Annotated[str, Field(min_length=1, max_length=4096)], ...],
         Field(min_length=1, max_length=64),
     ]
+
+
+class CreateJob(JobProfileRequest):
+    artifact_id: UUID
 
     def domain(self) -> SandboxSpec:
         return SandboxSpec(self.artifact_id, self.profile_id, self.command, {}, is_job=True)

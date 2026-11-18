@@ -9,6 +9,7 @@ from boxie.contracts.jobs import JobResultView, JobView
 from boxie.contracts.terminal import TerminalEvent
 from boxie.domain.models import (
     ArtifactPutResult,
+    LifetimePolicy,
     Principal,
     ProfileSnapshot,
     SandboxSpec,
@@ -58,4 +59,6 @@ class TerminalAccess(Protocol):
 
 
 class AdmissionProfileResolver(Protocol):
-    async def resolve_admission(self, spec: SandboxSpec) -> ProfileSnapshot: ...
+    async def resolve_admission(
+        self, spec: SandboxSpec
+    ) -> tuple[ProfileSnapshot, LifetimePolicy]: ...

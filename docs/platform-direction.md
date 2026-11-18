@@ -14,8 +14,9 @@ execution.
 An account will register an app and grant it access to execution environments
 and integrations. Each account–app connection will have a stable consumer
 identity so credential rotation preserves ownership of its jobs. Operators
-provision consumer identities and credentials today. The services for
-self-service registration, grants and environment setup are still to be built.
+provision consumer identities and credentials today and explicitly grant the
+job profiles each consumer can use. Self-service registration, integration
+grants and environment setup are future platform work.
 
 CLI playground is an internal tool and Sanctuary's first consumer. Its job is to
 let people try repository commands in a browser. As the platform develops, it

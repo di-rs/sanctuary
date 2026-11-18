@@ -4,13 +4,13 @@ import asyncio
 from collections.abc import Callable
 from contextlib import AbstractContextManager
 from dataclasses import dataclass, field
-from pathlib import Path
 from types import TracebackType
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 from boxie.domain.errors import BoxieError
 from boxie.domain.models import SandboxState, TerminationReason
+from boxie.domain.policy import validate_job_limits
 from boxie.sandbox.docker import CreateRejected, ExecutionDocker, container_config
 from boxie.sandbox.execution.journal import ExecutionRecord
 from boxie.sandbox.execution.reconcile import owned_container
@@ -109,13 +109,36 @@ class SandboxExecution:
             if not live:
                 await owner.remove(record.ref, owner._expiry(record) or TerminationReason.REQUESTED)
                 return
-            if info is None:
+            if record.spec.is_job:
+                validate_job_limits(request.profile_snapshot.limits)
+                if (
+                    record.queued_job
+                    and info is not None
+                    and not info.running
+                    and not info.capture_ready
+                ):
+                    # A pre-capture release may have left an unstarted container.
+                    # Journal the identified resource for the same acknowledged-delete path.
+                    record.container_id = info.id
+                    record.creation_uncertain = False
+                    record.discarding_container = True
+                    owner._changed(record)
+                    return
+            if info is None and not record.creation_uncertain:
                 if not owner._live(record):
                     return
+                config = container_config(
+                    record.snapshot.domain(),
+                    artifact,
+                    record.labels,
+                    terminal=not record.spec.is_job,
+                    capture_root=owner.config.data_dir,
+                )
+                record.container_id = None
                 record.creation_uncertain = True
                 record.operation_id = uuid4()
                 owner._changed(record)
-                create = asyncio.create_task(_create(record, artifact, docker, owner._changed))
+                create = asyncio.create_task(_create(record, config, docker, owner._changed))
                 self.create = create
                 try:
                     async with asyncio.timeout(timeout):
@@ -129,6 +152,10 @@ class SandboxExecution:
                 async with asyncio.timeout(timeout):
                     info = await owned_container(docker, record)
             if info is None:
+                if record.queued_job and record.creation_uncertain:
+                    # Keep the original create intent until the daemon exposes
+                    # its resource or the original deadline triggers cleanup.
+                    return
                 raise RuntimeError("create outcome unknown")
             if record.state in {SandboxState.TERMINATED, SandboxState.FAILED}:
                 return
@@ -198,17 +225,12 @@ class SandboxExecution:
 
 async def _create(
     record: ExecutionRecord,
-    artifact: Path,
+    config: dict[str, Any],
     docker: ExecutionDocker,
     changed: Callable[[ExecutionRecord], None],
 ) -> None:
     try:
-        await docker.create(
-            record.name,
-            container_config(
-                record.snapshot.domain(), artifact, record.labels, terminal=not record.spec.is_job
-            ),
-        )
+        await docker.create(record.name, config)
     except CreateRejected:
         record.creation_uncertain = False
         changed(record)

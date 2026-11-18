@@ -62,10 +62,11 @@ Recovery cleans up only resources with matching ownership labels. It never delet
 every container on the Docker daemon. If another resource occupies the expected
 name with different labels, Boxie leaves it for operator inspection.
 
-A timed-out create request is ambiguous: Docker may still create the container
-later. Until Boxie observes and removes that owned container, cleanup stays
-pending and holds its capacity slot and artifact references. This case can require
-operator investigation.
+Docker can finish a create request after the supervisor loses its connection.
+A queued job waits for the original container. If it appears before the
+deadline, the replacement can adopt it. If cleanup has begun, Boxie keeps the
+slot and artifact reference until it can confirm removal. An unresolved create
+can require operator investigation.
 
 ## Noninteractive job recovery
 
@@ -76,27 +77,44 @@ command's recorded outcome independently of the client connection.
 
 | Interruption | Recovery under the original job ID |
 | --- | --- |
-| Before start authorization | A worker can continue the queued job under its original deadline and pinned profile. |
+| Before start authorization | A worker can continue the queued job under its original deadline and pinned profile when it can account for the earlier Docker create. |
 | After authorization, including before Docker receives start | If completion is unconfirmed, the client sees `outcome_unknown`. Boxie can issue start only once. |
 | After the command changes external state but before result commit | The outcome is unknown. A fresh submission can repeat the effect and requires an explicit client decision. |
+| Output connection ends before the completion record arrives | The job settles as `outcome_unknown`, even if Docker reports exit code zero. |
 | After result commit but before acknowledgement | The client can retrieve the recorded exit status and bounded output, including a nonzero exit. |
 
-Admission reserves the usual slot and artifact reference and records the job
-and outbox command in one SQL transaction. The supervisor attaches the two
-output streams without a PTY or stdin, commits a one-time start authorization,
-then starts the container under the existing SQL stop lock. Temporal redelivery
-must pass the same authorization check. The absolute deadline and control lease
-apply throughout execution. Idle and disconnect timers apply only to terminals.
+Admission pins the operator's lifetime policy, reserves the slot, artifact
+reference and output budget, and records the job and outbox command in one
+SQL transaction. The supervisor attaches without a PTY or stdin, commits a
+one-time start authorization, then starts the container under the existing SQL
+stop lock. Temporal redelivery must pass the same authorization check.
+A live supervisor enforces the absolute
+deadline and control lease. If it goes offline after Docker starts the command,
+the command can continue past either time until the supervisor recovers and
+removes the container. Idle and disconnect timers apply only to terminals.
 
-One SQL commit publishes exit status and result bytes. On restart, the supervisor
-reports confirmed job removals to PostgreSQL before polling Temporal. A
+Boxie mounts a static Linux capture program read-only in the job container.
+It launches the approved executable and reads its stdout and stderr separately.
+After both pipes close, it sends a completion record with the two byte counts
+and the command's exit code. The supervisor verifies the record and Docker's
+exit status before publishing the result in one SQL transaction. The Docker
+logging driver is disabled.
+
+On restart, the supervisor reports confirmed job removals to PostgreSQL before
+polling Temporal. A
 reconnecting client can see the outcome while the next workflow task is pending.
-Container cleanup releases accounting independently. Operational logs and workflow
+`outcome_unknown` can precede physical cleanup. If repeating a side effect
+matters, have the operator confirm the old container was removed and check the
+external system before submitting another job. Operational logs and workflow
 history carry identifiers and lifecycle facts. The command output is available
 through the owner-authenticated result endpoint.
 
 The [restart test](../tests/integration/test_job_recovery.py) kills the supervisor
 at each boundary and checks an append counter outside the supervisor process.
+It also exercises a release that stops the API and supervisor. A graceful
+supervisor shutdown removes the pre-start container, preserving the job and
+its reservations for the replacement. The deployment script checks for
+remaining containers before it applies migrations or starts the new services.
 With Docker and the checksum-pinned `BOXIE_TEST_SERVER` described under
 [verification](#verification), run it from the repository root.
 
@@ -107,6 +125,13 @@ uv run --locked pytest -m integration packages/boxie/tests/integration/test_job_
 The test fixture uses Docker's `runc` locally. The
 [pull-request workflow](../../../.github/workflows/boxie-lifecycle.yml) runs the
 same cases with `runsc`.
+
+To verify the packaged amd64 and arm64 capture programs against their C
+source, run the same reproducible build check as CI from the repository root.
+
+```sh
+uv run --no-project packages/boxie/sandbox/build-capture.py --check
+```
 
 ## Artifacts
 
@@ -165,6 +190,7 @@ opaque resource IDs. Wire schemas reject extra object fields and invalid bounds.
 | Upload artifact | `PUT /v1/artifacts/{uuid}?consumer_id=...`, raw ZIP body, `X-Content-SHA256` header |
 | Retire artifact | `DELETE /v1/artifacts/{uuid}?consumer_id=...` |
 | Resolve profile | `POST /v1/profiles/resolve`, `{profile_id, command, env}` |
+| Resolve job profile | `POST /v1/profiles/resolve-job`, `{profile_id, command}`. Returns profile metadata and the effective lifetime policy. |
 | Terminal | `WS /v1/sandboxes/{uuid}/terminal?consumer_id=...` |
 | Readiness | `GET /readyz`, supervisor identity and dependency results |
 

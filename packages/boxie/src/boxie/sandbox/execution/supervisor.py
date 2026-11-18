@@ -29,7 +29,7 @@ from boxie.observability.events import DiagnosticSink, Transition, deliver, emit
 from boxie.observability.telemetry.context import bind_context, request_context
 from boxie.sandbox.docker import ExecutionDocker
 from boxie.sandbox.execution.journal import ExecutionJournal, ExecutionRecord
-from boxie.sandbox.execution.reconcile import reconcile_removal
+from boxie.sandbox.execution.reconcile import discard_queued_container, reconcile_removal
 from boxie.sandbox.execution.retention import MAX_RECORDS, compact
 from boxie.sandbox.execution.safety import ExecutionSafety
 from boxie.sandbox.execution.sandbox import Deadlines, SandboxExecution, TerminalSession
@@ -98,8 +98,12 @@ class Supervisor:
         self.observer: Callable[[SupervisorObservation], Awaitable[None]] | None = None
         self._journal_healthy = True
 
-    async def resolve_admission(self, spec: SandboxSpec) -> ProfileSnapshot:
-        return self.profiles.resolve_profile(spec.profile_id, spec.command, spec.env)
+    async def resolve_admission(self, spec: SandboxSpec) -> tuple[ProfileSnapshot, LifetimePolicy]:
+        policy = self.config.policy_maximum if spec.is_job else spec.policy
+        validate_policy(policy, self.config.policy_maximum)
+        return self.profiles.resolve_profile(
+            spec.profile_id, spec.command, spec.env, job=spec.is_job
+        ), policy
 
     def _record(self, ref: SandboxRef) -> ExecutionRecord:
         record = self.records.get(ref.id)
@@ -199,7 +203,10 @@ class Supervisor:
     async def initialize(self, request: EnsureRequest) -> SupervisorObservation:
         if request.identity != self.config.identity:
             raise BoxieError(404, "supervisor identity not found")
-        validate_policy(request.spec.policy, self.config.policy_maximum)
+        # Job admission pins the operator policy in SQL, including across later config changes.
+        validate_policy(
+            request.spec.policy, None if request.spec.is_job else self.config.policy_maximum
+        )
         self.profiles.validate_snapshot(request.profile_snapshot)
         snapshot, spec = request.profile_snapshot, request.spec
         if (snapshot.profile_id, snapshot.command, snapshot.env) != (
@@ -277,7 +284,17 @@ class Supervisor:
                 if record.cleanup_pending:
                     await self._cleanup(record)
                 else:
+                    if record.discarding_container:
+                        async with asyncio.timeout(self.config.docker_timeout):
+                            if not await discard_queued_container(
+                                self.docker, record, self._changed
+                            ):
+                                raise BoxieError(503, "job container removal pending")
                     await execution.provision()
+                    if record.discarding_container:
+                        raise BoxieError(503, "job container removal pending")
+                    if record.queued_job and record.creation_uncertain:
+                        raise BoxieError(503, "job container creation pending")
             finally:
                 execution.activity = None
             return await self.inspect(request.ref)
@@ -550,6 +567,15 @@ class Supervisor:
     async def compact(self) -> None:
         await compact(self)
 
+    async def _discard_on_shutdown(self, record: ExecutionRecord) -> None:
+        try:
+            async with asyncio.timeout(self.config.docker_timeout):
+                if await discard_queued_container(self.docker, record, self._changed):
+                    return
+        except Exception:
+            pass
+        logger.warning("sandbox reconciliation failed; retry pending: %s", record.id)
+
     async def close(self) -> None:
         self.stopping = True
         for execution in self.executions.values():
@@ -578,5 +604,12 @@ class Supervisor:
                 if task is not None
             ),
             return_exceptions=True,
+        )
+        await asyncio.gather(
+            *(
+                self._discard_on_shutdown(record)
+                for record in self.records.values()
+                if record.queued_job
+            )
         )
         await self.docker.close()

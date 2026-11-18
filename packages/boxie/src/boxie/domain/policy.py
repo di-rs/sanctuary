@@ -20,3 +20,9 @@ def validate_limits(limits: SandboxLimits) -> None:
         value = getattr(limits, item.name)
         if type(value) is not int or not 0 < value <= getattr(maximum, item.name):
             raise BoxieError(422, f"invalid sandbox limit {item.name}")
+
+
+def validate_job_limits(limits: SandboxLimits) -> None:
+    # PID 1 starts the command with three pipes (stdout, stderr and exec status).
+    if limits.pids < 2 or limits.nofile < 9:
+        raise BoxieError(422, "job capture requires pids >= 2 and nofile >= 9")

@@ -37,6 +37,7 @@ ROUTES = (
     "/v1/artifacts/{artifact_id}",
     "/v1/identity",
     "/v1/profiles/resolve",
+    "/v1/profiles/resolve-job",
 )
 
 

@@ -9,6 +9,7 @@ from fastapi import APIRouter, Header, Request, Response
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 
+from boxie.api.downloads import JobDownloads
 from boxie.application.ports import ArtifactAccess, JobAccess, Lifecycle
 from boxie.contracts.consumer import CreateSandboxWire, ViewWire
 from boxie.contracts.jobs import CreateJob, JobResultView, JobView
@@ -71,7 +72,9 @@ def routes(
     return router
 
 
-def job_routes(jobs: JobAccess, deliver: Callable[[UUID], Awaitable[None]] | None) -> APIRouter:
+def job_routes(
+    jobs: JobAccess, deliver: Callable[[UUID], Awaitable[None]] | None, downloads: JobDownloads
+) -> APIRouter:
     router = APIRouter(prefix="/v1/jobs")
 
     @router.post("", status_code=202)
@@ -91,7 +94,9 @@ def job_routes(jobs: JobAccess, deliver: Callable[[UUID], Awaitable[None]] | Non
 
     @router.get("/{job_id}/result")
     async def get_result(job_id: UUID, request: Request, response: Response) -> JobResultView:
+        owner = principal(request)
+        downloads.acquire(request, owner.consumer_id)
         response.headers["Cache-Control"] = "no-store"
-        return await jobs.get_result(principal(request), job_id)
+        return await jobs.get_result(owner, job_id)
 
     return router

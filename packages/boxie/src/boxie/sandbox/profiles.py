@@ -12,7 +12,7 @@ from boxie.contracts.common import WireModel
 from boxie.contracts.execution import LimitsWire
 from boxie.domain.errors import BoxieError
 from boxie.domain.models import ProfileSnapshot
-from boxie.domain.policy import validate_limits
+from boxie.domain.policy import validate_job_limits, validate_limits
 from boxie.persistence.atomic import atomic_write
 
 
@@ -97,9 +97,17 @@ class ProfileRegistry:
         self.current = digest
 
     def resolve_profile(
-        self, profile_id: str, command: tuple[str, ...], env: Mapping[str, str]
+        self,
+        profile_id: str,
+        command: tuple[str, ...],
+        env: Mapping[str, str],
+        *,
+        job: bool = False,
     ) -> ProfileSnapshot:
-        return self._resolve(self.current, profile_id, command, env)
+        snapshot = self._resolve(self.current, profile_id, command, env)
+        if job:
+            validate_job_limits(snapshot.limits)
+        return snapshot
 
     def _resolve(
         self, digest: str, profile_id: str, command: tuple[str, ...], env: Mapping[str, str]

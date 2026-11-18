@@ -50,5 +50,8 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # Validation takes an exclusive table lock through both drops. A retained
+    # identity makes the whole downgrade fail, including in offline SQL.
+    op.create_check_constraint("cannot_downgrade_with_job_receipts", "jobs", sa.false())
     op.drop_table("job_results")
     op.drop_table("jobs")
