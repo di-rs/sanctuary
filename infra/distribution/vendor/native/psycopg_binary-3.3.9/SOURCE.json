@@ -4,6 +4,7 @@
       "Kerberos-1.22.2.NOTICE": "d37fcb886de2ad1c602f61c99c6893bcbd9a1949f54d9a6bb40d191204eb605e"
     },
     "objects": {
+      "psycopg_binary.libs/libcom_err-55c5739a.so.3.0": "c4455194ec84307401ae1dc0049e53703d383c1f1094e613e4a54b19f90094e3",
       "psycopg_binary.libs/libgssapi_krb5-923083ce.so.2.2": "7355c441d02abe41d34959c6f51caa5fac17014799935673ad3cb987b03226e4",
       "psycopg_binary.libs/libk5crypto-459efceb.so.3.1": "f4901987c99506969fb156c455d3774fad5aad7bff950fd572dfab8a59a901a6",
       "psycopg_binary.libs/libkrb5-f18b4d11.so.3.3": "066e6f8c94967fa3f91f0c723834bde429a18a387e8ec791d34ac56c05bf975b",
@@ -12,7 +13,8 @@
     "sources": [
       "https://github.com/krb5/krb5/blob/krb5-1.22.2-final/NOTICE",
       "https://github.com/psycopg/psycopg/blob/bced8a8993064a378d5ca852215d99f73f4c6cae/tools/ci/build_libpq.sh",
-      "https://github.com/psycopg/psycopg/blob/bced8a8993064a378d5ca852215d99f73f4c6cae/.github/workflows/packages-bin.yml"
+      "https://github.com/psycopg/psycopg/blob/bced8a8993064a378d5ca852215d99f73f4c6cae/.github/workflows/packages-bin.yml",
+      "https://github.com/krb5/krb5/blob/krb5-1.22.2-final/src/util/et/Makefile.in"
     ]
   },
   "OpenLDAP 2.6.16": {
@@ -55,5 +57,48 @@
       "https://github.com/psycopg/psycopg/blob/bced8a8993064a378d5ca852215d99f73f4c6cae/tools/ci/build_libpq.sh",
       "https://github.com/psycopg/psycopg/blob/bced8a8993064a378d5ca852215d99f73f4c6cae/.github/workflows/packages-bin.yml"
     ]
+  },
+  "cyrus-sasl-lib-2.1.26-24.el7_9": {
+    "notices": {
+      "cyrus-sasl-lib-2.1.26-24.el7_9.AUTHORS": "573b62290f3745835142337245599b5f3a38707b986d666fc97641f2846798ce",
+      "cyrus-sasl-lib-2.1.26-24.el7_9.COPYING": "9d6e5d1632140a6c135b251260953650d17d87cd1124f87aaf72192aa4580d4b"
+    },
+    "objects": {
+      "psycopg_binary.libs/libsasl2-84219a89.so.3.0.0": "a01821d4716316892f28751616ad586f679ec66bc18a775205e1a0fab579f00b"
+    },
+    "sources": [
+      "https://vault.centos.org/7.9.2009/updates/x86_64/Packages/cyrus-sasl-lib-2.1.26-24.el7_9.x86_64.rpm",
+      "https://github.com/pypa/auditwheel/blob/6.7.0/src/auditwheel/repair.py"
+    ],
+    "upstream_archive_sha256": "e1d065bfaef705d407c6134352d1afc64ecf26a5970a0e5282f6dda745483db8",
+    "upstream_object_sha256": "84219a89b635c809c66b297f2970df52f1f38dd429426c213d0340dea5e7ec9d"
+  },
+  "keyutils-libs-1.5.8-3.el7": {
+    "notices": {
+      "keyutils-libs-1.5.8-3.el7.LICENCE.LGPL": "0d15593e3a8ad90917f8509b5ac1e4b5e5d196434a68029aa9dc0858a4a4c521"
+    },
+    "objects": {
+      "psycopg_binary.libs/libkeyutils-dfe70bd6.so.1.5": "c29e41b03cf4b2dffbfb4960946e2b42f82c0ca5d53d231d3f0fc597ba274488"
+    },
+    "sources": [
+      "https://vault.centos.org/7.9.2009/os/x86_64/Packages/keyutils-libs-1.5.8-3.el7.x86_64.rpm",
+      "https://github.com/pypa/auditwheel/blob/6.7.0/src/auditwheel/repair.py"
+    ],
+    "upstream_archive_sha256": "16c7cb17dd4eced77c44697bc431c0ac9eb012da78fc91abacd828d3aa8e5dd3",
+    "upstream_object_sha256": "dfe70bd63f57aa3fc805f88ffb04b9440794faacbf7cffd080fc68984d25f3fb"
+  },
+  "libcom_err-1.42.9-19.el7": {
+    "notices": {
+      "libcom_err-1.42.9-19.el7.COPYING": "680f852df303874fe9c722283a7da571ae9a0477768df8af1e363298e2adc51e"
+    },
+    "objects": {
+      "psycopg_binary.libs/libcom_err-2abe824b.so.2.1": "5426dcb54dd01c9eedda05e2179f0e47114e8b48a534ffe9e94916e79471b257"
+    },
+    "sources": [
+      "https://vault.centos.org/7.9.2009/os/x86_64/Packages/libcom_err-1.42.9-19.el7.x86_64.rpm",
+      "https://github.com/pypa/auditwheel/blob/6.7.0/src/auditwheel/repair.py"
+    ],
+    "upstream_archive_sha256": "b98e19c3bbf6de458697a895654db0d75e93e7738ef22bc1540e2c78fa91748b",
+    "upstream_object_sha256": "2abe824bc4b40f400391ad327090796ecc2cd48df173c2f82134ec5c1d3d6c91"
   }
 }

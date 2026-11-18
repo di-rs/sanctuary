@@ -85,7 +85,7 @@ jobs:
           name: cli-playground-notices-${{ github.event.pull_request.head.sha }}
           path: ${{ runner.temp }}/third-party-notices.zip
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 8
       - name: 📤 Upload cli-playground CLI binaries
         if: steps.build.outputs.has-preview == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

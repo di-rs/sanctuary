@@ -65,8 +65,8 @@ upstream image and restore the upstream text for the version that ships.
 
 For the Boxie and playground images, open `native-wheel-review.json` from
 the local build. The review lists shipped shared objects with hashes, upstream
-SBOM entries that need attribution, and exact license texts embedded in the
-wheel SBOMs. An SBOM can include build dependencies, so match candidate
+SBOM entries that lack embedded text, and the exact texts supplied by the
+wheels. An SBOM can include build dependencies, so match candidate
 components to the wheel's target link inputs before treating their notices as
 complete. Record a verified input's object hashes, original notice text and
 source under `infra/distribution/vendor/native/` for the exact wheel version.

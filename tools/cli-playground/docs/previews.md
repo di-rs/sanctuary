@@ -128,9 +128,11 @@ duplicate identities, invalid names, and unsafe control characters are rejected.
 
 Open **Build and artifacts** in the PR preview comment and sign in to GitHub
 with access to that workflow run. Download `cli-playground-binaries` and
-`cli-playground-notices-<head-sha>` from the same run. Both artifacts expire
-after seven days. The build summary links directly to the companion. Browser
-terminals execute the binaries in Boxie and stream the terminal output.
+`cli-playground-notices-<head-sha>` from the same run. The binaries expire
+after seven days. The companion is uploaded first and kept for eight days, so
+its download window covers the binaries. The build summary links directly to
+the companion. Browser terminals execute the binaries in Boxie and stream the
+terminal output.
 
 The companion artifact contains `third-party-notices.zip`. Open its
 `manifest.json` and confirm that `revision` matches the preview head and
@@ -147,8 +149,7 @@ either preview artifact is uploaded. Check the exact crate revision and add
 reviewed upstream notices before retrying the build. For a crate missing texts
 from its published package, record its Cargo lock checksum and the upstream
 license source beside the exact texts in `tools/cli-playground/vendor/rust-notices/`.
-The existing Cargo license
-policy still applies to the complete dependency graph.
+The Cargo license policy applies to the complete dependency graph.
 
 Trusted publication and backend admission validate the sidecar against the
 expected head SHA and the exact executable names and digests. They never execute

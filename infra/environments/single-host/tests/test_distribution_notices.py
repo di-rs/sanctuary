@@ -144,6 +144,9 @@ def test_release_container_notices(component: str, dockerfile: str, context: str
                         test -s python/psycopg_binary-*/native/reviewed/OpenSSL-3.5.9.LICENSE
                         test -s python/psycopg_binary-*/native/reviewed/Kerberos-1.22.2.NOTICE
                         test -s python/psycopg_binary-*/native/reviewed/OpenLDAP-2.6.16.LICENSE
+                        test -s python/psycopg_binary-*/native/reviewed/libcom_err-1.42.9-19.el7.COPYING
+                        test -s python/psycopg_binary-*/native/reviewed/cyrus-sasl-lib-2.1.26-24.el7_9.COPYING
+                        test -s python/psycopg_binary-*/native/reviewed/keyutils-libs-1.5.8-3.el7.LICENCE.LGPL
                         grep -q '^psycopg-binary ' python-packages.txt
                         ! grep -Eq '^(pytest|ruff|mypy) ' python-packages.txt || exit 1
                         if [ "$1" = boxie ]; then
