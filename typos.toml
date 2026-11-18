@@ -1,5 +1,5 @@
 [files]
-extend-exclude = ["**/tests/inputs/**", "**/tests/expected/**", "**/benches/data/**", "docs/superpowers/**", ".agents/**", ".codex/**", "**/node_modules/**", "**/target/**", "**/generated/**", "**/vendor/**", "**/fixtures/**", "Cargo.lock", "uv.lock", "**/pnpm-lock.yaml", "**/package-lock.json", "tools/cli-playground/src/cli_playground/static/**"]
+extend-exclude = ["**/tests/inputs/**", "**/tests/expected/**", "**/benches/data/**", "docs/superpowers/**", ".agents/**", ".codex/**", "**/node_modules/**", "**/target/**", "**/generated/**", "**/vendor/**", "**/fixtures/**", "Cargo.lock", "uv.lock", "**/pnpm-lock.yaml", "**/package-lock.json", "tools/cli-playground/src/cli_playground/static/**", "packages/boxie/src/boxie/sandbox/capture_bins/COPYRIGHT.musl"]
 
 [default.extend-identifiers]
 # README section named after the buildins directory.

@@ -2,6 +2,10 @@
 !pyproject.toml
 !uv.lock
 !.python-version
+!LICENSE
+!infra/
+!infra/distribution/
+!infra/distribution/python_notices.py
 !packages/
 !packages/boxie/
 !packages/boxie/pyproject.toml

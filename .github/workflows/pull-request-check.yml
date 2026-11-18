@@ -198,6 +198,9 @@ jobs:
       - name: 🐘 Verify Playground PostgreSQL lifecycle
         working-directory: .
         run: uv run python tools/cli-playground/tests/run_integration.py
+      - name: 📦 Inspect notices in distribution images and wheels
+        working-directory: .
+        run: uv run --locked pytest -m integration infra/environments/single-host/tests/test_distribution_notices.py
       - name: 🎭 Run browser end-to-end tests
         working-directory: .
         run: uv run pytest -m integration tools/cli-playground/tests/test_browser.py

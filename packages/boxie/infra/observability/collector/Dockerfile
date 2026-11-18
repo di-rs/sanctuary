@@ -7,6 +7,13 @@ RUN apt-get update \
     && mkdir -p /var/lib/vector \
     && chown 65532:65532 /var/lib/vector
 COPY --from=vector /usr/bin/vector /usr/local/bin/vector
+COPY --from=vector /usr/share/doc/vector/copyright /usr/share/sanctuary/notices/vector/copyright
+COPY --from=vector /usr/share/vector/NOTICE /usr/share/vector/LICENSE-3rdparty.csv /usr/share/sanctuary/notices/vector/
+COPY --from=vector /usr/share/vector/licenses/ /usr/share/sanctuary/notices/vector/licenses/
+RUN test -s /usr/share/sanctuary/notices/vector/copyright \
+    && test -s /usr/share/sanctuary/notices/vector/NOTICE \
+    && test -s /usr/share/sanctuary/notices/vector/LICENSE-3rdparty.csv \
+    && test -s /usr/share/sanctuary/notices/vector/licenses/MPL-2.0
 USER 65532:65532
 ENTRYPOINT ["/usr/local/bin/vector"]
 CMD ["--config", "/etc/vector/vector.yaml"]

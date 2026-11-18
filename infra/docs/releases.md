@@ -40,6 +40,38 @@ Builds can run before production activation; deployments still require
 `DEPLOYMENT_ACCEPTANCE_PASSED`. Pushes do not
 trigger releases.
 
+## Verify distribution notices before publishing
+
+Inspect the final Linux amd64 images before starting a release or setup run.
+Those workflows can publish images before deployment is approved. Build and
+inspect the three images with application notice bundles from the repository root.
+
+```sh
+uv run --locked pytest infra/environments/single-host/tests/test_distribution_notices.py \
+  -m integration -k release_container_notices
+```
+
+| Image or package | Where to inspect notices |
+| --- | --- |
+| Boxie and cli-playground images | `/usr/share/sanctuary/notices` contains the installed Python package inventory, wheel notices, CPython license and OS package index. Boxie also includes the capture executable notices. The playground includes the Vite report and Tailwind CSS license from its built static assets. |
+| Collector image | `/usr/share/sanctuary/notices/vector` contains the notice, copyright, dependency list and license texts from the same upstream image as the shipped Vector executable. |
+| All four images, including the sandbox | `/usr/share/doc/<package>/copyright` and `/usr/share/common-licenses` contain the Debian or Ubuntu package notices. In the sandbox, run `dpkg-query -W` to identify the installed packages and versions. |
+| Locally built service wheels | Open the wheel as a ZIP. Boxie's capture notices sit beside both executables under `boxie/sandbox/capture_bins/`. Build the frontend before building the playground wheel, then inspect `cli_playground/static/` for `licenses.md` and `tailwindcss.LICENSE`. |
+
+For a dependency update, compare two clean builds using the same resolved base
+digests, OS package versions and lockfiles. Compare the paths and file contents
+in the notice bundles. For a missing notice, check the exact target wheel or
+upstream image and restore the upstream text for the version that ships. Review
+native libraries embedded inside wheels against their upstream build inventories
+and upstream license texts before distribution. The included wheel metadata and
+SBOMs are starting points for that review.
+
+The preview ZIP accepts executables and the optional command catalog. Resolve the
+separate location for Rust notices with the preview publisher before distributing
+an affected build. Follow the remaining distribution gates in [issue #201](https://github.com/di-rs/sanctuary/issues/201).
+The repository keeps the existing [Shish notices](../../packages/shish/THIRD-PARTY-NOTICES.md)
+and [Cargo license policy](../../deny.toml).
+
 ## Inspect a failed release
 
 An unsuccessful SSH or Compose command fails the Actions run. On the host, inspect

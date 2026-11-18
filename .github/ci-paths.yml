@@ -45,6 +45,11 @@ frontend:
   - 'uv.lock'
   - '.python-version'
   - 'conftest.py'
+  - 'LICENSE'
+  - 'infra/distribution/**'
+  - 'infra/environments/single-host/tests/test_distribution_notices.py'
+  - 'packages/boxie/infra/Boxie.Dockerfile*'
+  - 'packages/boxie/infra/observability/collector/**'
 
 # Link checks and repository policy remain independent of these filters:
 # deleting any linked file or changing benchmark data must still be checked.

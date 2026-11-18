@@ -1,7 +1,7 @@
 FROM ghcr.io/voidzero-dev/vite-plus:1.7.0 AS frontend
 WORKDIR /frontend
 COPY --chown=vp:vp tools/cli-playground/frontend/package.json tools/cli-playground/frontend/pnpm-lock.yaml tools/cli-playground/frontend/pnpm-workspace.yaml tools/cli-playground/frontend/.node-version ./
-RUN vp install
+RUN vp install --frozen-lockfile
 COPY --chown=vp:vp tools/cli-playground/frontend/ ./
 RUN vp build --outDir /frontend/dist
 
@@ -19,6 +19,9 @@ FROM python:3.15-slim
 WORKDIR /app
 COPY --from=build /app/.venv /app/.venv
 COPY tools/cli-playground/alembic.ini /app/alembic.ini
+RUN --network=none --mount=type=bind,source=infra/distribution/python_notices.py,target=/tmp/python_notices.py \
+    --mount=type=bind,source=LICENSE,target=/tmp/Sanctuary.LICENSE \
+    /app/.venv/bin/python -IS /tmp/python_notices.py cli-playground /tmp/Sanctuary.LICENSE /usr/share/sanctuary/notices
 ENV PATH="/app/.venv/bin:$PATH"
 EXPOSE 8000
 CMD ["uvicorn", "cli_playground.app:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--ws-max-size", "65536", "--no-proxy-headers"]
