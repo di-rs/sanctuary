@@ -65,9 +65,12 @@ is a known difference from strict shell compatibility.
 Use `--bash` for completion specifications and history commands. The current
 history adapter supports `history -r [file]`, `-w [file]`, and `-a [file]` with
 paths relative to the shell directory. Use `./` for history filenames beginning
-with a dash. Automatic exit saving appends even when `histappend` is unset; use `history -w && unset HISTFILE` before exit when
-you need replacement. History is a plaintext convenience, not a durable execution
-record, and can contain command-line secrets. Keep its location private.
+with a dash. Automatic exit saving appends even when `histappend` is unset. For
+replacement, run `history -w && unset HISTFILE` before exiting.
+
+New history files use mode `0600`, subject to your `umask`. Existing files keep
+their permissions. History stores command lines in plaintext and can contain
+secrets, so keep the history location private.
 
 ## Compatibility and further reading
 

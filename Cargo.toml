@@ -1,7 +1,11 @@
 [workspace]
 resolver = "3"
 members = ["packages/*", "utils/*", "utils/cli-schema/macros", "buildins/*", "tools/cli-testing", "tools/cli-testing/macros"]
-exclude = ["packages/boxie"]
+exclude = ["packages/boxie", "packages/shish/vendor/brush-core"]
+
+[patch.crates-io]
+# Keep the history creation fix shared by Brush's builtins and interactive frontend.
+brush-core = { path = "packages/shish/vendor/brush-core" }
 
 [workspace.package]
 authors = ["Dima P <dimapm@pm.me>"]

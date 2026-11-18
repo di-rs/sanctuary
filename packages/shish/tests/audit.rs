@@ -1,5 +1,7 @@
 mod support;
 
+use std::os::unix::fs::PermissionsExt as _;
+
 use assert_fs::prelude::*;
 use predicates::prelude::PredicateBooleanExt as _;
 use support::command;
@@ -1661,6 +1663,71 @@ fn history_conflicting_operations_keep_brush_validation() -> anyhow::Result<()> 
             .assert(predicates::str::contains("cannot be used with"));
         home.child("-a").assert(predicates::path::missing());
         home.child("-w").assert(predicates::path::missing());
+    }
+    Ok(())
+}
+
+#[test]
+fn history_builtin_creates_private_files() -> anyhow::Result<()> {
+    for (options, expected) in [("-w", "saved\n"), ("-a", "saved\n"), ("-cw", "")] {
+        let home = assert_fs::TempDir::new()?;
+        let mut terminal = support::pty::Pty::new(home.path(), &["--bash", "-i"], &[])?;
+        terminal.expect_line("shish-test> ")?;
+        terminal.send(&format!(
+            "unset HISTFILE; umask 000 && history -c && history -s saved && history {options} saved; exit $?\n"
+        ))?;
+        terminal.finish(0)?;
+        let saved = home.child("saved");
+        saved.assert(expected);
+        let mode = saved.metadata()?.permissions().mode() & 0o777;
+        anyhow::ensure!(mode == 0o600, "history {options} created mode {mode:04o}");
+    }
+    Ok(())
+}
+
+#[test]
+fn history_exit_creates_private_file() -> anyhow::Result<()> {
+    for input in ["exit 0\n", "\x04"] {
+        let home = assert_fs::TempDir::new()?;
+        let mut terminal = support::pty::Pty::new(home.path(), &["--bash", "-i"], &[])?;
+        terminal.expect_line("shish-test> ")?;
+        terminal.send("umask 000 && history -c && history -s saved && echo ready\n")?;
+        terminal.expect("\nready\n")?;
+        terminal.expect_line("shish-test> ")?;
+        terminal.send(input)?;
+        terminal.finish(0)?;
+        let saved = home.child("history");
+        saved.assert(predicates::str::starts_with("saved\n"));
+        let mode = saved.metadata()?.permissions().mode() & 0o777;
+        anyhow::ensure!(
+            mode == 0o600,
+            "{input:?} saved history with mode {mode:04o}"
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn history_writes_preserve_existing_file_mode() -> anyhow::Result<()> {
+    let home = assert_fs::TempDir::new()?;
+    for name in ["overwrite", "append", "history"] {
+        let file = home.child(name);
+        file.write_str("existing\n")?;
+        std::fs::set_permissions(file.path(), std::fs::Permissions::from_mode(0o700))?;
+    }
+    let mut terminal = support::pty::Pty::new(home.path(), &["--bash", "-i"], &[])?;
+    terminal.expect_line("shish-test> ")?;
+    terminal.send("umask 000 && history -c && history -s first && history -w overwrite && history -a append && history -s second; exit $?\n")?;
+    terminal.finish(0)?;
+    for (name, expected) in [
+        ("overwrite", "first\n"),
+        ("append", "existing\nfirst\n"),
+        ("history", "existing\nsecond\n"),
+    ] {
+        let file = home.child(name);
+        file.assert(expected);
+        let mode = file.metadata()?.permissions().mode() & 0o777;
+        anyhow::ensure!(mode == 0o700, "{name} changed to mode {mode:04o}");
     }
     Ok(())
 }

@@ -4,6 +4,13 @@ These notices accompany the specific dependencies accepted in the repository
 license policy. They supplement the licenses distributed with the crates; they
 do not replace the root Cargo lockfile or a complete dependency inventory.
 
+## brush-core 0.5.0 (MIT)
+
+Shish carries a patched copy of the published crate. Its
+[original license](vendor/brush-core/LICENSE) includes Reuben Olinsky's
+copyright notice. The [source record](vendor/brush-core/README.md) identifies
+the original archive and the local change.
+
 ## check_elevation 0.2.7 (BSD-2-Clause)
 
 ```text

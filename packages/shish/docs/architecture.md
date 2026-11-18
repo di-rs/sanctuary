@@ -33,10 +33,15 @@ process termination.
 
 ## Dependencies and origin
 
-Dependencies use published releases recorded in the workspace lockfile. Known
-limitations live in [known gaps](compatibility-gaps.md); test evidence lives in the
-[compatibility reference](compatibility.md). See the [README](../README.md) for
-invocation, startup behavior, and the current compatibility promise.
+Dependencies are recorded in the workspace lockfile. Shish carries a
+[patch to Brush core 0.5.0](../vendor/brush-core/src/history.rs) at the single
+file writer shared by explicit history commands, editor sync, and interactive
+exit. Remove the local copy when a published release creates history files with
+owner-only permissions.
+
+Known limitations live in [known gaps](compatibility-gaps.md). Test evidence
+lives in the [compatibility reference](compatibility.md). See the
+[README](../README.md) for invocation, startup behavior, and compatibility.
 
 The initial shell was imported from
 [di-rs/shish](https://github.com/di-rs/shish/tree/46c41468d4105a238c439aa68b4ff0e3248a964e).

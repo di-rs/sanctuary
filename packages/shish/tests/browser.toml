@@ -15,3 +15,9 @@ after = "ls -a"
 [[cases]]
 name = "foreground-child"
 args = ["-i", "-c", "sleep 1 && /bin/echo foreground child finished"]
+
+[[cases]]
+name = "private-history"
+setup = "umask 000; export HISTFILE=\"$PWD/demo.history\""
+args = ["--bash", "-i", "-c", "history -s 'echo sample'; history -w written.history && history -a appended.history"]
+after = "stat -c '%a %n' written.history appended.history"
