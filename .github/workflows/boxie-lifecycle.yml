@@ -22,7 +22,7 @@ concurrency:
 jobs:
   sandbox:
     if: ${{ (github.event.action != 'labeled' || github.event.label.name == 'run-ci') && (!github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'run-ci')) }}
-    name: 🧪 Verify PostgreSQL and Temporal lifecycle
+    name: 🧪 Verify PostgreSQL and Temporal lifecycle${{ github.event.action == 'labeled' && github.event.label.name != 'run-ci' && ' (label metadata only)' || '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     env:

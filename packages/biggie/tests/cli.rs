@@ -9,12 +9,27 @@ use std::{
 #[cfg(unix)]
 #[cli_testing::cli_test]
 fn readme_example(cx: &cli_testing::TestContext) -> Result<()> {
+    let readme = include_str!("../README.md").replace("\r\n", "\n");
+    let stdout = readme
+        .split_once("<!-- cli-example -->\n")
+        .and_then(|(_, example)| example.split_once("\n```\n"))
+        .and_then(|(_, after_command)| {
+            after_command
+                .trim_start_matches('\n')
+                .strip_prefix("```text\n")
+        })
+        .and_then(|block| {
+            block
+                .split_once("\n```\n")
+                .map(|(lines, _)| format!("{lines}\n"))
+        })
+        .ok_or("packages/biggie/README.md: expected a fenced text output after the example")?;
     let workspace = cx.workspace()?;
     workspace
         .readme_cmd()?
         .assert()
         .code(0)
-        .stdout("apple\napple\npear\npear\n")
+        .stdout(stdout)
         .stderr("");
     if workspace.path().read_dir()?.next().is_some() {
         return Err("stdout example created files in the workspace".into());

@@ -26,7 +26,7 @@ concurrency:
 
 jobs:
   select:
-    name: 🔎 Select CLIs with code changes
+    name: 🔎 Select CLIs with code changes${{ github.event.action == 'labeled' && github.event.label.name != 'run-ci' && ' (label metadata only)' || '' }}
     if: >-
       ${{
         (github.event.action != 'labeled' || github.event.label.name == 'run-ci') &&
@@ -80,7 +80,7 @@ jobs:
           if-no-files-found: error
 
   suites:
-    name: ⏱️ Run CLI benchmarks (${{ matrix.os }})
+    name: ⏱️ Run CLI benchmarks (${{ matrix.os }})${{ github.event.action == 'labeled' && github.event.label.name != 'run-ci' && ' (label metadata only)' || '' }}
     needs: select
     if: needs.select.outputs.suites != '[]'
     strategy:

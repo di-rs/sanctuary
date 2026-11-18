@@ -62,7 +62,7 @@ jobs:
         (github.event.action != 'labeled' || github.event.label.name == 'run-ci') &&
         (!github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'run-ci'))
       }}
-    name: 🦀 Rust formatting, linting and documentation
+    name: 🦀 Rust formatting, linting and documentation${{ github.event.action == 'labeled' && github.event.label.name != 'run-ci' && ' (label metadata only)' || '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -101,7 +101,7 @@ jobs:
         (github.event.action != 'labeled' || github.event.label.name == 'run-ci') &&
         (!github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'run-ci'))
       }}
-    name: 🐍 Python lint, types and tests (3.15)
+    name: 🐍 Python lint, types and tests (3.15)${{ github.event.action == 'labeled' && github.event.label.name != 'run-ci' && ' (label metadata only)' || '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -150,7 +150,7 @@ jobs:
         (github.event.action != 'labeled' || github.event.label.name == 'run-ci') &&
         (!github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'run-ci'))
       }}
-    name: 🎨 Frontend checks, builds and browser tests
+    name: 🎨 Frontend checks, builds and browser tests${{ github.event.action == 'labeled' && github.event.label.name != 'run-ci' && ' (label metadata only)' || '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     defaults:
@@ -213,7 +213,7 @@ jobs:
         (github.event.action != 'labeled' || github.event.label.name == 'run-ci') &&
         (!github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'run-ci'))
       }}
-    name: 🧪 Rust tests and doctests (${{ matrix.platform }})
+    name: 🧪 Rust tests and doctests (${{ matrix.platform }})${{ github.event.action == 'labeled' && github.event.label.name != 'run-ci' && ' (label metadata only)' || '' }}
     strategy:
       fail-fast: false
       matrix:
@@ -221,7 +221,7 @@ jobs:
           - platform: linux
             os: ubuntu-24.04
           - platform: macos
-            os: macos-15-intel
+            os: macos-15
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     env:
@@ -274,7 +274,7 @@ jobs:
         (github.event.action != 'labeled' || github.event.label.name == 'run-ci') &&
         (!github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'run-ci'))
       }}
-    name: 📦 Rust package and feature compatibility
+    name: 📦 Rust package and feature compatibility${{ github.event.action == 'labeled' && github.event.label.name != 'run-ci' && ' (label metadata only)' || '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -310,7 +310,7 @@ jobs:
         (github.event.action != 'labeled' || github.event.label.name == 'run-ci') &&
         (!github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'run-ci'))
       }}
-    name: 📚 Documentation links
+    name: 📚 Documentation links${{ github.event.action == 'labeled' && github.event.label.name != 'run-ci' && ' (label metadata only)' || '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -354,7 +354,7 @@ jobs:
         (github.event.action != 'labeled' || github.event.label.name == 'run-ci') &&
         (!github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'run-ci'))
       }}
-    name: 📦 Dependency vulnerabilities and license policy
+    name: 📦 Dependency vulnerabilities and license policy${{ github.event.action == 'labeled' && github.event.label.name != 'run-ci' && ' (label metadata only)' || '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -382,7 +382,7 @@ jobs:
         (github.event.action != 'labeled' || github.event.label.name == 'run-ci') &&
         (!github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'run-ci'))
       }}
-    name: 🛡️ Workflow syntax and security
+    name: 🛡️ Workflow syntax and security${{ github.event.action == 'labeled' && github.event.label.name != 'run-ci' && ' (label metadata only)' || '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -414,7 +414,7 @@ jobs:
         (github.event.action != 'labeled' || github.event.label.name == 'run-ci') &&
         (!github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'run-ci'))
       }}
-    name: 🔐 Repository secret scanning
+    name: 🔐 Repository secret scanning${{ github.event.action == 'labeled' && github.event.label.name != 'run-ci' && ' (label metadata only)' || '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -434,7 +434,7 @@ jobs:
           GITLEAKS_ENABLE_COMMENTS: 'false'
 
   repository-policy:
-    name: Repository file and CLI policy
+    name: Repository file and CLI policy${{ github.event.action == 'labeled' && github.event.label.name != 'run-ci' && ' (label metadata only)' || '' }}
     if: >-
       ${{
         (github.event.action != 'labeled' || github.event.label.name == 'run-ci') &&
@@ -457,7 +457,6 @@ jobs:
       - run: uv run --frozen cli-check
 
   validation:
-    # Keep skipped label-only runs distinct from the required check context.
     name: Sanctuary validation${{ github.event.action == 'labeled' && github.event.label.name != 'run-ci' && ' (label metadata only)' || '' }}
     if: >-
       ${{ always() && (github.event.action != 'labeled' || github.event.label.name == 'run-ci') &&
