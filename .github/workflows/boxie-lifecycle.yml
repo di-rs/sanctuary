@@ -10,6 +10,8 @@ on:
       - 'pyproject.toml'
       - 'uv.lock'
       - '.python-version'
+      - 'LICENSE'
+      - 'infra/distribution/python_notices.py'
   workflow_dispatch:
 
 permissions:
@@ -64,7 +66,12 @@ jobs:
         run: |
           context=$(mktemp -d "$RUNNER_TEMP/boxie-context.XXXXXX")
           trap 'rm -rf -- "$context"' EXIT
-          git archive HEAD pyproject.toml uv.lock .python-version packages/boxie | tar -x -C "$context"
+          inputs=(pyproject.toml uv.lock .python-version LICENSE packages/boxie)
+          notice_tool=infra/distribution/python_notices.py
+          if git cat-file -e "HEAD:$notice_tool" 2>/dev/null; then
+            inputs+=("$notice_tool")
+          fi
+          git archive HEAD "${inputs[@]}" | tar -x -C "$context"
           docker build -f "$context/packages/boxie/infra/Boxie.Dockerfile" -t boxie:lifecycle "$context"
           cd "$context"
           # Use the validated root lock without resolving workspace members omitted from this tree.
