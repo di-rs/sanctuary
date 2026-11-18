@@ -10,7 +10,6 @@ import shutil
 import subprocess
 import tarfile
 import tempfile
-import urllib.error
 import urllib.parse
 import urllib.request
 from collections.abc import Iterator
@@ -293,7 +292,7 @@ def post_ping(path: Path, *, failure: bool, body: bytes = b"") -> None:
     try:
         with opener.open(request, timeout=15) as response:
             required(response.status == 200, "monitor rejected the ping")
-    except urllib.error.URLError, TimeoutError:
+    except OSError:
         raise RecoveryError("monitor ping failed") from None
 
 
@@ -446,6 +445,15 @@ def main() -> None:
     command.add_argument("--ping-file", type=Path, required=True)
 
     args = parser.parse_args()
+    invalid_input_errors = (
+        OSError,
+        tarfile.TarError,
+        ValueError,
+        IndexError,
+        KeyError,
+        TypeError,
+        AttributeError,
+    )
     try:
         match args.command:
             case "capture":
@@ -462,7 +470,7 @@ def main() -> None:
                 post_ping(args.ping_file, failure=True)
     except RecoveryError as error:
         parser.exit(1, f"boxie recovery: {error}\n")
-    except OSError, tarfile.TarError, ValueError, IndexError, KeyError, TypeError, AttributeError:
+    except invalid_input_errors:
         parser.exit(1, "boxie recovery: invalid or unavailable recovery input\n")
 
 

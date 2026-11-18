@@ -1,4 +1,5 @@
 import argparse
+import ast
 import json
 import os
 import tarfile
@@ -10,6 +11,11 @@ from uuid import uuid4
 import pytest
 from boxie.sandbox.execution.ownership import acquire_owner_lock
 from boxie_infra import recovery
+
+
+def test_operator_tool_parses_on_python_312() -> None:
+    assert recovery.__file__ is not None
+    ast.parse(Path(recovery.__file__).read_text(), feature_version=(3, 12))
 
 
 def test_running_supervisor_prevents_capture(tmp_path: Path) -> None:
