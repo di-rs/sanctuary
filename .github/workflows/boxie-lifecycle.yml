@@ -11,7 +11,7 @@ on:
       - 'uv.lock'
       - '.python-version'
       - 'LICENSE'
-      - 'infra/distribution/python_notices.py'
+      - 'infra/distribution/**'
   workflow_dispatch:
 
 permissions:
@@ -67,9 +67,9 @@ jobs:
           context=$(mktemp -d "$RUNNER_TEMP/boxie-context.XXXXXX")
           trap 'rm -rf -- "$context"' EXIT
           inputs=(pyproject.toml uv.lock .python-version LICENSE packages/boxie)
-          notice_tool=infra/distribution/python_notices.py
-          if git cat-file -e "HEAD:$notice_tool" 2>/dev/null; then
-            inputs+=("$notice_tool")
+          notice_dir=infra/distribution
+          if [[ $(git cat-file -t "HEAD:$notice_dir" 2>/dev/null) == tree ]]; then
+            inputs+=("$notice_dir")
           fi
           git archive HEAD "${inputs[@]}" | tar -x -C "$context"
           docker build -f "$context/packages/boxie/infra/Boxie.Dockerfile" -t boxie:lifecycle "$context"
