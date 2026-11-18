@@ -165,8 +165,8 @@ See the [API examples](src/lib.rs) and operation-module doctests.
 
 ## Install, preview, and consume metadata
 
-From the repository root, `make install-rust` installs Biggie, Parsu, and Kara in
-`~/.local/bin`; add it to `PATH`. Biggie runs locally without auth or network access.
+Run `make install-rust` from the repository root and add `~/.local/bin` to
+`PATH` to use `biggie` from any directory. Biggie runs locally without auth or network access.
 
 ```sh
 biggie --json --dry-run records --record apple --repeat 2 output.txt

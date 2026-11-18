@@ -101,8 +101,9 @@ service API. The [command index](#commands) includes the Rust applications.
 
 The [architecture overview](docs/architecture.md) explains how commands, the playground,
 and Boxie fit together. The [platform direction](docs/platform-direction.md)
-describes the durable-shell north star and open design questions. The
-[threat model](docs/thread-model.md) describes security boundaries.
+covers the goal of durable shell execution. Maintainers can pick up the next
+task from the [cleanup plan](docs/cleanup-plan.md). The [threat model](docs/thread-model.md)
+describes security boundaries.
 
 To inspect production dashboards and workflows from local Codex Desktop or CLI,
 see [Debug production with Codex and MCP](docs/production-mcp.md).
@@ -114,12 +115,6 @@ see [Debug production with Codex and MCP](docs/production-mcp.md).
 | `utils/`    | Shared Rust libraries                                 |
 | `tools/`    | Repository checks, benchmarks, and browser playground |
 | `infra/`    | Host provisioning and service composition             |
-
-## Try the browser playground
-
-Open a pull request's playground link to try its commands without building them
-locally. The [playground guide](tools/cli-playground/README.md#use-a-preview)
-explains sessions, sample files, and switching builds.
 
 ## Make a change
 

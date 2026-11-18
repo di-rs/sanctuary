@@ -32,9 +32,11 @@ not make shell processes or terminal sessions resumable after a supervisor resta
 The playground connects directly to that API, uploads preview binaries, and owns
 its own preview and browser-session metadata.
 
-The [current architecture](architecture.md) describes these implemented boundaries.
-The target platform does not change today's operating requirements or imply that
-the planned management services are available.
+The next platform work is to finish the fixed sandbox environment and define how
+a consumer cancels an accepted job. Production recovery needs a fresh-host restore
+drill. The [cleanup plan](cleanup-plan.md) orders this work alongside the release
+gates and the investigations into dispatch and admission ownership.
+The [current architecture](architecture.md) maps the running components.
 
 ## Compatibility and product priorities
 
@@ -71,10 +73,12 @@ claim.
 
 ## Shell recovery limits
 
-Shish runs locally; Boxie's approved sandbox profiles run Bash. Boxie's Temporal
-workers coordinate sandbox lifecycle operations, not durable shell commands.
-Restarting the supervisor ends terminal processes. Reconnecting to a surviving
-process does not restore a lost process or its shell state.
+Shish runs locally. Boxie's default interactive environment runs Bash, and a
+supervisor restart ends terminal processes. If the same host retains its PostgreSQL
+data and supervisor volume, a consumer can retrieve a noninteractive job's outcome
+by ID after a supervisor restart.
+Once Boxie has authorized a start, a missing completion record can leave the outcome
+unknown. Boxie will not launch the command a second time to resolve that uncertainty.
 
 Shell history and syntax trees do not provide execution checkpoints. A command
 can change files or external systems before its result is lost; rerunning it can
