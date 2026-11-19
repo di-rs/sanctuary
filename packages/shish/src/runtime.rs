@@ -9,21 +9,16 @@ use std::sync::Arc;
 use brush_core::{ExecutionControlFlow, Shell, ShellVariable, SourceInfo};
 use brush_interactive::{InteractiveOptions, InteractiveShell, ReedlineInputBackend, UIOptions};
 
-use crate::Args;
+use crate::{Args, Input};
 
-pub async fn run(args: &Args) -> anyhow::Result<u8> {
-    let from_stdin = args.command.is_none() && args.script().is_none();
-    let interactive = args.is_interactive();
+pub async fn run(args: &Args, input: Input<'_>) -> anyhow::Result<u8> {
+    let from_stdin = matches!(input, Input::Stdin);
+    let interactive =
+        args.interactive || (from_stdin && io::stdin().is_terminal() && io::stderr().is_terminal());
     let interactive_terminal = interactive && io::stdin().is_terminal();
-    let shell_name = if args.stdin {
-        "shish"
-    } else {
-        args.operands.first().map_or("shish", String::as_str)
-    };
-    let shell_args = if args.stdin {
-        args.operands.clone()
-    } else {
-        args.operands.iter().skip(1).cloned().collect()
+    let (shell_name, shell_args) = match args.operands.as_slice() {
+        [name, operands @ ..] if !from_stdin => (name.as_str(), operands),
+        operands => ("shish", operands),
     };
     // Use an unbuffered descriptor for builtins too: Rust's shared stdin buffer
     // must not consume bytes intended for the next shell command.
@@ -43,11 +38,11 @@ pub async fn run(args: &Args) -> anyhow::Result<u8> {
             brush_core::builtins::simple_builtin::<crate::builtins::Status<false>, _>(),
         )
         .shell_name(shell_name.to_owned())
-        .shell_args(shell_args)
+        .shell_args(shell_args.to_vec())
         .shell_product_display_str(format!("shish {}", env!("CARGO_PKG_VERSION")))
         .interactive(interactive)
         .read_commands_from_stdin(from_stdin)
-        .command_string_mode(args.command.is_some())
+        .command_string_mode(matches!(input, Input::Command(_)))
         .sh_mode(!args.bash)
         .posix(!args.bash)
         .profile(brush_core::ProfileLoadBehavior::Skip)
@@ -65,30 +60,28 @@ pub async fn run(args: &Args) -> anyhow::Result<u8> {
     let _terminal = (interactive_terminal && !from_stdin)
         .then(brush_core::terminal::TerminalControl::acquire)
         .transpose()?;
-    if let Some(command) = &args.command {
-        return Ok(shell
-            .run_dash_c_command(command.clone())
+    match input {
+        Input::Command(command) => Ok(shell
+            .run_dash_c_command(command.to_owned())
             .await?
             .exit_code
-            .into());
-    }
-    if let Some(script) = args.script() {
-        return Ok(shell
-            .run_script(script, args.operands.iter().skip(1).cloned())
+            .into()),
+        Input::Script(script) => Ok(shell
+            .run_script(script, shell_args.iter().cloned())
             .await?
             .exit_code
-            .into());
+            .into()),
+        Input::Stdin if interactive_terminal => {
+            let shell = Arc::new(tokio::sync::Mutex::new(shell));
+            let options = UIOptions::default();
+            let mut backend = ReedlineInputBackend::new(&options, &shell)?;
+            InteractiveShell::new(&shell, &mut backend, &InteractiveOptions::from(&options))?
+                .run_interactively()
+                .await?;
+            Ok(shell.lock().await.last_exit_status())
+        }
+        Input::Stdin => run_stdin(&mut shell).await,
     }
-    if interactive_terminal {
-        let shell = Arc::new(tokio::sync::Mutex::new(shell));
-        let options = UIOptions::default();
-        let mut input = ReedlineInputBackend::new(&options, &shell)?;
-        InteractiveShell::new(&shell, &mut input, &InteractiveOptions::from(&options))?
-            .run_interactively()
-            .await?;
-        return Ok(shell.lock().await.last_exit_status());
-    }
-    run_stdin(&mut shell).await
 }
 
 async fn run_stdin(shell: &mut Shell) -> anyhow::Result<u8> {
