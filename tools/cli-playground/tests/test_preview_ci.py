@@ -168,7 +168,10 @@ def test_build_packages_only_affected_clis(tmp_path: Path, change: str) -> None:
     git_commit(tmp_path)
     script = tmp_path / "tools/cli-playground/preview_ci.py"
     script.parent.mkdir(parents=True)
-    shutil.copyfile(preview_ci.__file__, script)
+    source = Path(preview_ci.__file__)
+    shutil.copyfile(source, script)
+    shared = source.parents[1] / "github_publication.py"
+    shutil.copyfile(shared, script.parents[1] / shared.name)
     commands = tmp_path / "commands"
     commands.mkdir()
     cargo = commands / "cargo"

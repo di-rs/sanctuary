@@ -78,6 +78,8 @@ def python_packages(root: Path, paths: list[str], *, dependents: bool) -> list[s
     if PYTHON_CONFIG.intersection(paths):
         return sorted(directories)
     selected = {directory for path in paths if (directory := owner(path, directories)) is not None}
+    if "tools/github_publication.py" in paths:
+        selected.update({"tools/cli-bench", "tools/cli-playground"} & directories)
     if not dependents or not selected:
         return sorted(selected)
     dependencies: dict[str, set[str]] = {directory: set() for directory in directories}

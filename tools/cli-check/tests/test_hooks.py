@@ -158,6 +158,13 @@ def test_no_tests_directory_does_not_fall_back_to_bare_pytest(workspace: Path) -
     assert plan(workspace, "python-tests", "apps/api/tests/deleted.py") == []
 
 
+def test_shared_github_publication_checks_both_publisher_packages() -> None:
+    path = "tools/github_publication.py"
+    assert plan(ROOT, "mypy", path) == [
+        ["uv", "run", "mypy", "tools/cli-bench", "tools/cli-playground"]
+    ]
+
+
 def test_hook_config_passes_paths_and_serializes_package_checks() -> None:
     config = tomllib.loads((ROOT / "prek.toml").read_text())
     for repo in config["repos"]:
