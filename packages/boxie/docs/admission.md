@@ -42,11 +42,12 @@ flowchart LR
 The current API bootstraps PostgreSQL sessions, an authenticated supervisor
 client, and a lazy Temporal client. It uses Temporal for readiness, diagnostics
 and an optional one-second delivery attempt after the SQL operation returns.
-The supervisor already owns durable recovery. The [dispatch
-decision](https://github.com/di-rs/sanctuary/pull/353) under [issue
-#72](https://github.com/di-rs/sanctuary/issues/72) keeps the API attempt until
-the supervisor meets the delivery latency and readiness gates. The admission
-transaction and SQL reads work with either delivery path. See the
+The supervisor already owns durable recovery. The dispatch investigation
+keeps the API attempt until the supervisor meets the delivery latency and
+readiness gates. The admission transaction and SQL reads work with either
+delivery path. See the
+[dispatch decision](https://github.com/di-rs/sanctuary/pull/353),
+[issue #72](https://github.com/di-rs/sanctuary/issues/72),
 [API wiring](../src/boxie/bootstrap/api.py) and
 [outbox dispatcher](../src/boxie/temporal/dispatcher.py).
 
