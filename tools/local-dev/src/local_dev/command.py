@@ -128,7 +128,13 @@ def run_action(args: argparse.Namespace, stack: Stack, boxie: Boxie | None) -> N
         case "down":
             # The external manifest includes the credential volume and resolves
             # even when the full deployment's Boxie network no longer exists.
-            target = playground(stack.root, "external", None) if stack is not boxie else None
+            target = None
+            if stack is not boxie:
+                target = (
+                    playground(stack.root, "external", None)
+                    if (stack.root / PLAYGROUND / "compose.boxie.dev.yml").is_file()
+                    else Stack(stack.root)
+                )
             if boxie is not None:
                 boxie.down(playground=target)
             elif target is not None:
