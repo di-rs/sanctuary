@@ -141,6 +141,7 @@ def test_native_application_and_browser(tmp_path: Path) -> None:
         stack.close()
 
 
+@pytest.mark.integration
 def test_local_deploy_browser_and_worktree_teardown(tmp_path: Path) -> None:
     """Use the public launcher for both projects and exercise an external URL."""
     binary = Path(os.environ.get("BOXIE_NATIVE_BINARY", ROOT / "target/release/echor"))
