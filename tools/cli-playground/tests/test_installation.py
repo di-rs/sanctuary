@@ -64,8 +64,22 @@ def test_owner_settings_use_private_credentials_and_preserve_profiles(
     assert token.stat().st_mode & 0o077 == 0
     assert (credentials / "profiles.json").read_bytes() == profiles_before
     first_token = token.read_bytes()
+    password = token.with_name("postgres-password")
+    first_password = password.read_text()
+    database_url = token.with_name("database-url.secret")
+    stale_target = tmp_path / "stale-database-url"
+    stale_target.write_text("keep")
+    database_url.unlink()
+    database_url.symlink_to(stale_target)
     render_product(tmp_path)
     assert token.read_bytes() == first_token
+    assert password.read_text() == first_password
+    assert not database_url.is_symlink()
+    assert database_url.stat().st_mode & 0o777 == 0o600
+    assert database_url.read_text() == (
+        f"postgresql+psycopg://cli_playground:{first_password.strip()}@postgres/cli_playground\n"
+    )
+    assert stale_target.read_text() == "keep"
     assert (credentials / "consumer.secret").read_bytes() == before
     assert not (tmp_path / "boxie.env").exists()
     assert json.loads((credentials / "profiles.json").read_text())["cli-playground"][
@@ -109,3 +123,25 @@ def test_preview_token_rejects_invalid_existing_credential(tmp_path: Path, inval
     with pytest.raises(ValueError, match="Preview credential"):
         render_product(tmp_path)
     assert not (tmp_path / "cli-playground.env").exists()
+
+
+@pytest.mark.parametrize(
+    ("contents", "mode", "message"),
+    [
+        ("a" * 64, 0o644, "PostgreSQL credential must be a private regular file"),
+        ("A" * 64, 0o600, "Invalid Playground PostgreSQL password"),
+    ],
+)
+def test_invalid_database_password_keeps_existing_url(
+    tmp_path: Path, contents: str, mode: int, message: str
+) -> None:
+    product = tmp_path / "cli-playground"
+    product.mkdir(mode=0o700)
+    password = product / "postgres-password"
+    password.write_text(contents)
+    password.chmod(mode)
+    database_url = product / "database-url.secret"
+    database_url.write_text("existing")
+    with pytest.raises(ValueError, match=message):
+        render_product(tmp_path)
+    assert database_url.read_text() == "existing"
