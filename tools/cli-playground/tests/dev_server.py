@@ -11,11 +11,15 @@ import shutil
 import signal
 import struct
 import subprocess
+import sys
 import tempfile
 import termios
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
+from urllib.error import HTTPError
+from urllib.request import Request as ClientRequest
+from urllib.request import urlopen
 from uuid import uuid4
 
 import psycopg
@@ -27,23 +31,86 @@ from cli_playground.boxie_client import HttpBoxieClient
 from cli_playground.catalog import Catalog, CliCatalog
 from cli_playground.catalog_build import capture_schema
 from cli_playground.config import Settings
-from fastapi import FastAPI
+from cli_playground.database import connection
+from cli_playground.service import CliPlaygroundService
+from cli_playground.storage import EnvironmentStore
+from cli_playground.tables import Preview
+from fastapi import FastAPI, Request
 from fastapi.responses import PlainTextResponse, RedirectResponse
 from psycopg import sql
 from psycopg.conninfo import conninfo_to_dict, make_conninfo
 from sqlalchemy import URL
+from sqlmodel import col, select
 from starlette.datastructures import Headers
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from .boxie_network import boxie_network
 from .helpers import binary_bundle, migrate
 
+DRAIN_PATH = "/_local/drain"
+
+
+class PreviewDrain:
+    """Close the previews listed in this gateway's own disposable database."""
+
+    def __init__(self) -> None:
+        self.closing = False
+        self.complete = False
+        self.writers = 0
+        self.idle = asyncio.Event()
+        self.idle.set()
+        self.lock = asyncio.Lock()
+
+    async def close(
+        self, service: CliPlaygroundService, store: EnvironmentStore, *, seconds: float = 30
+    ) -> str | None:
+        async with self.lock:
+            if self.complete:
+                return None
+            self.closing = True
+            pending = "preview cleanup has not been acknowledged"
+            try:
+                async with asyncio.timeout(seconds):
+                    await self.idle.wait()
+                    async with service.uploads:
+                        async with connection(store.sessions) as session:
+                            previews = list(
+                                await session.exec(
+                                    select(Preview.pr).where(col(Preview.closed).is_(False))
+                                )
+                            )
+                        for pr in previews:
+                            await service.store.close_pull_request(pr)
+                        while True:
+                            await service.recover()
+                            counts = {
+                                "stop acknowledgements": len(
+                                    await service.sessions.pending_stops()
+                                ),
+                                "artifact retirements": len(await service.sessions.retirements()),
+                                "sandbox admissions": len(await service.sessions.creates()),
+                                "artifact uploads": len(await service.sessions.uploads()),
+                            }
+                            outstanding = ", ".join(
+                                f"{count} {operation}"
+                                for operation, count in counts.items()
+                                if count
+                            )
+                            if not outstanding:
+                                self.complete = True
+                                return None
+                            pending = f"Boxie cleanup remains pending ({outstanding})"
+                            await asyncio.sleep(0.5)
+            except TimeoutError:
+                return pending
+
 
 class LocalPublishedPort:
     """Translate Docker's loopback authority only in the disposable dev runtime."""
 
-    def __init__(self, app: ASGIApp) -> None:
+    def __init__(self, app: ASGIApp, drain: PreviewDrain | None = None) -> None:
         self.app = app
+        self.drain = drain
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] not in {"http", "websocket"}:
@@ -72,7 +139,27 @@ class LocalPublishedPort:
             else (key, value)
             for key, value in scope["headers"]
         ]
-        await self.app(scope, receive, send)
+        drain = self.drain
+        writer = scope["type"] == "http" and scope["method"] not in {"GET", "HEAD", "OPTIONS"}
+        if drain is None or scope["path"] == DRAIN_PATH:
+            await self.app(scope, receive, send)
+        elif drain.closing and scope["type"] == "websocket":
+            await send({"type": "websocket.close", "code": 1013})
+        elif drain.closing and writer:
+            await PlainTextResponse("Playground is shutting down", status_code=503)(
+                scope, receive, send
+            )
+        elif writer:
+            drain.writers += 1
+            drain.idle.clear()
+            try:
+                await self.app(scope, receive, send)
+            finally:
+                drain.writers -= 1
+                if not drain.writers:
+                    drain.idle.set()
+        else:
+            await self.app(scope, receive, send)
 
 
 def controlling_terminal() -> None:
@@ -193,10 +280,10 @@ class LocalDaemon(EchoDaemon):
             await stream.close()
 
 
-def catalog_bundle(binaries: Path) -> tuple[str, bytes, int]:
+def catalog_bundle(binaries: Path, generation: str = "") -> tuple[str, bytes, int]:
     files = {path.name: path.read_bytes() for path in sorted(binaries.iterdir()) if path.is_file()}
     digests = {name: hashlib.sha256(data).hexdigest() for name, data in files.items()}
-    revision = hashlib.sha256(repr(digests).encode()).hexdigest()[:40]
+    revision = hashlib.sha256((generation + repr(digests)).encode()).hexdigest()[:40]
     print(f"[dev] Exporting command catalogs from {len(files)} CLI binaries", flush=True)
     catalog = Catalog(
         schema_version=1,
@@ -216,8 +303,12 @@ def catalog_bundle(binaries: Path) -> tuple[str, bytes, int]:
     return revision, binary_bundle(files | {"catalog.json": catalog.canonical()}), len(files)
 
 
-async def serve_preview(root: Path, api_url: str, boxie: HttpBoxieClient | None) -> None:
-    revision, bundle, count = catalog_bundle(Path("/opt/artifact"))
+async def serve_preview(
+    root: Path, data: Path, api_url: str, boxie: HttpBoxieClient | None
+) -> None:
+    revision, bundle, count = catalog_bundle(
+        Path("/opt/artifact"), uuid4().hex if boxie is None else ""
+    )
     token = secrets.token_hex(24)
     # The native test can read this via Compose exec. It is never in a public
     # response, a Compose environment variable, or the Docker build context.
@@ -225,23 +316,40 @@ async def serve_preview(root: Path, api_url: str, boxie: HttpBoxieClient | None)
     with os.fdopen(os.open(token_file, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "w") as file:
         file.write(token)
     settings = Settings(
-        data_dir=root / "product",
+        data_dir=data,
         public_url="http://127.0.0.1:8765",
         deploy_token=token,
         boxie_url=api_url,
         boxie_credential_file=Path("/run/boxie/consumer"),
     )
     app = create_app(settings, boxie=boxie)
-    app.add_middleware(LocalPublishedPort)
-    service = app.state.service
+    drain = PreviewDrain()
+    app.add_middleware(LocalPublishedPort, drain=drain if boxie is None else None)
+    service: CliPlaygroundService = app.state.service
+    store: EnvironmentStore = app.state.store
     product_lifespan = app.router.lifespan_context
 
     async def chunks() -> AsyncIterator[bytes]:
         yield bundle
 
+    @app.post(DRAIN_PATH)
+    async def close_previews(request: Request) -> PlainTextResponse:
+        if (
+            boxie is not None
+            or request.client is None
+            or request.client.host != "127.0.0.1"
+            or not secrets.compare_digest(
+                request.headers.get("authorization", ""), f"Bearer {token}"
+            )
+        ):
+            return PlainTextResponse("Not found", status_code=404)
+        pending = await drain.close(service, store)
+        return PlainTextResponse(pending or "", status_code=503 if pending else 200)
+
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         async with product_lifespan(app):
+            await service.reopen_pull_request(1)
             preview = await service.deploy(chunks(), revision, 1)
 
             @app.get("/")
@@ -253,8 +361,8 @@ async def serve_preview(root: Path, api_url: str, boxie: HttpBoxieClient | None)
             try:
                 yield
             finally:
-                async with asyncio.timeout(10):
-                    await service.close_pull_request(1)
+                if boxie is None and (pending := await drain.close(service, store, seconds=8)):
+                    print(f"[dev] {pending}", flush=True)
 
     app.router.lifespan_context = lifespan
     server = uvicorn.Server(
@@ -262,6 +370,7 @@ async def serve_preview(root: Path, api_url: str, boxie: HttpBoxieClient | None)
             app,
             host="0.0.0.0",
             port=8765,
+            proxy_headers=False,
             ws="websockets-sansio",
             access_log=False,
             timeout_graceful_shutdown=5,
@@ -284,22 +393,28 @@ async def serve_preview(root: Path, api_url: str, boxie: HttpBoxieClient | None)
 async def serve(root: Path, workspaces: Path) -> None:
     external = os.environ.get("DEV_BOXIE_URL")
     if external:
-        await serve_preview(root, external, None)
+        await serve_preview(root, Path("/var/lib/playground-sessions/product"), external, None)
     else:
         daemon = LocalDaemon(workspaces, Path("/opt/artifact"), Path("/opt/fixtures"))
         async with boxie_network(root / "supervisor", daemon=daemon) as network:
             api_url = str(network.api.base_url)
-            await serve_preview(root, api_url, HttpBoxieClient(api_url, "consumer-one-secret"))
+            await serve_preview(
+                root, root / "product", api_url, HttpBoxieClient(api_url, "consumer-one-secret")
+            )
 
 
 def main() -> None:
     if not Path("/.dockerenv").is_file():
         raise SystemExit("Use docker compose -f tools/cli-playground/compose.dev.yml up --build")
     admin = os.environ["DEV_DATABASE_URL"]
-    name = "playground_dev_" + uuid4().hex
+    external = bool(os.environ.get("DEV_BOXIE_URL"))
+    name = "playground_dev" if external else "playground_dev_" + uuid4().hex
     print("[dev] Creating a temporary playground database", flush=True)
     with psycopg.connect(admin, autocommit=True) as connection:
-        connection.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(name)))
+        if not connection.execute(
+            "SELECT 1 FROM pg_database WHERE datname = %s", (name,)
+        ).fetchone():
+            connection.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(name)))
     try:
         connection_values = {
             key: str(value)
@@ -324,11 +439,29 @@ def main() -> None:
             with suppress(KeyboardInterrupt):
                 asyncio.run(serve(Path(directory), Path(sessions)))
     finally:
-        with psycopg.connect(admin, autocommit=True) as connection:
-            connection.execute(
-                sql.SQL("DROP DATABASE {} WITH (FORCE)").format(sql.Identifier(name))
-            )
+        if not external:
+            with psycopg.connect(admin, autocommit=True) as connection:
+                connection.execute(
+                    sql.SQL("DROP DATABASE {} WITH (FORCE)").format(sql.Identifier(name))
+                )
+
+
+def drain_from_container() -> None:
+    (token_path,) = Path("/tmp").glob("playground-dev-*/deploy.secret")
+    request = ClientRequest(
+        "http://127.0.0.1:8765" + DRAIN_PATH,
+        headers={"Authorization": "Bearer " + token_path.read_text()},
+        method="POST",
+    )
+    try:
+        with urlopen(request, timeout=35):
+            pass
+    except HTTPError as error:
+        raise SystemExit(error.read(4096).decode("utf-8", errors="replace")) from None
 
 
 if __name__ == "__main__":
-    main()
+    if sys.argv[1:] == ["drain"]:
+        drain_from_container()
+    else:
+        main()

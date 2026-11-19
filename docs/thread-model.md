@@ -139,7 +139,8 @@ private control network. Only the local supervisor mounts the Docker socket.
 Its sandbox requests use runsc. The local API publishes a loopback port and
 requires its generated consumer credential. Teardown checks the saved Docker
 engine identity and uses the worktree's Compose project and Boxie installation
-identities to select resources.
+identities to select resources. The playground drains previews using only its
+own database records and retains those records when Boxie cleanup is pending.
 
 The intended topology exposes only the playground. Confirm that Boxie,
 Docker, PostgreSQL, Temporal, and metrics remain private; verify TLS, proxy/Host

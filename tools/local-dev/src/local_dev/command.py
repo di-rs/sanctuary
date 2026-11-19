@@ -132,7 +132,7 @@ def run_action(args: argparse.Namespace, stack: Stack, boxie: Boxie | None) -> N
             if boxie is not None:
                 boxie.down(playground=target)
             elif target is not None:
-                target.run("down", "--volumes")
+                target.down_playground()
         case "config" | "doctor":
             if args.action == "doctor":
                 subprocess.run(["docker", "context", "show"], check=True)

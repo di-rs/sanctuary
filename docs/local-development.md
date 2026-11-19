@@ -75,6 +75,15 @@ database. Its credential is copied into a worktree-owned volume. Run
 containers, networks, volumes and local copy of the credential. The development
 Boxie and other worktrees continue running.
 
+Before removing its local data, `down` stops sessions and retires artifacts for
+every preview recorded by this worktree. If Boxie has yet to acknowledge
+cleanup, the command exits nonzero and keeps the project's containers,
+database and volumes. Restore connectivity and retry `down`. The playground
+blocks new sessions and publications while teardown is pending. Keep the
+original endpoint and credential until cleanup finishes. Manually removing
+the development PostgreSQL container discards its in-memory database and the
+records needed to retry cleanup.
+
 ## Commands
 
 Run from the checkout root with `uv run --locked sdev local COMMAND`. Commands

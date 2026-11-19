@@ -62,17 +62,6 @@ class Boxie(Stack):
     def network(self) -> str:
         return f"{self.project}_consumer"
 
-    def docker(self, *args: str, capture: bool = False) -> str:
-        result = subprocess.run(
-            ["docker", *args],
-            cwd=self.root,
-            env=self.env,
-            check=True,
-            text=True,
-            stdout=subprocess.PIPE if capture else None,
-        )
-        return result.stdout.strip() if capture else ""
-
     def local_engine(self) -> dict[str, object]:
         if sys.platform != "linux":
             raise DevError("Local Boxie requires native Linux/amd64 with Docker Engine and runsc.")
@@ -259,7 +248,7 @@ class Boxie(Stack):
         if playground is not None:
             playground.env.pop("DOCKER_CONTEXT", None)
             playground.env["DOCKER_HOST"] = self.env["DOCKER_HOST"]
-            playground.run("down", "--volumes")
+            playground.down_playground()
         self.run("down", "--volumes")
         # Compose never creates these containers. Stop the supervisor first,
         # then remove any residual children of this exact local installation.

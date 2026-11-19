@@ -79,6 +79,17 @@ class Stack:
     def url(self) -> str:
         return self.loopback_url("playground", "8765")
 
+    def docker(self, *args: str, capture: bool = False) -> str:
+        result = subprocess.run(
+            ["docker", *args],
+            cwd=self.root,
+            env=self.env,
+            check=True,
+            text=True,
+            stdout=subprocess.PIPE if capture else None,
+        )
+        return result.stdout.strip() if capture else ""
+
     def loopback_url(self, service: str, port: str) -> str:
         address = self.run("port", service, port, capture=True).strip()
         match = re.fullmatch(r"127\.0\.0\.1:([0-9]+)", address)
@@ -88,6 +99,26 @@ class Stack:
 
     def identify(self) -> None:
         print(f"Worktree: {self.root}\nCompose project: {self.project}", flush=True)
+
+    def down_playground(self) -> None:
+        for container in self.run("ps", "--all", "-q", "playground", capture=True).split():
+            backend = self.docker(
+                "inspect",
+                "--format",
+                '{{index .Config.Labels "sanctuary.local.terminal"}}',
+                container,
+                capture=True,
+            )
+            if backend != "boxie":
+                continue
+            try:
+                self.docker("exec", "-i", container, "python", "-m", "tests.dev_server", "drain")
+            except subprocess.CalledProcessError:
+                raise DevError(
+                    "Playground cleanup is unconfirmed. Its local database and volumes were kept. "
+                    "Restore the Boxie API connection and retry down."
+                ) from None
+        self.run("down", "--volumes")
 
     def start(
         self, *, build: bool, packages: list[str] | None = None, credential: str | None = None

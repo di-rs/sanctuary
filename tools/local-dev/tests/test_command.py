@@ -149,3 +149,42 @@ def test_external_credential_is_private_and_absent_from_compose_env(tmp_path: Pa
     assert "synthetic-consumer-token" not in stack.env.values()
     with pytest.raises(DevError, match="without credentials"):
         connect(stack, secret, "https://user:password@boxie.example")
+
+
+@pytest.mark.parametrize("backend", ["", "boxie"])
+def test_down_executes_remote_drain_only_for_boxie(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, backend: str
+) -> None:
+    commands: list[tuple[str, ...]] = []
+
+    def compose(self: Stack, *args: str, capture: bool = False) -> str:
+        commands.append(args)
+        return "stopped-container" if args[0] == "ps" else ""
+
+    def docker(self: Stack, *args: str, capture: bool = False) -> str:
+        if args[0] == "inspect":
+            assert args[-1] == "stopped-container"
+            return backend
+        assert args == (
+            "exec",
+            "-i",
+            "stopped-container",
+            "python",
+            "-m",
+            "tests.dev_server",
+            "drain",
+        )
+        if not backend:
+            pytest.fail("portable container received a drain invocation")
+        raise subprocess.CalledProcessError(1, args)
+
+    monkeypatch.setattr(Stack, "run", compose)
+    monkeypatch.setattr(Stack, "docker", docker)
+    stack = playground(tmp_path, "external", None)
+    if backend:
+        with pytest.raises(DevError, match="database and volumes were kept"):
+            stack.down_playground()
+        assert commands == [("ps", "--all", "-q", "playground")]
+    else:
+        stack.down_playground()
+        assert commands == [("ps", "--all", "-q", "playground"), ("down", "--volumes")]

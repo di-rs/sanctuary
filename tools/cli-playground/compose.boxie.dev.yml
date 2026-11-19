@@ -1,5 +1,7 @@
 services:
   playground:
+    labels:
+      sanctuary.local.terminal: boxie
     environment:
       DEV_BOXIE_URL: ${LOCAL_DEV_BOXIE_ORIGIN:-http://boxie-api:8090}
     volumes:
