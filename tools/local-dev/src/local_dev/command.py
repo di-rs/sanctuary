@@ -126,12 +126,13 @@ def run_action(args: argparse.Namespace, stack: Stack, boxie: Boxie | None) -> N
         case "url":
             print(stack.url())
         case "down":
+            # The external manifest includes the credential volume and resolves
+            # even when the full deployment's Boxie network no longer exists.
+            target = playground(stack.root, "external", None) if stack is not boxie else None
             if boxie is not None:
-                boxie.down(with_playground=stack is not boxie)
-            else:
-                # The default manifest addresses the same project and does not
-                # require the external network or credential to still exist.
-                Stack(stack.root).run("down", "--volumes")
+                boxie.down(playground=target)
+            elif target is not None:
+                target.run("down", "--volumes")
         case "config" | "doctor":
             if args.action == "doctor":
                 subprocess.run(["docker", "context", "show"], check=True)

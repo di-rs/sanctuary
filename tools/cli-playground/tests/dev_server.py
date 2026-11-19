@@ -267,7 +267,16 @@ async def serve_preview(root: Path, api_url: str, boxie: HttpBoxieClient | None)
             timeout_graceful_shutdown=5,
         )
     )
-    await server.serve()
+    loop = asyncio.get_running_loop()
+    # Uvicorn restores and replays the signal after its graceful shutdown.
+    # Let asyncio consume the replay so the outer database cleanup can run.
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        loop.add_signal_handler(sig, setattr, server, "should_exit", True)
+    try:
+        await server.serve()
+    finally:
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            loop.remove_signal_handler(sig)
     if not server.started:
         raise RuntimeError("Could not start the local playground preview")
 

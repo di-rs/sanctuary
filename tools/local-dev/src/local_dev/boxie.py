@@ -254,10 +254,9 @@ class Boxie(Stack):
             flush=True,
         )
 
-    def down(self, *, with_playground: bool = False) -> None:
+    def down(self, *, playground: Stack | None = None) -> None:
         self.local_engine()
-        if with_playground:
-            playground = Stack(self.root)
+        if playground is not None:
             playground.env.pop("DOCKER_CONTEXT", None)
             playground.env["DOCKER_HOST"] = self.env["DOCKER_HOST"]
             playground.run("down", "--volumes")
