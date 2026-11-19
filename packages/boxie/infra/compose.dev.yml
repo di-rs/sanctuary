@@ -11,6 +11,11 @@ services:
   temporal:
     extends: {file: temporal/compose.yml, service: temporal}
     user: ${LOCAL_DEV_USER}
+    # Temporal's Go resource detection needs these when the host UID has no
+    # entry in the image's passwd database.
+    environment:
+      USER: temporal
+      HOME: /tmp
     logging: *local-logging
   schema:
     extends: {file: temporal/compose.yml, service: schema}

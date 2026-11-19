@@ -9,6 +9,7 @@ import stat
 import subprocess
 import sys
 import time
+from contextlib import suppress
 from pathlib import Path
 from urllib.error import URLError
 from urllib.request import ProxyHandler, Request, build_opener
@@ -213,12 +214,15 @@ class Boxie(Stack):
             )
         self.run("run", "--rm", "--no-deps", "migrate")
         self.run("up", "-d", "--no-build", "temporal")
-        for attempt in range(6):
+        deadline = time.monotonic() + 60
+        while True:
             try:
                 self.run("run", "--rm", "--no-deps", "bootstrap")
                 break
             except subprocess.CalledProcessError:
-                if attempt == 5:
+                if time.monotonic() >= deadline:
+                    with suppress(subprocess.CalledProcessError):
+                        self.run("logs", "--tail", "60", "temporal")
                     raise
                 time.sleep(1)
         self.run("up", "-d", "--no-build", "supervisor", "api")
