@@ -1,5 +1,5 @@
 # Match the Ubuntu 24.04 GitHub runner that builds the native Linux binaries.
-FROM ubuntu:25.10
+FROM ubuntu:24.04@sha256:73b999393d07f2bf65a40373778a44dc9a6d54ad7718d29247d8ff9413c4d6a8
 RUN apt-get update && apt-get install -y --no-install-recommends \
     bash coreutils findutils grep sed gawk less libgcc-s1 \
     && rm -rf /var/lib/apt/lists/*

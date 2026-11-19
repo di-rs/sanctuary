@@ -70,12 +70,20 @@ updates:
     directories:
       - /packages/boxie/infra
       - /packages/boxie/infra/observability/collector
-      - /packages/boxie/sandbox
-      - /packages/boxie/tests/integration
       - /tools/cli-playground
       - /tools/cli-playground/infra/docker
     patterns: ['*']
     multi-ecosystem-group: container-images
+  - package-ecosystem: docker
+    directories:
+      - /packages/boxie/sandbox
+      - /packages/boxie/tests/integration
+    patterns: ['*']
+    multi-ecosystem-group: container-images
+    # Refresh the Ubuntu digest within the supported sandbox release series.
+    ignore:
+      - dependency-name: ubuntu
+        versions: ['< 24.04', '>= 24.05']
   - package-ecosystem: docker-compose
     directory: /packages/boxie/infra/postgres
     schedule:

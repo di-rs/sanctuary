@@ -51,7 +51,7 @@ class Shell:
         # Disable command echo so an echoed assertion cannot masquerade as its output.
         await self.session.write(
             b"stty -echo; bind 'set enable-bracketed-paste off'; "
-            b"PS1='__CLI_PLAYGROUND_SMOKE_PROMPT__ '\n"
+            b"PS0=; PS1='__CLI_PLAYGROUND_SMOKE_PROMPT__ '\n"
         )
         # The initial line is echoed, including the new prompt; first consume its newline.
         await self.until(b"\n")

@@ -11,3 +11,4 @@ target
 **/frontend/dist
 **/test-results
 **/playwright-report
+.local-dev

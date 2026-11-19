@@ -44,10 +44,9 @@ Based on Bodil Stokke's [Learning Parser Combinators With Rust](https://bodil.lo
 
 ## Installation and machine-readable output
 
-From the repository root, `make install-rust` installs Biggie, Parsu, and Kara in
-`~/.local/bin`; add it to `PATH`. Parsu runs from any directory without network
-access or authentication. Keep the existing debug output for human inspection;
-use `--json` for scripts:
+Run `make install-rust` from the repository root and add `~/.local/bin` to
+`PATH` to use `parsu` from any directory. Parsu runs locally without network
+access or authentication. Use `--json` to read a parse result in a script.
 
 ```sh
 printf '<root a="b"/>' | parsu --json -

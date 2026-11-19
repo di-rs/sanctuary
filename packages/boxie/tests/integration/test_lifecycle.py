@@ -7,11 +7,13 @@ import os
 import subprocess
 import time
 from collections.abc import Iterator
+from datetime import timedelta
 from typing import Any
 from uuid import UUID, uuid4
 
 import httpx
 import pytest
+from boxie.domain.models import SupervisorIdentity
 from boxie.persistence.models import (
     Artifact,
     CapacitySlot,
@@ -19,12 +21,14 @@ from boxie.persistence.models import (
     SandboxArtifactRef,
     SupervisorObservationRecord,
 )
+from boxie.temporal.contracts import maintenance_queue
+from boxie.temporal.maintenance import Maintenance
 from boxie.temporal.workflows import SandboxLifecycle
 from boxie_test_support.supervisor import bundle
 from sqlalchemy import and_, func
 from sqlmodel import col, select
 from temporal_support import tls
-from temporalio.client import Client
+from temporalio.client import Client, WorkflowHandle
 from temporalio.contrib.pydantic import pydantic_data_converter
 from temporalio.worker import Replayer
 
@@ -53,6 +57,15 @@ def lifecycle_stack(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Lifecy
         yield stack
     finally:
         stack.close()
+
+
+async def operator_client(stack: LifecycleStack) -> Client:
+    return await Client.connect(
+        stack.address,
+        namespace="boxie",
+        tls=tls(stack, "operator"),
+        data_converter=pydantic_data_converter,
+    )
 
 
 async def until(client: httpx.AsyncClient, identifier: str, state: str) -> dict[str, Any]:
@@ -150,12 +163,7 @@ async def pending_after_restart(
 def test_process_loss_failed_delete_and_history_replay(lifecycle_stack: LifecycleStack) -> None:
     async def exercise() -> None:
         stack = lifecycle_stack
-        temporal = await Client.connect(
-            stack.address,
-            namespace="boxie",
-            tls=tls(stack, "operator"),
-            data_converter=pydantic_data_converter,
-        )
+        temporal = await operator_client(stack)
         async with httpx.AsyncClient(
             base_url=stack.api_url,
             headers={"Authorization": "Bearer " + stack.consumer},
@@ -224,20 +232,24 @@ def test_successful_artifact_commit_lost_ack_collector_overlap_and_supervisor_re
             str(uuid4()),
             bundle({"proof.txt": b"committed bytes survive lost acknowledgment\n"}),
         )
+        temporal = await operator_client(stack)
+        queue = maintenance_queue(SupervisorIdentity(UUID(stack.installation), stack.host))
+
+        async def start_collection() -> WorkflowHandle[Maintenance, None]:
+            return await temporal.start_workflow(
+                Maintenance.run,
+                "artifacts",
+                id=f"test-artifacts-{uuid4()}",
+                task_queue=queue,
+                execution_timeout=timedelta(seconds=90),
+            )
+
         async with httpx.AsyncClient(
             base_url=stack.api_url,
             headers={"Authorization": "Bearer " + stack.consumer},
             timeout=45,
         ) as client:
             (stack.root / "faults/commit_seen").unlink(missing_ok=True)
-            entered = stack.root / "faults/collection_entered"
-            async with asyncio.timeout(40):
-                while not entered.exists():
-                    await asyncio.sleep(0.05)
-            previous_collection = entered.read_text()
-            # Start five seconds before the unchanged 30s production collector tick.
-            delay = max(0, 25 - (time.time() - int(previous_collection) / 1e9))
-            await asyncio.sleep(delay)
             stack.fault("hold_commit", True)
             upload = asyncio.create_task(
                 client.put(
@@ -263,15 +275,16 @@ def test_successful_artifact_commit_lost_ack_collector_overlap_and_supervisor_re
                 ).read_bytes() == b"committed bytes survive lost acknowledgment\n"
                 assert row["digest"] == hashlib.sha256(data).hexdigest()
                 os.utime(storage, (time.time() - 7200,) * 2)
+                collection = await start_collection()
+                assert collection.first_execution_run_id is not None
+                marker = stack.root / "faults" / f"collection-{collection.first_execution_run_id}"
                 async with asyncio.timeout(15):
-                    while entered.read_text() == previous_collection:
+                    while not marker.with_suffix(".entered").exists():
                         await asyncio.sleep(0.05)
-                attempted = entered.read_text()
-                completed = stack.root / "faults/collection_completed"
-                assert completed.read_text() != attempted
+                assert not marker.with_suffix(".completed").exists()
                 assert not upload.done() and storage.exists()
-                # Entry without completion proves the real collector waits behind
-                # the publication still awaiting its successful COMMIT response.
+                # This collection overlaps the upload while its successful COMMIT
+                # response is still withheld.
                 await asyncio.to_thread(stack.process, "supervisor", "kill")
                 stack.fault("hold_commit", False)
                 await asyncio.to_thread(stack.process, "supervisor", "start")
@@ -284,21 +297,23 @@ def test_successful_artifact_commit_lost_ack_collector_overlap_and_supervisor_re
                     headers={"X-Content-SHA256": hashlib.sha256(data).hexdigest()},
                 )
                 assert retry.status_code == 200
-                await asyncio.sleep(31)
+                # The replacement worker must finish the interrupted collection,
+                # including its orphan scan of the deliberately aged directory.
+                await collection.result()
                 assert (
                     storage / "files/proof.txt"
                 ).read_bytes() == b"committed bytes survive lost acknowledgment\n"
                 identifier = await create(client, artifact, uuid4().hex)
                 await until(client, identifier, "ready")
                 await accounting(stack, identifier, 1)
-                await client.delete(f"/v1/artifacts/{artifact}")
+                assert (await client.delete(f"/v1/artifacts/{artifact}")).status_code == 204
                 assert storage.exists()
-                await client.delete(f"/v1/sandboxes/{identifier}")
+                assert (await client.delete(f"/v1/sandboxes/{identifier}")).status_code == 200
                 await until(client, identifier, "terminated")
                 await accounting(stack, identifier, 0)
-                async with asyncio.timeout(40):
-                    while storage.exists():
-                        await asyncio.sleep(0.2)
+                final_collection = await start_collection()
+                await final_collection.result()
+                assert not storage.exists()
             finally:
                 stack.fault("hold_commit", False)
                 upload.cancel()

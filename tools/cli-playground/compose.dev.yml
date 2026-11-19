@@ -43,3 +43,4 @@ services:
 
 volumes:
   session-files:
+  boxie-credential:
