@@ -142,7 +142,7 @@ async def exercise(binary: Path, url: str, credential_file: Path) -> None:
         if sandbox_id is not None:
             view = await client.terminate(sandbox_id)
             async with asyncio.timeout(30):
-                while view.cleanup_pending or view.state not in {"terminated", "failed"}:
+                while not view.cleanup_complete:
                     await asyncio.sleep(0.1)
                     view = await client.get(sandbox_id)
             verify_deleted(str(sandbox_id))

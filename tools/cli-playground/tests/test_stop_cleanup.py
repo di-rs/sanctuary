@@ -72,11 +72,23 @@ def test_repeated_stop_after_cleanup_preserves_first_origin(
     assert boxie.stops == [saved.sandbox.id]
 
 
+@pytest.mark.parametrize(
+    ("state", "cleanup_pending"), [("ready", False), ("terminated", True), ("failed", True)]
+)
 def test_tombstone_with_unfinished_binding_still_retries_stop(
-    service: CliPlaygroundService, api_client: TestClient, boxie: FakeBoxie
+    service: CliPlaygroundService,
+    api_client: TestClient,
+    boxie: FakeBoxie,
+    state: SandboxState,
+    cleanup_pending: bool,
 ) -> None:
     preview = upload(api_client)
     binding = admission(api_client, preview["id"], "a" * 40)
+    initial = call(api_client, lambda: service.sessions.get(UUID(binding["id"])))
+    assert initial is not None and not initial.pending_stop
+    initial.sandbox.state = state
+    initial.sandbox.cleanup_pending = cleanup_pending
+    call(api_client, lambda: service.sessions.save(initial))
     call(api_client, lambda: service.store.close_pull_request(123))
     call(api_client, lambda: service.store.remove({preview["id"]}))
     assert call(api_client, lambda: service.store.inactive_identifiers()) == {preview["id"]}

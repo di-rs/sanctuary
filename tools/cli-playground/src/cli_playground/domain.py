@@ -168,7 +168,7 @@ def cancel_attachment(
 
 
 def request_stop(binding: SessionBinding, request_id: UUID | None = None) -> None:
-    if binding.sandbox.state in {"terminated", "failed"} and not binding.sandbox.cleanup_pending:
+    if binding.sandbox.cleanup_complete:
         return
     if not binding.pending_stop:
         binding.stop_request_id = request_id
@@ -181,7 +181,7 @@ def confirm_stop(binding: SessionBinding, view: SandboxView) -> None:
     validate_sandbox(view, binding.sandbox)
     binding.sandbox = view
     binding.attachment_deadline = None
-    binding.pending_stop = view.cleanup_pending or view.state not in {"terminated", "failed"}
+    binding.pending_stop = not view.cleanup_complete
 
 
 def publication(

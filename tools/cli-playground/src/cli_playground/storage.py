@@ -31,6 +31,7 @@ from cli_playground.models import (
     PreviewRecord,
 )
 from cli_playground.observability import current_request_id
+from cli_playground.sandbox import TERMINAL_STATES
 from cli_playground.tables import Binding, Preview, Retirement, Revision, Upload
 
 
@@ -179,7 +180,7 @@ class EnvironmentStore:
             needs_stop = select(Binding.preview_id).where(
                 col(Binding.pending_stop)
                 | col(Binding.sandbox)["cleanup_pending"].as_boolean()
-                | col(Binding.sandbox)["state"].as_string().not_in(["terminated", "failed"])
+                | col(Binding.sandbox)["state"].as_string().not_in(TERMINAL_STATES)
             )
             return set(
                 await session.exec(

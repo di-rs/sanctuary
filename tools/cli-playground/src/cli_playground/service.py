@@ -267,11 +267,7 @@ class CliPlaygroundService:
             # The persisted idempotency key resolves ambiguous/cancelled admissions on recovery.
             with CancelScope(shield=True):
                 saved = await self.sessions.get(intent.id)
-                if (
-                    saved is None
-                    or saved.sandbox.cleanup_pending
-                    or saved.sandbox.state not in {"terminated", "failed"}
-                ):
+                if saved is None or not saved.sandbox.cleanup_complete:
                     intent.abandoned = True
                     await self.sessions.create_intent(intent)
                     if saved is not None:

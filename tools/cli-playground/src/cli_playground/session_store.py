@@ -170,12 +170,8 @@ class SessionStore:
             )
             for row in rows:
                 binding = SessionBinding.model_validate(row.model_dump())
-                if binding.sandbox.cleanup_pending or binding.sandbox.state not in {
-                    "terminated",
-                    "failed",
-                }:
-                    if not row.pending_stop:
-                        row.stop_request_id = UUID(current_request_id() or str(uuid4()))
+                if not row.pending_stop and not binding.sandbox.cleanup_complete:
+                    row.stop_request_id = UUID(current_request_id() or str(uuid4()))
                     row.pending_stop = True
 
     async def recover_creation(self, intent: CreateIntent, sandbox: SandboxView) -> None:
