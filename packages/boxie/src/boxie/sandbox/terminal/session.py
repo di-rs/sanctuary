@@ -83,7 +83,6 @@ async def _serve_terminal(
         last_heartbeat = supervisor.monotonic()
         last_nonce = -1
         resize: Resize | None = None
-        replaying = True
         input_ready = False
         await send({"type": "attached", "epoch": epoch})
 
@@ -136,48 +135,46 @@ async def _serve_terminal(
                 ring.changed.set()
 
         async def output() -> None:
-            nonlocal cursor, boundary, pending_bytes, replaying, resize, input_ready
+            nonlocal cursor, pending_bytes, resize, input_ready
             assert epoch is not None
+            replaying = True
             sent_geometry: tuple[int, int] | None = None
+
+            async def announce_geometry(size: tuple[int, int]) -> None:
+                nonlocal sent_geometry
+                if size == sent_geometry:
+                    return
+                cols, rows = size
+                await send(
+                    {
+                        "type": "geometry",
+                        "epoch": epoch,
+                        "sequence": cursor,
+                        "cols": cols,
+                        "rows": rows,
+                    }
+                )
+                sent_geometry = size
+
             while True:
                 await supervisor.check_attachment(ref, epoch, allow_ended=True)
                 ring.changed.clear()
                 frames = ring.after(cursor)
                 limit = boundary if replaying else ring.tail
-                blocked = False
                 for frame in frames:
-                    if frame.sequence > limit:
+                    if frame.sequence > limit or pending_bytes + len(frame.data) > WINDOW_BYTES:
                         break
-                    if pending_bytes + len(frame.data) > WINDOW_BYTES:
-                        blocked = True
-                        break
-                    if frame.geometry != sent_geometry:
-                        await send(
-                            {
-                                "type": "geometry",
-                                "epoch": epoch,
-                                "sequence": cursor,
-                                "cols": frame.geometry[0],
-                                "rows": frame.geometry[1],
-                            }
-                        )
-                        sent_geometry = frame.geometry
+                    await announce_geometry(frame.geometry)
                     cursor = frame.sequence
                     outstanding.append((cursor, len(frame.data)))
                     pending_bytes += len(frame.data)
                     await send(frame.wire())
-                if replaying and cursor == boundary:
-                    if boundary_geometry != sent_geometry:
-                        await send(
-                            {
-                                "type": "geometry",
-                                "epoch": epoch,
-                                "sequence": cursor,
-                                "cols": boundary_geometry[0],
-                                "rows": boundary_geometry[1],
-                            }
-                        )
-                        sent_geometry = boundary_geometry
+                if cursor < limit:
+                    # Acknowledgements free space for the next frame.
+                    await ring.changed.wait()
+                    continue
+                if replaying:
+                    await announce_geometry(boundary_geometry)
                     await send({"type": "replay_complete", "epoch": epoch, "sequence": boundary})
                     replaying = False
                     # Wait for the browser's write-drain before beginning catch-up.
@@ -186,7 +183,7 @@ async def _serve_terminal(
                         ring.changed.clear()
                     if ring.closed and cursor < ring.tail:
                         continue
-                if resize is not None and not blocked:
+                if resize is not None:
                     # Capture catch-up before resizing. New output is sent only after
                     # resized, so the browser's ordered write barrier owns local fit.
                     if cursor < ring.tail:

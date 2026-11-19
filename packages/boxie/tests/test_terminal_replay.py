@@ -85,7 +85,10 @@ def test_pty_drain_does_not_wait_for_reader_and_payload_cap_is_exact(tmp_path: P
     asyncio.run(exercise())
 
 
-def test_network_replay_resize_barrier_and_browser_heartbeat(tmp_path: Path) -> None:
+@pytest.mark.parametrize("resume_after", [0, 2])
+def test_network_replay_resize_barrier_and_browser_heartbeat(
+    tmp_path: Path, resume_after: int
+) -> None:
     import json
     from collections.abc import AsyncIterator
     from contextlib import asynccontextmanager
@@ -178,7 +181,7 @@ def test_network_replay_resize_barrier_and_browser_heartbeat(tmp_path: Path) -> 
                             {
                                 "type": "attach",
                                 "attachment_order": 2,
-                                "resume_after": 2,
+                                "resume_after": resume_after,
                                 "cols": 100,
                                 "rows": 30,
                             }
@@ -186,6 +189,16 @@ def test_network_replay_resize_barrier_and_browser_heartbeat(tmp_path: Path) -> 
                     )
                     successor = json.loads(await new.recv())["epoch"]
                     assert successor > epoch
+                    if resume_after == 0:
+                        assert json.loads(await new.recv()) == {
+                            "type": "geometry",
+                            "epoch": successor,
+                            "sequence": 0,
+                            "cols": 80,
+                            "rows": 24,
+                        }
+                        assert await new.recv() == (1).to_bytes(8, "big") + b"first"
+                        assert await new.recv() == (2).to_bytes(8, "big") + b"reply"
                     assert json.loads(await new.recv()) == {
                         "type": "geometry",
                         "epoch": successor,
@@ -193,7 +206,11 @@ def test_network_replay_resize_barrier_and_browser_heartbeat(tmp_path: Path) -> 
                         "cols": 100,
                         "rows": 30,
                     }
-                    assert json.loads(await new.recv())["type"] == "replay_complete"
+                    assert json.loads(await new.recv()) == {
+                        "type": "replay_complete",
+                        "epoch": successor,
+                        "sequence": 2,
+                    }
                     await old.close()
                     await new.send(
                         json.dumps({"type": "heartbeat", "epoch": successor, "nonce": 1})
