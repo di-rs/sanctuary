@@ -19,7 +19,10 @@ from sqlalchemy import (
     or_,
 )
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlmodel import Field, SQLModel
+from sqlmodel import Field, SQLModel, select
+from sqlmodel.sql.expression import SelectOfScalar
+
+from boxie.domain.models import Principal, SupervisorIdentity
 
 
 class Artifact(SQLModel, table=True):
@@ -112,6 +115,22 @@ class Sandbox(SQLModel, table=True):
     cleaned_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
     provisioning_outcome: str | None = None
     cleanup_pending_since: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
+
+
+def select_owned_sandbox_for_update(
+    sandbox_id: UUID, principal: Principal, identity: SupervisorIdentity, generation: int
+) -> SelectOfScalar[Sandbox]:
+    return (
+        select(Sandbox)
+        .where(
+            Sandbox.id == sandbox_id,
+            Sandbox.consumer_id == principal.consumer_id,
+            Sandbox.installation_id == identity.installation_id,
+            Sandbox.host_id == identity.host_id,
+            Sandbox.generation == generation,
+        )
+        .with_for_update()
+    )
 
 
 class Job(SQLModel, table=True):
