@@ -2,7 +2,10 @@ use assert_fs::prelude::*;
 use cli_testing::{TestContext, Workspace, cli_test};
 use predicates::prelude::*;
 use pretty_assertions::assert_eq;
-use std::{fs, os::unix::fs::PermissionsExt};
+use std::{
+    fs,
+    os::unix::fs::{PermissionsExt, symlink},
+};
 
 const HIDDEN: &str = "tests/inputs/.hidden";
 const EMPTY: &str = "tests/inputs/empty.txt";
@@ -237,6 +240,46 @@ fn dir2_long_all(cx: &TestContext) -> Result<()> {
             ("tests/inputs/dir/.gitkeep", "-rw-r--r--", "0"),
         ],
     )
+}
+
+#[cli_test]
+fn long_listing_describes_symlinks(cx: &TestContext) -> Result<()> {
+    let dir = cx.workspace()?;
+    dir.child("target.txt").write_str("x")?;
+    dir.child("folder/child").write_str("contents")?;
+    symlink("target.txt", dir.child("file-link").path())?;
+    symlink("folder", dir.child("dir-link").path())?;
+    symlink("missing", dir.child("dangling").path())?;
+
+    for (args, prefix, rows) in [
+        (&["-l", "file-link", "dir-link", "dangling"][..], "", 3),
+        (&["-l", "."][..], "./", 5),
+    ] {
+        let listing = dir.cmd().args(args).assert().code(0).stderr("");
+        let stdout = std::str::from_utf8(&listing.get_output().stdout)?;
+        assert_eq!(stdout.lines().filter(|line| !line.is_empty()).count(), rows);
+        for (name, target, size) in [
+            ("file-link", "target.txt", "10"),
+            ("dir-link", "folder", "6"),
+            ("dangling", "missing", "7"),
+        ] {
+            let suffix = format!(" {prefix}{name} -> {target}");
+            let row = stdout
+                .lines()
+                .find(|line| line.ends_with(&suffix))
+                .ok_or_else(|| format!("missing {suffix:?} in {stdout:?}"))?;
+            assert_eq!(row.chars().next(), Some('l'), "{row}");
+            assert_eq!(row.split_whitespace().nth(4), Some(size));
+        }
+    }
+
+    dir.cmd()
+        .arg("dir-link")
+        .assert()
+        .code(0)
+        .stdout("dir-link/child\n")
+        .stderr("");
+    Ok(())
 }
 
 fn check_listing(dir: &Workspace, args: &[&str], expected: &[&str]) -> Result<()> {
