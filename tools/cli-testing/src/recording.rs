@@ -52,12 +52,9 @@ pub fn record(suite: &Suite, output: &Path) -> Result<usize> {
     let catalog_sha256 = catalog_hash(suite)?;
     let files = snapshot(suite)?;
     let output = new_recording_directory(suite, output)?;
+    let recipes = reference_cases(suite);
     let mut cases = Vec::new();
-    for case in suite
-        .cases
-        .iter()
-        .filter(|case| case.origin.reference.is_some())
-    {
+    for case in recipes.clone() {
         let captured = reference::run(suite, case)?;
         let stdout = save_artifact(
             &output,
@@ -101,7 +98,7 @@ pub fn record(suite: &Suite, output: &Path) -> Result<usize> {
         files,
         cases,
     };
-    replacements(suite, &output, &recording)?;
+    replacements(suite, &output, recipes.zip(&recording.cases))?;
     let bytes = serde_json::to_vec_pretty(&recording)
         .map_err(|error| Error::caused_by("cannot serialize recording", error))?;
     fs::write(output.join("recording.json"), bytes)?;
@@ -195,27 +192,25 @@ fn prepare_apply(suite: &Suite, directory: &Path) -> Result<BTreeMap<PathBuf, Ve
             "stale recording: catalog, inputs, or expected fixtures changed",
         ));
     }
-    let expected: Vec<_> = suite
-        .cases
-        .iter()
-        .filter(|case| case.origin.reference.is_some())
-        .map(|case| &case.name)
-        .collect();
-    if expected
-        != recording
-            .cases
-            .iter()
-            .map(|case| &case.name)
-            .collect::<Vec<_>>()
-    {
+    let recipes = reference_cases(suite);
+    let expected_names = recipes.clone().map(|case| &case.name);
+    if !expected_names.eq(recording.cases.iter().map(|case| &case.name)) {
         return Err(Error::new(
             "incomplete recording: reference case set differs from catalog",
         ));
     }
-    for recorded in &recording.cases {
-        verify_identity(suite, recorded)?;
+    let pairs = recipes.zip(&recording.cases);
+    for (case, recorded) in pairs.clone() {
+        verify_identity(suite, case, recorded)?;
     }
-    replacements(suite, directory, &recording)
+    replacements(suite, directory, pairs)
+}
+
+fn reference_cases(suite: &Suite) -> impl Iterator<Item = &Case> + Clone {
+    suite
+        .cases
+        .iter()
+        .filter(|case| case.origin.reference.is_some())
 }
 
 fn catalog_hash(suite: &Suite) -> Result<String> {
@@ -283,8 +278,7 @@ fn snapshot_path(suite: &Suite, relative: &Path, result: &mut BTreeMap<PathBuf, 
     Ok(())
 }
 
-fn verify_identity(suite: &Suite, recorded: &RecordedCase) -> Result {
-    let case = suite.case(&recorded.name)?;
+fn verify_identity(suite: &Suite, case: &Case, recorded: &RecordedCase) -> Result {
     let name = case
         .origin
         .reference
@@ -306,14 +300,13 @@ fn verify_identity(suite: &Suite, recorded: &RecordedCase) -> Result {
     Ok(())
 }
 
-fn replacements(
+fn replacements<'a>(
     suite: &Suite,
     directory: &Path,
-    recording: &Recording,
+    pairs: impl Iterator<Item = (&'a Case, &'a RecordedCase)>,
 ) -> Result<BTreeMap<PathBuf, Vec<u8>>> {
     let mut writes = BTreeMap::new();
-    for recorded in &recording.cases {
-        let case = suite.case(&recorded.name)?;
+    for (case, recorded) in pairs {
         if recorded.exit != case.origin.exit.unwrap_or(case.expect.exit) {
             return Err(Error::new(format!(
                 "invalid recorded status for {:?}",

@@ -271,6 +271,43 @@ fn recording_stages_raw_bytes_then_explicit_apply_promotes_them() -> TestResult 
 
 #[test]
 #[cfg(unix)]
+fn promotion_requires_reference_cases_in_catalog_order() -> TestResult {
+    let dir = reference_package(b"old")?;
+    let stage = dir.path().join("recorded");
+    fixture_command(&dir)
+        .args(["record", "--output"])
+        .arg(&stage)
+        .assert()
+        .code(0)
+        .stderr("");
+    let manifest_path = stage.join("recording.json");
+    let manifest: serde_json::Value = serde_json::from_slice(&fs::read(&manifest_path)?)?;
+    let Some([raw, native]) = manifest["cases"].as_array().map(Vec::as_slice) else {
+        return Err("expected two captured cases".into());
+    };
+    for cases in [
+        vec![raw],
+        vec![raw, native, native],
+        vec![native, raw],
+        vec![raw, raw],
+    ] {
+        let mut invalid = manifest.clone();
+        invalid["cases"] = serde_json::to_value(cases)?;
+        fs::write(&manifest_path, serde_json::to_vec(&invalid)?)?;
+        fixture_command(&dir)
+            .arg("apply")
+            .arg(&stage)
+            .assert()
+            .code(1)
+            .stdout("")
+            .stderr("incomplete recording: reference case set differs from catalog\n");
+        assert_eq!(fs::read(dir.path().join("tests/expected/raw"))?, b"old");
+    }
+    Ok(())
+}
+
+#[test]
+#[cfg(unix)]
 fn stale_or_tampered_recordings_leave_expectations_untouched() -> TestResult {
     for changed in [
         "tests/inputs/raw",
