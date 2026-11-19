@@ -84,9 +84,7 @@ impl Buffer {
     }
 
     pub fn get_line(&self, index: usize) -> Option<LineLayout> {
-        let text = self.line_text(index)?;
-        let Ok(layout) = text.parse();
-        Some(layout)
+        self.line_text(index).map(|line| LineLayout::new(&line))
     }
 
     pub fn height(&self) -> usize {

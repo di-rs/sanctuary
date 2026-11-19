@@ -37,10 +37,24 @@ pub(super) fn render(frame: &mut Frame<'_>, state: &mut EditorState) {
         document_area,
     );
     let bottom = area.bottom().saturating_sub(1);
-    let message = state
-        .prompt
-        .as_ref()
-        .map_or_else(|| state.message_bar.text(), super::prompt::Prompt::text);
+    let (message, cursor) = if let Some(prompt) = &state.prompt {
+        let (text, x) = prompt.display(usize::from(area.width));
+        (
+            text,
+            ScreenPosition {
+                x,
+                y: usize::from(bottom.saturating_sub(area.y)),
+            },
+        )
+    } else {
+        (
+            state.message_bar.text(),
+            ScreenPosition {
+                x: caret.x.saturating_sub(state.view.scroll_offset.x),
+                y: caret.y.saturating_sub(state.view.scroll_offset.y),
+            },
+        )
+    };
     frame.render_widget(
         Paragraph::new(display_text(&message)),
         Rect::new(area.x, bottom, area.width, 1),
@@ -76,16 +90,6 @@ pub(super) fn render(frame: &mut Frame<'_>, state: &mut EditorState) {
             ),
         );
     }
-    let cursor = state.prompt.as_ref().map_or_else(
-        || ScreenPosition {
-            x: caret.x.saturating_sub(state.view.scroll_offset.x),
-            y: caret.y.saturating_sub(state.view.scroll_offset.y),
-        },
-        |prompt| ScreenPosition {
-            x: prompt.caret_position_col(),
-            y: usize::from(bottom.saturating_sub(area.y)),
-        },
-    );
     frame.set_cursor_position((
         area.x.saturating_add(
             u16::try_from(cursor.x)

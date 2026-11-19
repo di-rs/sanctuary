@@ -88,7 +88,7 @@ impl EditorState {
                     super::search::SearchDirection::Forward => "/",
                     super::search::SearchDirection::Backward => "?",
                 };
-                self.prompt = Some(Prompt::new(label, "", self.terminal_size));
+                self.prompt = Some(Prompt::new(label, ""));
             }
             EditorCommand::RepeatSearch(direction) => self.repeat_search(direction),
             EditorCommand::ClearSearch => self.search.visible = false,
@@ -224,9 +224,6 @@ impl EditorState {
             height: height.saturating_sub(2),
             width,
         });
-        if let Some(prompt) = &mut self.prompt {
-            prompt.resize(Size { height: 1, width });
-        }
     }
 
     pub(super) fn change_mode(&mut self, mode: EditorMode) {
@@ -237,9 +234,9 @@ impl EditorState {
                     scroll_offset: self.view.scroll_offset,
                     previous: std::mem::take(&mut self.search),
                 });
-                self.prompt = Some(Prompt::new("/", "", self.terminal_size));
+                self.prompt = Some(Prompt::new("/", ""));
             }
-            EditorMode::Command => self.prompt = Some(Prompt::new(":", "", self.terminal_size)),
+            EditorMode::Command => self.prompt = Some(Prompt::new(":", "")),
             mode => {
                 if let Some(snapshot) = self.search_snapshot.take() {
                     self.buffer.restore_cursor(snapshot.cursor);
@@ -266,7 +263,7 @@ impl EditorState {
                 }
             }
         } else {
-            self.prompt = Some(Prompt::new(":", "w ", self.terminal_size));
+            self.prompt = Some(Prompt::new(":", "w "));
             self.mode = EditorMode::Command;
         }
     }

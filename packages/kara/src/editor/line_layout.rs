@@ -1,4 +1,4 @@
-use std::{fmt::Display, range::Range, str::FromStr};
+use std::range::Range;
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
@@ -25,7 +25,7 @@ struct TextFragment {
     replacement: Option<char>,
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct LineLayout {
     fragments: Vec<TextFragment>,
 }
@@ -67,38 +67,6 @@ impl LineLayout {
             cell = end;
         }
         result
-    }
-
-    pub fn insert_char(&mut self, char: char, at: usize) {
-        let mut result = String::new();
-        for (index, fragment) in self.fragments.iter().enumerate() {
-            if index == at {
-                result.push(char);
-            }
-            result.push_str(&fragment.grapheme);
-        }
-        if at >= self.fragments.len() {
-            result.push(char);
-        }
-        self.fragments = Self::str_to_fragments(&result);
-    }
-
-    pub fn delete(&mut self, x: usize) {
-        let mut result = String::new();
-        for (index, fragment) in self.fragments.iter().enumerate() {
-            if index != x {
-                result.push_str(&fragment.grapheme);
-            }
-        }
-        self.fragments = Self::str_to_fragments(&result);
-    }
-
-    pub fn append_char(&mut self, character: char) {
-        self.insert_char(character, self.len());
-    }
-
-    pub fn delete_last(&mut self) {
-        self.delete(self.len().saturating_sub(1));
     }
 
     pub fn prefix_whitespace_count(&self) -> usize {
@@ -149,8 +117,8 @@ impl LineLayout {
         }
     }
 
-    fn str_to_fragments(line_str: &str) -> Vec<TextFragment> {
-        line_str
+    pub fn new(text: &str) -> Self {
+        let fragments = text
             .grapheme_indices(true)
             .map(|(byte, grapheme)| {
                 let (replacement, rendered_width) = Self::replacement_character(grapheme)
@@ -173,22 +141,7 @@ impl LineLayout {
                     replacement,
                 }
             })
-            .collect()
-    }
-}
-
-impl FromStr for LineLayout {
-    type Err = !;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let fragments = Self::str_to_fragments(s);
-        Ok(Self { fragments })
-    }
-}
-
-impl Display for LineLayout {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let result: String = self.fragments.iter().map(|f| f.grapheme.as_str()).collect();
-        f.write_str(&result)
+            .collect();
+        Self { fragments }
     }
 }

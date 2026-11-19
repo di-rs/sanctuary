@@ -1,22 +1,18 @@
 use std::path::Path;
 
-use crate::editor::{
-    command::{
-        EditorCommand,
-        System::{Quit, QuitForce, SaveAs},
-    },
-    line_layout::LineLayout,
+use crate::editor::command::{
+    EditorCommand,
+    System::{Quit, QuitForce, SaveAs},
 };
 
 pub struct Interpreter {}
 
 impl Interpreter {
     pub(crate) fn into_command(
-        value: &LineLayout,
+        value: &str,
         current_file: Option<&Path>,
     ) -> Result<EditorCommand, String> {
-        let str = value.to_string();
-        let (verb, operand) = str.split_once(' ').unwrap_or((&str, ""));
+        let (verb, operand) = value.split_once(' ').unwrap_or((value, ""));
         match verb {
             "w" => {
                 let name = if operand.is_empty() {
@@ -31,7 +27,7 @@ impl Interpreter {
             }
             "q" => Ok(EditorCommand::System(Quit)),
             "q!" => Ok(EditorCommand::System(QuitForce)),
-            _ => Err(format!("ERR: unknown command {str}")),
+            _ => Err(format!("ERR: unknown command {value}")),
         }
     }
 }

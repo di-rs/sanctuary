@@ -1,7 +1,8 @@
-use std::{cmp::min, path::Path, range::Range};
+use std::{path::Path, range::Range};
+
+use unicode_segmentation::UnicodeSegmentation;
 
 use crate::editor::{
-    Size,
     command::{Edit, EditorCommand},
     line_layout::LineLayout,
     prompt::interpreter::Interpreter,
@@ -9,49 +10,51 @@ use crate::editor::{
 
 mod interpreter;
 
-#[derive(Default)]
 pub struct Prompt {
-    label: String,
-    value: LineLayout,
-    size: Size,
+    label: &'static str,
+    value: String,
 }
 
 impl Prompt {
-    pub fn new(label: &str, value: &str, size: Size) -> Self {
+    pub fn new(label: &'static str, value: &str) -> Self {
         Self {
-            label: label.to_owned(),
-            value: value.parse().unwrap(),
-            size,
+            label,
+            value: value.to_owned(),
         }
     }
 
-    pub const fn resize(&mut self, size: Size) {
-        self.size = size;
-    }
-
-    pub fn text(&self) -> String {
-        let area_for_value = self
-            .size
-            .width
-            .saturating_sub(self.label.len())
-            .saturating_sub(1);
-        let value_end = self.value.width();
-        let value_start = value_end.saturating_sub(area_for_value);
-        format!(
+    pub fn display(&self, width: usize) -> (String, usize) {
+        let layout = LineLayout::new(&self.value);
+        let label_width = self.label.len();
+        let value_width = layout.width();
+        let available = width.saturating_sub(label_width).saturating_sub(1);
+        let start = value_width.saturating_sub(available);
+        let text = format!(
             "{}{}",
             self.label,
-            self.value.get(Range::from(value_start..value_end))
-        )
+            layout.get(Range::from(start..value_width))
+        );
+        let caret = label_width
+            .saturating_add(value_width)
+            .min(width.saturating_sub(1));
+        (text, caret)
     }
 
     pub fn value(&self) -> String {
-        self.value.to_string()
+        self.value.clone()
     }
 
     pub fn handle_edit(&mut self, edit_command: &Edit) {
         match edit_command {
-            Edit::Insert(char) => self.value.append_char(*char),
-            Edit::DeleteBackward => self.value.delete_last(),
+            Edit::Insert(character) => self.value.push(*character),
+            Edit::DeleteBackward => {
+                let start = self
+                    .value
+                    .grapheme_indices(true)
+                    .next_back()
+                    .map_or(0, |(start, _)| start);
+                self.value.truncate(start);
+            }
             _ => {}
         }
     }
@@ -60,15 +63,8 @@ impl Prompt {
         &mut self,
         current_file: Option<&Path>,
     ) -> Result<EditorCommand, String> {
-        let cmd = Interpreter::into_command(&self.value, current_file);
-        self.value = LineLayout::default();
-        cmd
-    }
-
-    pub fn caret_position_col(&self) -> usize {
-        min(
-            self.label.len().saturating_add(self.value.width()),
-            self.size.width.saturating_sub(1),
-        )
+        let command = Interpreter::into_command(&self.value, current_file);
+        self.value.clear();
+        command
     }
 }
