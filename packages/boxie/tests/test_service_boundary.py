@@ -1,10 +1,68 @@
 import asyncio
 import json
+from collections.abc import AsyncIterator
+from contextlib import nullcontext
 from pathlib import Path
+from unittest.mock import AsyncMock, Mock
 from uuid import uuid4
 
 import pytest
 from boxie_test_support.supervisor import configuration
+
+
+@pytest.mark.parametrize("service", ["consumer", "supervisor"])
+def test_private_app_bounds_post_bodies_after_authentication(service: str) -> None:
+    import httpx
+    from boxie.api.app import ApiConfig, create_app
+    from boxie.sandbox.transport.server import create_supervisor_app
+    from fastapi import Request
+
+    if service == "consumer":
+        app = create_app(
+            ApiConfig(release="test", consumers={"one": b"secret"}),
+            AsyncMock(),
+            AsyncMock(),
+            AsyncMock(),
+        )
+    else:
+        app = create_supervisor_app(
+            Mock(),
+            AsyncMock(),
+            credential=b"secret",
+            readiness=AsyncMock(),
+            lifespan=lambda _: nullcontext(),
+        )
+
+    @app.api_route("/body", methods=["POST", "PUT"])
+    async def chunk_sizes(request: Request) -> list[int]:
+        return [len(chunk) async for chunk in request.stream() if chunk]
+
+    body_read_started = False
+
+    async def chunks(last_chunk_size: int) -> AsyncIterator[bytes]:
+        nonlocal body_read_started
+        body_read_started = True
+        yield b"a" * 32_768
+        yield b"b" * last_chunk_size
+
+    async def exercise() -> None:
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app), base_url="http://test"
+        ) as client:
+            denied = await client.post("/body", content=chunks(32_769))
+            assert denied.status_code == 401
+            assert not body_read_started
+
+            headers = {"Authorization": "Bearer secret"}
+            accepted = await client.post("/body", headers=headers, content=chunks(32_768))
+            assert accepted.status_code == 200 and accepted.json() == [65_536]
+            oversized = await client.post("/body", headers=headers, content=chunks(32_769))
+            assert oversized.status_code == 413
+            assert oversized.json() == {"detail": "request too large"}
+            streamed = await client.put("/body", headers=headers, content=chunks(32_769))
+            assert streamed.status_code == 200 and streamed.json() == [32_768, 32_769]
+
+    asyncio.run(exercise())
 
 
 def test_standalone_api_requires_lifecycle_configuration(tmp_path: Path) -> None:

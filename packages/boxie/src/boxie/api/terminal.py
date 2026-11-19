@@ -5,7 +5,6 @@ from contextlib import suppress
 from uuid import UUID
 
 from fastapi import APIRouter, WebSocket
-from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 from starlette.websockets import WebSocketDisconnect, WebSocketState
 
@@ -21,6 +20,7 @@ from boxie.contracts.terminal import (
     control,
 )
 from boxie.domain.errors import BoxieError, TerminalWriteClosed
+from boxie.http import boxie_error_response
 
 DRAIN_TIMEOUT = 2.0
 
@@ -128,9 +128,7 @@ def terminal_routes(
                 await proxy(websocket, connection)
         except BoxieError as error:
             if websocket.application_state == WebSocketState.CONNECTING:
-                await websocket.send_denial_response(
-                    JSONResponse({"detail": error.public_detail}, status_code=error.status)
-                )
+                await websocket.send_denial_response(boxie_error_response(error))
             elif websocket.application_state == WebSocketState.CONNECTED:
                 await close_socket(websocket, 1011)
         except TimeoutError, WebSocketDisconnect:
