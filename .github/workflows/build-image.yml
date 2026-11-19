@@ -26,7 +26,7 @@ jobs:
       packages: write
     outputs:
       image: ${{ steps.image.outputs.name }}@${{ steps.publish.outputs.digest }}
-      source_sha: ${{ steps.source.outputs.sha }}
+      source_sha: ${{ steps.image.outputs.sha }}
     env:
       DOCKER_BUILD_RECORD_UPLOAD: 'false'
     steps:
@@ -35,35 +35,29 @@ jobs:
       with:
         ref: ${{ inputs.revision }}
         persist-credentials: 'false'
-    - name: Select a fixed component and identify its source
-      id: source
-      env:
-        COMPONENT: ${{ inputs.component }}
-        REVISION: ${{ inputs.revision }}
-      run: |
-        set -euo pipefail
-        [[ $REVISION =~ ^[a-f0-9]{40}$ ]]
-        case $COMPONENT in
-          boxie|cli-playground|boxie-sandbox|collector) ;;
-          *) echo 'Unknown image component' >&2; exit 2 ;;
-        esac
-        sha=$(git rev-parse HEAD)
-        [[ $sha == "$REVISION" ]]
-        printf 'sha=%s\n' "$sha" >> "$GITHUB_OUTPUT"
-    - name: Choose image build inputs
+    - name: Verify the revision and select image build inputs
       id: image
       env:
         COMPONENT: ${{ inputs.component }}
+        REVISION: ${{ inputs.revision }}
         REPOSITORY: ${{ github.repository }}
       run: |
         set -euo pipefail
+        [[ $REVISION =~ ^[a-f0-9]{40}$ ]] || exit 1
+        context=.
         case $COMPONENT in
-          boxie) file=packages/boxie/infra/Boxie.Dockerfile; context=. ;;
-          cli-playground) file=tools/cli-playground/infra/docker/CliPlayground.Dockerfile; context=. ;;
-          boxie-sandbox) file=packages/boxie/sandbox/Dockerfile; context=. ;;
-          collector) file=packages/boxie/infra/observability/collector/Dockerfile; context=packages/boxie/infra/observability/collector ;;
+          boxie) file=packages/boxie/infra/Boxie.Dockerfile ;;
+          cli-playground) file=tools/cli-playground/infra/docker/CliPlayground.Dockerfile ;;
+          boxie-sandbox) file=packages/boxie/sandbox/Dockerfile ;;
+          collector)
+            context=packages/boxie/infra/observability/collector
+            file=$context/Dockerfile
+            ;;
+          *) echo 'Unknown image component' >&2; exit 2 ;;
         esac
-        printf 'file=%s\ncontext=%s\nname=ghcr.io/%s-%s\n' "$file" "$context" "${REPOSITORY,,}" "$COMPONENT" >> "$GITHUB_OUTPUT"
+        sha=$(git rev-parse HEAD)
+        [[ $sha == "$REVISION" ]] || exit 1
+        printf 'sha=%s\nfile=%s\ncontext=%s\nname=ghcr.io/%s-%s\n' "$sha" "$file" "$context" "${REPOSITORY,,}" "$COMPONENT" >> "$GITHUB_OUTPUT"
     - name: 🐳 Set up Docker Buildx
       uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069
       with:
@@ -85,9 +79,9 @@ jobs:
         tags: ${{ steps.image.outputs.name }}:run-${{ github.run_id }}-${{ github.run_attempt }}
         labels: |
           org.opencontainers.image.source=https://github.com/${{ github.repository }}
-          org.opencontainers.image.revision=${{ steps.source.outputs.sha }}
+          org.opencontainers.image.revision=${{ steps.image.outputs.sha }}
     - name: Record immutable image
       env:
         IMAGE: ${{ steps.image.outputs.name }}@${{ steps.publish.outputs.digest }}
-        SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        SOURCE_SHA: ${{ steps.image.outputs.sha }}
       run: printf '%s from %s\n' "$IMAGE" "$SOURCE_SHA" >> "$GITHUB_STEP_SUMMARY"

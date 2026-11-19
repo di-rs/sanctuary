@@ -135,6 +135,38 @@ def test_reusable_builder_uses_fixed_components_without_deployment_secrets() -> 
 
 
 @pytest.mark.parametrize(
+    "component,revision,status,stderr",
+    [
+        ("boxie", "0" * 40, 1, ""),
+        ("unsupported", "0" * 40, 2, "Unknown image component\n"),
+        ("unsupported", "HEAD", 1, ""),
+    ],
+)
+def test_reusable_builder_rejects_invalid_selection_before_emitting_outputs(
+    tmp_path: Path, component: str, revision: str, status: int, stderr: str
+) -> None:
+    steps = workflow("build-image.yml")["jobs"]["build"]["steps"]
+    select = next(step["run"] for step in steps if step.get("id") == "image")
+    output = tmp_path / "output"
+    result = subprocess.run(
+        ["bash", "-c", select],
+        cwd=WORKFLOWS.parents[1],
+        env={
+            **os.environ,
+            "COMPONENT": component,
+            "REVISION": revision,
+            "REPOSITORY": "di-rs/sanctuary",
+            "GITHUB_OUTPUT": str(output),
+        },
+        text=True,
+        capture_output=True,
+    )
+    assert result.returncode == status, result.stderr
+    assert result.stderr == stderr
+    assert not output.exists()
+
+
+@pytest.mark.parametrize(
     "filename,build_job,component,environment",
     [
         ("boxie-release.yml", "boxie", "boxie", "boxie"),
