@@ -7,8 +7,6 @@ import threading
 import zipfile
 from collections.abc import AsyncIterator
 from pathlib import Path
-from time import perf_counter
-from typing import IO, Any
 from uuid import UUID
 
 import httpx
@@ -122,6 +120,9 @@ def test_archive_timeout_waits_for_worker_without_blocking_metadata(
 def test_metadata_responds_while_upload_storage_waits(
     operation: str, docker_settings: Settings, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    from time import perf_counter
+    from typing import IO, Any
+
     app = create_app(docker_settings, boxie=FakeBoxie())
     bundle = binary_bundle({"echor": elf_binary()})
 
