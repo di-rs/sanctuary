@@ -15,6 +15,12 @@ version = "1.0.0"
 source = "registry+https://example.invalid/index"
 checksum = "original"
 """
+OTHER_HELPER = """
+[[package]]
+name = "helper"
+version = "{version}"
+source = "git+https://example.invalid/repo#abc"
+"""
 
 
 @pytest.mark.parametrize("field", ["version", "source", "checksum"])
@@ -32,16 +38,19 @@ def test_dependency_identity_or_contents_change_the_consumers_closure(field: str
     assert before["cli"] != after["cli"]
 
 
-def test_source_qualified_dependencies_ignore_an_unrelated_source_with_the_same_version() -> None:
+@pytest.mark.parametrize(
+    ("dependency", "other_version"),
+    [
+        ("helper 1.0.0", "2.0.0"),
+        ("helper 1.0.0 (registry+https://example.invalid/index)", "1.0.0"),
+    ],
+)
+def test_qualified_dependencies_resolve_the_same_package(
+    dependency: str, other_version: str
+) -> None:
     before = lock_closures(LOCK)
     after = lock_closures(
-        LOCK.replace('["helper"]', '["helper 1.0.0 (registry+https://example.invalid/index)"]')
-        + """
-[[package]]
-name = "helper"
-version = "1.0.0"
-source = "git+https://example.invalid/repo#abc"
-"""
+        LOCK.replace('["helper"]', f'["{dependency}"]') + OTHER_HELPER.format(version=other_version)
     )
     assert before["cli"] == after["cli"]
 
@@ -56,6 +65,7 @@ def test_dependency_cycles_terminate_and_retain_all_packages() -> None:
     [
         LOCK.replace('["helper"]', '["missing"]'),
         LOCK + '\n[[package]]\nname = "helper"\nversion = "2.0.0"\n',
+        LOCK.replace('["helper"]', '["helper 1.0.0"]') + OTHER_HELPER.format(version="1.0.0"),
         LOCK + '\n[[package]]\nname = "cli"\nversion = "0.1.0"\n',
     ],
 )
