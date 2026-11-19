@@ -130,6 +130,17 @@ rejects non-loopback hosts and duplicate authorities; production host validation
 is unchanged. Its runner lives outside the installed playground package and
 production images.
 
+In full and external modes the playground uses the same consumer API and
+credential checks as production. It copies the development credential from
+stdin into a private, project-owned volume mounted read-only by the playground.
+Use an HTTPS origin for a development Boxie on another host. Full mode joins
+the worktree's Boxie consumer network. PostgreSQL and Temporal stay on Boxie's
+private control network. Only the local supervisor mounts the Docker socket.
+Its sandbox requests use runsc. The local API publishes a loopback port and
+requires its generated consumer credential. Teardown checks the saved Docker
+engine identity and uses the worktree's Compose project and Boxie installation
+identities to select resources.
+
 The intended topology exposes only the playground. Confirm that Boxie,
 Docker, PostgreSQL, Temporal, and metrics remain private; verify TLS, proxy/Host
 handling, authentication, and operator-only writes to profiles and storage.

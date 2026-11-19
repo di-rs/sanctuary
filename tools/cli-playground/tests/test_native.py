@@ -3,17 +3,24 @@
 import json
 import os
 import secrets
+import select
 import socket
 import subprocess
 import time
 from collections.abc import Callable
+from contextlib import ExitStack
 from pathlib import Path
+from socketserver import BaseRequestHandler, ThreadingTCPServer
+from threading import Thread
+from urllib.parse import urlsplit
 
 import httpx
 import pytest
 from integration.stack import LifecycleStack
+from local_dev.boxie import Boxie
+from local_dev.command import playground
 
-from .helpers import binary_bundle
+from .helpers import binary_bundle, clean_git_env
 
 ROOT = Path(__file__).resolve().parents[3]
 pytestmark = pytest.mark.integration
@@ -132,3 +139,197 @@ def test_native_application_and_browser(tmp_path: Path) -> None:
         assert not stack.children()
     finally:
         stack.close()
+
+
+def test_local_deploy_browser_and_worktree_teardown(tmp_path: Path) -> None:
+    """Use the public launcher for both projects and exercise an external URL."""
+    binary = Path(os.environ.get("BOXIE_NATIVE_BINARY", ROOT / "target/release/echor"))
+    assert binary.is_file(), "native echor binary is required (BOXIE_NATIVE_BINARY)"
+
+    def command(args: list[str], *, env: dict[str, str] | None = None) -> str:
+        return subprocess.run(
+            args, cwd=ROOT, env=env, check=True, text=True, stdout=subprocess.PIPE, timeout=480
+        ).stdout.strip()
+
+    def local(root: Path, action: str, mode: str, env: dict[str, str] | None = None) -> str:
+        return command(
+            [
+                "uv",
+                "run",
+                "--locked",
+                "sdev",
+                "--root",
+                str(root),
+                "local",
+                action,
+                "--mode",
+                mode,
+                *(["--no-build"] if action == "start" else []),
+            ],
+            env=env,
+        )
+
+    def children(boxie: Boxie) -> list[str]:
+        return boxie.docker(
+            "ps",
+            "-aq",
+            "--filter",
+            f"label=boxie.installation={boxie.installation}",
+            "--filter",
+            f"label=boxie.host={boxie.project}",
+            capture=True,
+        ).split()
+
+    with ExitStack() as cleanup:
+        first = tmp_path / "first"
+        second = tmp_path / "second"
+        for worktree in (first, second):
+            command(
+                ["git", "worktree", "add", "--detach", str(worktree), "HEAD"], env=clean_git_env()
+            )
+            cleanup.callback(
+                command,
+                ["git", "worktree", "remove", "--force", str(worktree)],
+                env=clean_git_env(),
+            )
+        boxie = Boxie(second)
+        full = playground(second, "full", boxie)
+        external = playground(first, "external", None)
+        # Reuse the workflow's shipped-image builds and build the local preview
+        # image once with only the test CLI. Every tag is owned by this test.
+        for source, target in (
+            (os.environ.get("BOXIE_IMAGE", "boxie:lifecycle"), boxie.env["BOXIE_IMAGE"]),
+            (os.environ.get("BOXIE_SANDBOX_IMAGE", "boxie-sandbox:lifecycle"), boxie.sandbox_image),
+        ):
+            boxie.docker("image", "tag", source, target)
+            cleanup.callback(boxie.docker, "image", "rm", target)
+        full.run("--progress", "plain", "build", "--build-arg", "CLI_PACKAGES=echor")
+        cleanup.callback(boxie.docker, "image", "rm", full.env["LOCAL_DEV_PLAYGROUND_IMAGE"])
+        boxie.docker(
+            "image",
+            "tag",
+            full.env["LOCAL_DEV_PLAYGROUND_IMAGE"],
+            external.env["LOCAL_DEV_PLAYGROUND_IMAGE"],
+        )
+        cleanup.callback(boxie.docker, "image", "rm", external.env["LOCAL_DEV_PLAYGROUND_IMAGE"])
+
+        cleanup.callback(local, second, "down", "full")
+        standalone = local(second, "start", "boxie")
+        assert "gVisor/runsc" in standalone
+        assert not full.run("ps", "-q", capture=True).strip()
+        assert "Terminal backend: Boxie API" in local(second, "start", "full")
+        api = local(second, "url", "boxie")
+        full_url = local(second, "url", "full")
+
+        # Make the loopback-only development API reachable from the other
+        # container through a test-only TCP relay on this Boxie's bridge.
+        gateway = boxie.docker(
+            "network",
+            "inspect",
+            boxie.network,
+            "--format",
+            "{{(index .IPAM.Config 0).Gateway}}",
+            capture=True,
+        )
+        api_port = urlsplit(api).port
+        assert api_port is not None
+
+        class Relay(BaseRequestHandler):
+            def handle(self) -> None:
+                with socket.create_connection(("127.0.0.1", api_port), timeout=10) as upstream:
+                    for_socket = self.request
+                    for_socket.settimeout(10)
+                    while True:
+                        readable, _, _ = select.select([upstream, for_socket], [], [], 60)
+                        if not readable:
+                            return
+                        for source in readable:
+                            data = source.recv(65536)
+                            if not data:
+                                return
+                            (for_socket if source is upstream else upstream).sendall(data)
+
+        relay = cleanup.enter_context(ThreadingTCPServer((gateway, 0), Relay))
+        relay.daemon_threads = True
+        Thread(target=relay.serve_forever, daemon=True).start()
+        cleanup.callback(relay.shutdown)
+        relay_origin = f"http://{gateway}:{relay.server_address[1]}"
+        cleanup.callback(local, first, "down", "external")
+        assert "Terminal backend: Boxie API" in local(
+            first,
+            "start",
+            "external",
+            os.environ
+            | {
+                "LOCAL_DEV_BOXIE_URL": relay_origin,
+                "LOCAL_DEV_BOXIE_CREDENTIAL_FILE": str(boxie.credential),
+            },
+        )
+        origin = local(first, "url", "external")
+        assert origin != full_url
+        token = external.run(
+            "exec",
+            "-T",
+            "playground",
+            "sh",
+            "-c",
+            "cat /tmp/playground-dev-*/deploy.secret",
+            capture=True,
+        ).strip()
+        with subprocess.Popen(
+            ["pnpm", "exec", "playwright", "test", "--config", "playwright.native.config.ts"],
+            cwd=ROOT / "tools/cli-playground/frontend",
+            env=os.environ
+            | {
+                "BOXIE_NATIVE_ORIGIN": origin,
+                "BOXIE_NATIVE_BINARY": str(binary),
+                "BOXIE_NATIVE_DEPLOY_TOKEN": token,
+            },
+        ) as browser:
+            runtime = ""
+            try:
+                deadline = time.monotonic() + 150
+                while not runtime and browser.poll() is None and time.monotonic() < deadline:
+                    for child in children(boxie):
+                        inspected = subprocess.run(
+                            ["docker", "inspect", "--format", "{{.HostConfig.Runtime}}", child],
+                            capture_output=True,
+                            text=True,
+                            check=False,
+                            timeout=10,
+                        )
+                        if inspected.returncode == 0:
+                            runtime = inspected.stdout.strip()
+                    time.sleep(0.2)
+                assert browser.wait(timeout=max(1, deadline - time.monotonic())) == 0
+                assert runtime == "runsc"
+            finally:
+                if browser.poll() is None:
+                    browser.kill()
+        deadline = time.monotonic() + 60
+        while children(boxie) and time.monotonic() < deadline:
+            time.sleep(0.5)
+        assert not children(boxie), "Boxie left the browser session's sandbox behind"
+
+        local(first, "down", "external")
+        assert not external.run("ps", "-a", "-q", capture=True).strip()
+        assert not boxie.docker(
+            "volume",
+            "ls",
+            "-q",
+            "--filter",
+            f"label=com.docker.compose.project={external.project}",
+            capture=True,
+        )
+        assert httpx.get(full_url, follow_redirects=True, timeout=10).status_code == 200
+        assert (
+            httpx.get(
+                api + "readyz",
+                headers={"Authorization": "Bearer " + boxie.credential.read_text()},
+                timeout=10,
+            ).status_code
+            == 200
+        )
+        local(second, "down", "full")
+        assert not boxie.run("ps", "-a", "-q", capture=True).strip()
+        assert not children(boxie)

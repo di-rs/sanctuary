@@ -1,116 +1,123 @@
 # Local development
 
-Run the playground, PostgreSQL, all workspace CLIs, and real Bash terminal sessions
-with `sdev local`, which runs the standalone `local-dev` tool. Each worktree gets its own Compose project and
-Docker-assigned loopback port, so several checkouts can run concurrently.
+Use `sdev local` to run the CLI playground from your checkout with portable
+Bash terminals or with Boxie. Each worktree has its own projects and
+Docker-assigned loopback ports.
 
-## Start the stack
+## Try a preview on Docker Desktop
 
-Install uv (version required by the root pyproject), and start a local Docker
-engine with the Compose plugin and BuildKit. uv supplies the repository's Python
-version and dependencies. Rust and frontend builds run inside Docker; the first
-build needs network access and can take several minutes. Apple Silicon uses
-Linux amd64 emulation to preserve the artifact validator's executable format.
-
-From the checkout root:
+Install uv and start a local Docker engine with Compose and BuildKit. From the
+checkout root, run:
 
 ```sh
 uv run --locked sdev local up
 ```
 
-The launcher prints every Compose command, streams build progress, waits for
-healthy services, and prints `Ready: http://127.0.0.1:<assigned-port>/`. Open that
-URL. The root redirects to the local preview with the command explorer and
-terminal. Type `biggie --help` or choose a CLI in the sidebar.
+Open the playground URL printed after `Ready` and try `echor hello`. The launcher
+reports `Terminal backend: portable Bash PTYs`. The preview includes workspace
+CLIs and their command catalogs. Sessions run in one non-root development
+container for trusted local code. Apple Silicon runs the preview image under
+Linux amd64 emulation to match the executable format used by Boxie.
 
-Logs continue in the console. Ctrl+C stops following logs and leaves the stack
-running. Stop and remove it with `uv run --locked sdev local down`. PostgreSQL uses temporary storage. Recreating its container discards preview data.
-Recreating the playground starts fresh sessions. Session files use a private
-Docker volume that supports Linux access ACLs, including Kara's atomic saves.
-`down` removes that volume and this worktree's disposable data.
+Ctrl+C stops following logs. Run `uv run --locked sdev local down` to remove
+this worktree's playground, PostgreSQL, network and disposable data.
+
+## Start Boxie on Linux
+
+On a native Linux/amd64 development host, install OpenSSL and rootful Docker
+Engine with Compose and BuildKit. Register gVisor as the `runsc` runtime.
+The launcher uses the local `/var/run/docker.sock` with host UID mapping, and
+the supervisor requires access to that socket. Verify the runtime and Compose
+configuration first.
+
+```sh
+uv run --locked sdev local doctor --mode boxie
+uv run --locked sdev local start --mode boxie
+```
+
+The Boxie project starts PostgreSQL, Temporal, the API and the supervisor.
+It builds the service and shipped sandbox image and initializes the schemas,
+Temporal namespace and development credentials. The launcher prints the
+loopback API URL and path to its consumer credential. Only the supervisor
+receives the Docker socket. Use `down --mode boxie` to remove this project's
+containers, networks, database volume, local credentials and sandbox data.
+Use the same local Docker engine for teardown. If the engine changes or its
+identity cannot be checked, the launcher keeps the local state.
+
+To start both projects and connect the browser to the local Boxie API, run:
+
+```sh
+uv run --locked sdev local start --mode full
+```
+
+Open the playground URL printed after `Terminal backend: Boxie API`. Terminals
+now run in Boxie-managed gVisor sandboxes. The playground brings its own
+PostgreSQL and joins only Boxie's consumer network. Run `down --mode full` to
+stop the playground before tearing down its Boxie project.
+
+## Connect the playground to a development Boxie
+
+Obtain a private API origin reachable **from the playground container** and the
+corresponding consumer credential from the development Boxie operator. Use HTTPS
+when sending the credential across hosts. Save the token in a private regular
+file with mode `0600`.
+
+```sh
+export LOCAL_DEV_BOXIE_URL=https://boxie.dev.example
+export LOCAL_DEV_BOXIE_CREDENTIAL_FILE="$HOME/.config/boxie/development.secret"
+uv run --locked sdev local start --mode external
+```
+
+Startup publishes the checkout's binaries and catalog through the development
+Boxie and prints `Terminal backend: Boxie API`. The playground has its own
+database. Its credential is copied into a worktree-owned volume. Run
+`uv run --locked sdev local down --mode external` to remove that project's
+containers, networks, volumes and local copy of the credential. The development
+Boxie and other worktrees continue running.
 
 ## Commands
 
-Run these from the checkout root:
+Run from the checkout root with `uv run --locked sdev local COMMAND`. Commands
+accept `--mode portable|boxie|full|external`. The default is `portable`.
 
 | Command | Effect |
 | --- | --- |
-| `uv run --locked sdev local up` | Build, start, wait for health, then follow logs |
-| `uv run --locked sdev local start` | Build and start, then return after readiness |
-| `uv run --locked sdev local up --detach` | Same as `start` |
-| `uv run --locked sdev local start --no-build` | Start using existing images |
-| `uv run --locked sdev local build` | Build images without starting containers |
-| `uv run --locked sdev local logs` | Follow the last 100 lines and new logs |
-| `uv run --locked sdev local logs --no-follow` | Print recent logs and return |
-| `uv run --locked sdev local status` | Show this worktree's services, health, and ports |
-| `uv run --locked sdev local url` | Print its currently assigned URL |
-| `uv run --locked sdev local down` | Remove this worktree's containers and network |
-| `uv run --locked sdev local config` | Inspect resolved Compose configuration; no daemon needed |
-| `uv run --locked sdev local doctor` | Check Docker, show its context/version, and validate configuration |
-| `uv run --locked sdev local --help` | List commands without requiring Docker |
+| `up` | Build, start, wait for readiness and follow logs. In full mode, follows the playground logs. |
+| `start`, `up --detach` | Build and start, then return after readiness. |
+| `start --no-build`, `up --no-build` | Start using existing worktree images. |
+| `build` | Build the selected images. |
+| `logs --no-follow` | Print recent logs and return. Omit the option to follow logs. |
+| `status` | Show services, health and ports. |
+| `url` | Print the playground URL. Boxie mode prints the API URL. |
+| `down` | Remove the selected worktree's projects and disposable data. Images can be reused. |
+| `config` | Print Compose configuration with placeholder credentials. A running engine is optional. |
+| `doctor` | Check Docker, show its context and version, and validate configuration. |
 
-`up` also accepts `--no-build`. Source files are copied into images; there is no
-live reload or host source mount. After edits, run `start` again and reload the
-browser using the printed URL. A recreated container may receive a different port.
-
-For local CLI verification and reviewable WebM videos, follow the
-[CLI recording guide](cli-development.md#record-a-visible-change).
+Use `logs --mode boxie` to follow Boxie from a full deployment. If startup
+fails, inspect `status` and `logs` in the selected mode. Rebuild with `start`
+after changing source. A recreated container can receive a new loopback port,
+which `url` reports.
 
 ## Multiple worktrees
 
-Run `uv run --locked sdev local start` in each worktree. Project names contain the checkout
-folder name and a hash of its canonical absolute path. Two folders named
-`sanctuary` still get different networks, containers, images, and database data.
-Repeated commands in one worktree operate on its existing project. Docker chooses
-ports atomically when publishing containers; the launcher does not reserve ports
-with a separate probe or maintain a state file.
+Project names incorporate the canonical checkout path. A second worktree has
+its own playground database, volumes and ports, even when both playgrounds use
+the same external Boxie. Tear down a worktree before moving or deleting it so
+the launcher can identify its resources. Keep the Boxie files under
+`.local-dev/boxie/` while the project is running. To reset that development
+installation, use `down --mode boxie` or `down --mode full` before starting again.
 
-The CLI can find the checkout from a subdirectory. To select another checkout
-from elsewhere, use the installed launcher.
+Use a local Docker context because the printed loopback URLs refer to the
+Docker host. To manage a specific checkout from elsewhere, use the installed
+launcher.
 
 ```sh
-sdev --root /path/to/another/worktree local status
+sdev --root /path/to/another/worktree local status --mode full
 ```
 
-Use a local Docker context: the printed loopback URL refers to the Docker host.
-Before moving or deleting a worktree, run `down` there; its old absolute path is
-part of its project identity. The launcher never removes other projects. Older
-stacks named `sanctuary-playground-dev` are separate and are not automatically
-stopped by this command.
-
-## What runs
-
-The [Python launcher](../tools/local-dev/src/local_dev/stack.py) executes the
-[Compose manifest](../tools/cli-playground/compose.dev.yml) with an explicit
-project name and file path. `config` shows the resolved paths and services. There
-are no hidden background launchers or host service installs.
-The older `tools/dev.sh` entrypoint forwards arguments to this Python CLI.
-
-The playground image builds the frontend and all Rust CLI binaries, generates
-command metadata, migrates the development database, and publishes a local preview.
-It uses the terminal transport test harness with real Bash PTYs. All sessions in
-one worktree share a non-root container. Only the UI's dynamically assigned
-loopback port is published; PostgreSQL is private to that Compose network.
-
-This portable setup is for trusted local code and disposable data. It does not
-run production Boxie sandbox isolation, gVisor, or Temporal. For those components,
-use the native Linux setup below. Local previews have no merge-base comparison.
-
-## Troubleshooting
-
-| Symptom | Action |
-| --- | --- |
-| Docker is unreachable | Start the daemon and run `uv run --locked sdev local doctor`; check the active context |
-| Unknown Compose option | Update the Compose plugin to support `up --wait` and `--wait-timeout` |
-| Build fails | Read the streamed error, fix the source or dependency access, and rerun `start` |
-| Health check fails | Startup prints service status and recent logs; use `logs` to investigate, then rerun `start` |
-| Browser URL stopped working | Run `url`; container recreation can change the port |
-| UI changes are missing | Run `start` to rebuild, wait for readiness, then reload |
-| Need a clean environment | Run `down`, then `up`; development data will be discarded |
-
-Failed startup leaves containers available for inspection. The CLI exits nonzero
-on errors and returns 130 when interrupted. No arbitrary listener is killed to
-make room for the stack.
+For production-style operator setup, see the [Boxie deployment guide](../packages/boxie/docs/deployment.md)
+and [playground deployment guide](../tools/cli-playground/docs/deployment.md).
+For a reviewable CLI demo, follow the [CLI recording guide](cli-development.md#record-a-visible-change).
 
 ## Work on a CLI or run checks on the host
 
@@ -144,22 +151,3 @@ Build the frontend before that browser test; it serves the compiled assets.
 See the [playground guide](../tools/cli-playground/README.md#develop-the-service)
 for terminal-specific testing and [repository instructions](../AGENTS.md) for
 package verification requirements.
-
-## Work on Boxie and the full service stack
-
-For sandbox isolation, Temporal lifecycle, credentials, and production service
-integration, use a disposable native Linux host with Docker and the `runsc`
-runtime registered. Docker Desktop can build the images but does not validate
-these production boundaries.
-
-Start with [Boxie's native Linux setup](../packages/boxie/docs/deployment.md#configure-a-disposable-native-linux-host).
-It covers private PostgreSQL and Temporal services, certificates, database
-migrations, approved profiles, and separate API/supervisor configuration. Then
-connect the [playground to that Boxie service](../tools/cli-playground/README.md#run-against-a-real-boxie-service)
-with its own database and consumer credential. Those services use their own
-Compose projects; `local-dev down` does not manage them.
-
-This setup is deliberately separate from the portable playground shortcut: the
-launcher does not silently replace gVisor with Docker's default runtime or claim
-to exercise Temporal. Shared-host provisioning and releases remain in the
-[infrastructure guide](../infra/README.md).

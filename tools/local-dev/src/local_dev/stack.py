@@ -1,6 +1,7 @@
 """Compose lifecycle and port discovery for a Sanctuary worktree."""
 
 import hashlib
+import os
 import re
 import shlex
 import shutil
@@ -32,46 +33,76 @@ def project_name(root: Path) -> str:
 
 
 class Stack:
-    def __init__(self, root: Path, *, suffix: str = "") -> None:
+    def __init__(
+        self,
+        root: Path,
+        *,
+        suffix: str = "",
+        files: tuple[Path, ...] = (Path("tools/cli-playground/compose.dev.yml"),),
+    ) -> None:
         self.root = root
         self.project = project_name(root) + suffix
+        self.env = {
+            key: value for key, value in os.environ.items() if not key.startswith("COMPOSE_")
+        }
         self.base = [
             "docker",
             "compose",
+            "--env-file",
+            os.devnull,
             "--project-name",
             self.project,
             "--project-directory",
-            str(root / "tools/cli-playground"),
-            "-f",
-            str(root / "tools/cli-playground/compose.dev.yml"),
+            str(root / files[0].parent),
         ]
+        for manifest in files:
+            self.base.extend(("-f", str(root / manifest)))
 
-    def run(self, *args: str, capture: bool = False) -> str:
+    def run(self, *args: str, capture: bool = False, data: str | None = None) -> str:
         command = [*self.base, *args]
         print(f"+ {shlex.join(command)}", file=sys.stderr, flush=True)
         result = subprocess.run(
             command,
             cwd=self.root,
+            env=self.env,
             check=True,
             text=True,
+            input=data,
             stdout=subprocess.PIPE if capture else None,
         )
         return result.stdout if capture else ""
 
     def url(self) -> str:
-        address = self.run("port", "playground", "8765", capture=True).strip()
+        return self.loopback_url("playground", "8765")
+
+    def loopback_url(self, service: str, port: str) -> str:
+        address = self.run("port", service, port, capture=True).strip()
         match = re.fullmatch(r"127\.0\.0\.1:([0-9]+)", address)
         if not match or not 1 <= int(match[1]) <= 65535:
-            raise DevError("No loopback playground port found. Run local-dev start first.")
+            raise DevError(f"No loopback port found for {service}. Run local-dev start first.")
         return f"http://127.0.0.1:{match[1]}/"
 
-    def start(self, *, build: bool, packages: list[str] | None = None) -> None:
+    def identify(self) -> None:
         print(f"Worktree: {self.root}\nCompose project: {self.project}", flush=True)
+
+    def start(
+        self, *, build: bool, packages: list[str] | None = None, credential: str | None = None
+    ) -> None:
+        self.identify()
         if build:
             options = ["--build-arg", "CLI_PACKAGES=" + " ".join(packages)] if packages else []
             self.run("--progress", "plain", "build", *options)
+        if credential is not None:
+            self.run(
+                "run", "--rm", "--no-deps", "--pull", "never", "-T", "credential", data=credential
+            )
         try:
-            self.run("up", "-d", "--wait", "--wait-timeout", "180")
+            wait = ("up", "-d", "--no-build", "--wait", "--wait-timeout", "180")
+            if credential is None:
+                self.run(*wait)
+            else:
+                self.run(*wait, "postgres")
+                self.run(*wait, "--no-deps", "--force-recreate", "playground")
         except subprocess.CalledProcessError:
             for command in [("ps", "--all"), ("logs", "--tail", "100")]:
                 try:

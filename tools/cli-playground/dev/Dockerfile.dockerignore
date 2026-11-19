@@ -1,6 +1,7 @@
 .git
 .venv
 target
+.local-dev
 **/target
 .superpowers
 .mypy_cache

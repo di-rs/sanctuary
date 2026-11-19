@@ -1,8 +1,4 @@
-"""Disposable Compose UI development runtime; never part of service composition.
-
-Real CLI binaries and PTYs run inside the development container. The test network
-supplies Boxie's transport, but this is not a gVisor or Temporal lifecycle test.
-"""
+"""Serve a local checkout preview using portable PTYs or a real Boxie consumer."""
 
 import asyncio
 import fcntl
@@ -10,24 +6,28 @@ import hashlib
 import os
 import pty
 import re
+import secrets
 import shutil
 import signal
-import socket
 import struct
 import subprocess
 import tempfile
 import termios
-import time
-from contextlib import suppress
-from ipaddress import IPv4Address
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 from uuid import uuid4
 
 import psycopg
+import uvicorn
 from boxie_test_support.supervisor import FakeTerminal
 from boxie_test_support.terminal_network import EchoDaemon
+from cli_playground.app import create_app
+from cli_playground.boxie_client import HttpBoxieClient
 from cli_playground.catalog import Catalog, CliCatalog
 from cli_playground.catalog_build import capture_schema
+from cli_playground.config import Settings
+from fastapi import FastAPI
 from fastapi.responses import PlainTextResponse, RedirectResponse
 from psycopg import sql
 from psycopg.conninfo import conninfo_to_dict, make_conninfo
@@ -35,7 +35,7 @@ from sqlalchemy import URL
 from starlette.datastructures import Headers
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from .boxie_network import boxie_network, product_server
+from .boxie_network import boxie_network
 from .helpers import binary_bundle, migrate
 
 
@@ -216,44 +216,71 @@ def catalog_bundle(binaries: Path) -> tuple[str, bytes, int]:
     return revision, binary_bundle(files | {"catalog.json": catalog.canonical()}), len(files)
 
 
-async def serve(root: Path, workspaces: Path) -> None:
-    binaries = Path("/opt/artifact")
-    revision, bundle, count = catalog_bundle(binaries)
-    daemon = LocalDaemon(workspaces, binaries, Path("/opt/fixtures"))
-    print("[dev] Starting development Boxie transport and playground API", flush=True)
-    async with boxie_network(root / "supervisor", daemon=daemon) as network:
-        async with product_server(
-            root / "product",
-            str(network.api.base_url),
-            port=8765,
-            published_address=IPv4Address(socket.gethostbyname(socket.gethostname())),
-            clock=time.time,
-            configure_app=lambda app: app.add_middleware(LocalPublishedPort),
-        ) as product:
-            print("[dev] Publishing the local binary bundle and catalog as PR 1", flush=True)
-            result = await product.http.post(
-                "/api/environments",
-                params={"sha": revision, "pr": 1},
-                headers={"Authorization": "Bearer test-deployment-token"},
-                content=bundle,
-                timeout=60,
-            )
-            result.raise_for_status()
-            identifier = result.json()["id"]
+async def serve_preview(root: Path, api_url: str, boxie: HttpBoxieClient | None) -> None:
+    revision, bundle, count = catalog_bundle(Path("/opt/artifact"))
+    token = secrets.token_hex(24)
+    # The native test can read this via Compose exec. It is never in a public
+    # response, a Compose environment variable, or the Docker build context.
+    token_file = root / "deploy.secret"
+    with os.fdopen(os.open(token_file, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "w") as file:
+        file.write(token)
+    settings = Settings(
+        data_dir=root / "product",
+        public_url="http://127.0.0.1:8765",
+        deploy_token=token,
+        boxie_url=api_url,
+        boxie_credential_file=Path("/run/boxie/consumer"),
+    )
+    app = create_app(settings, boxie=boxie)
+    app.add_middleware(LocalPublishedPort)
+    service = app.state.service
+    product_lifespan = app.router.lifespan_context
 
-            @product.app.get("/")
+    async def chunks() -> AsyncIterator[bytes]:
+        yield bundle
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        async with product_lifespan(app):
+            preview = await service.deploy(chunks(), revision, 1)
+
+            @app.get("/")
             async def home() -> RedirectResponse:
-                return RedirectResponse(f"/p/{identifier}")
+                return RedirectResponse(f"/p/{preview.id}")
 
-            print(
-                f"\nPlayground ready on container port 8765; use local-dev url for the host URL ({count} CLIs)\n",
-                flush=True,
-            )
-            stopped = asyncio.Event()
-            loop = asyncio.get_running_loop()
-            for event in (signal.SIGINT, signal.SIGTERM):
-                loop.add_signal_handler(event, stopped.set)
-            await stopped.wait()
+            backend = "Boxie API" if boxie is None else "portable Bash PTYs"
+            print(f"[dev] Preview ready ({count} CLIs). Terminal backend: {backend}.", flush=True)
+            try:
+                yield
+            finally:
+                async with asyncio.timeout(10):
+                    await service.close_pull_request(1)
+
+    app.router.lifespan_context = lifespan
+    server = uvicorn.Server(
+        uvicorn.Config(
+            app,
+            host="0.0.0.0",
+            port=8765,
+            ws="websockets-sansio",
+            access_log=False,
+            timeout_graceful_shutdown=5,
+        )
+    )
+    await server.serve()
+    if not server.started:
+        raise RuntimeError("Could not start the local playground preview")
+
+
+async def serve(root: Path, workspaces: Path) -> None:
+    external = os.environ.get("DEV_BOXIE_URL")
+    if external:
+        await serve_preview(root, external, None)
+    else:
+        daemon = LocalDaemon(workspaces, Path("/opt/artifact"), Path("/opt/fixtures"))
+        async with boxie_network(root / "supervisor", daemon=daemon) as network:
+            api_url = str(network.api.base_url)
+            await serve_preview(root, api_url, HttpBoxieClient(api_url, "consumer-one-secret"))
 
 
 def main() -> None:
@@ -282,7 +309,7 @@ def main() -> None:
         print("[dev] Applying playground database migrations", flush=True)
         migrate(url)
         with (
-            tempfile.TemporaryDirectory(prefix="playground-dev-") as directory,
+            tempfile.TemporaryDirectory(prefix="playground-dev-", dir="/tmp") as directory,
             tempfile.TemporaryDirectory(dir="/var/lib/playground-sessions") as sessions,
         ):
             with suppress(KeyboardInterrupt):
