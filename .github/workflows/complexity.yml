@@ -70,7 +70,7 @@ jobs:
           fi
           cat target/complexity/functions.txt
           echo 'Function metrics are advisory: CCN >15, nesting >4, and nonblank length >100 are review signals, not CI gates. Production and test code are included. No legacy-function baseline is enforced.' >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         if: hashFiles('tools/cli-playground/frontend/**/*.svelte') != ''
         with:
           node-version: '24'
