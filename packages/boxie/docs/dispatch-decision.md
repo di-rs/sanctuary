@@ -118,8 +118,9 @@ flowchart LR
 The current polling loop already gives the supervisor sole delivery ownership
 when the callback is omitted. A faster bounded poll would reduce idle wait at the
 cost of more SQL reads. An in-process relay in the supervisor can instead wake on
-PostgreSQL `LISTEN`/`NOTIFY` as a latency optimization. The acceptance transaction
-remains authoritative and the startup and periodic scans cover missed wake-ups.
+PostgreSQL `LISTEN`/`NOTIFY` as a latency optimization. The existing API operation
+still commits admission and the outbox row in one transaction. Startup and
+periodic scans cover missed wake-ups.
 An in-process dispatcher in the API would keep a Temporal credential on the
 consumer-facing service and lose its own delivery loop on API restart. A separate
 relay would add SQL and Temporal credentials, startup and deployment coordination,

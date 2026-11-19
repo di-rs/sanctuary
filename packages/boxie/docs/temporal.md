@@ -12,6 +12,10 @@ Namespace bootstrap reuses the approved immutable `BOXIE_IMAGE` with
 Boxie's pinned Temporal Python SDK and requires no separate helper image. The
 bootstrap job explicitly retains the prior operator UID/GID `1000:1000`.
 
+The [dispatch decision](dispatch-decision.md) records the API and supervisor's
+current uses of Temporal and the evidence required to move delivery and probes
+to the supervisor.
+
 ## Trust and private transport
 
 The Temporal package owns certificate issuance and rotation. Use separate CAs
