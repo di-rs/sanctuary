@@ -213,9 +213,11 @@ def test_size_totals_added_removed_unchanged_and_failed(github: FakeGitHub) -> N
     assert delta(0, 50) == "+50 B | —"
     assert delta(100, 0) == "-100 B | -100.00%"
     document.rows[0].head = Build(status="failed")
+    document.rows[1].head = Build(status="failed")
     rendered = render_size(REPO, github.run, document)
     assert "**Incomplete:**" in rendered and "Affected-set total" not in rendered
     assert "| `first` | `first` | 100 B | — | — | — | Unavailable |" in rendered
+    assert "| `new` | `new` | — | — | — | — | Unavailable |" in rendered
 
 
 @pytest.mark.parametrize(
@@ -381,18 +383,21 @@ def test_real_collector_builds_two_revisions_and_handles_added_removed(
 
 def test_long_size_report_bounds_comment_but_keeps_full_totals(github: FakeGitHub) -> None:
     document = size_document()
+    changed_indices = range(1, 238, 2)
     document.rows = [
         BinarySize(
-            package=f"package-{i:03}-" + "a" * 60,
+            package=f"package-{index:03}-" + "a" * 60,
             binary="b" * 80,
             base=Build(status="complete", bytes=10**12),
-            head=Build(status="complete", bytes=10**12 - 1),
+            head=Build(status="complete", bytes=10**12 - (index in changed_indices)),
         )
-        for i in range(256)
+        for index in reversed(range(256))
     ]
     result = render_size(REPO, github.run, document)
     assert "Showing 120 of 256 binaries" in result
-    assert "255,999,999,999,744 B" in result
+    assert "255,999,999,999,881 B" in result
+    visible = [line.split("`")[1] for line in result.splitlines() if line.startswith("| `")]
+    assert visible == [f"package-{index:03}-" + "a" * 60 for index in (*changed_indices, 0)]
     assert len(result) < 65536
 
 
