@@ -23,8 +23,11 @@ def test_worktree_identity(tmp_path: Path) -> None:
     assert project_name(first.resolve()) == project_name(alias.resolve())
 
 
-def test_repository_from_subdirectory(tmp_path: Path) -> None:
-    manifest = tmp_path / "tools/cli-playground/compose.dev.yml"
+@pytest.mark.parametrize(
+    "relative", ["tools/cli-playground/compose.dev.yml", "packages/boxie/infra/compose.dev.yml"]
+)
+def test_repository_from_subdirectory(tmp_path: Path, relative: str) -> None:
+    manifest = tmp_path / relative
     manifest.parent.mkdir(parents=True)
     manifest.touch()
     (tmp_path / "Cargo.toml").touch()

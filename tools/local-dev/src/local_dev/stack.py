@@ -19,9 +19,13 @@ def repository(start: Path) -> Path:
     """Resolve a checkout from cwd or --root, including invocation from a subdirectory."""
     start = start.resolve()
     for root in (start, *start.parents):
-        if (root / "tools/cli-playground/compose.dev.yml").is_file() and (
-            root / "Cargo.toml"
-        ).is_file():
+        if (root / "Cargo.toml").is_file() and any(
+            (root / manifest).is_file()
+            for manifest in (
+                "tools/cli-playground/compose.dev.yml",
+                "packages/boxie/infra/compose.dev.yml",
+            )
+        ):
             return root
     raise DevError("Run inside a Sanctuary checkout or pass --root /path/to/worktree.")
 

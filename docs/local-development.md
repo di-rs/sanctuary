@@ -6,8 +6,8 @@ Docker-assigned loopback ports.
 
 ## Try a preview on Docker Desktop
 
-Install uv and start a local Docker engine with Compose and BuildKit. From the
-checkout root, run:
+Install uv and start a local Docker engine with Compose and BuildKit. Run the
+launcher from the checkout root.
 
 ```sh
 uv run --locked sdev local up
