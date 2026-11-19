@@ -30,6 +30,9 @@ and artifact references reserved. Local deadlines keep enforcing safety during
 dependency outages. [Execution and recovery](execution.md) owns the detailed
 lifecycle contract, limits, and maintenance behavior.
 
+The [dispatch decision](dispatch-decision.md) records latency and recovery evidence
+and the conditions for moving all Temporal delivery to the supervisor.
+
 ## Durability boundary
 
 Temporal survives worker retries, but terminal processes are not durable shell
