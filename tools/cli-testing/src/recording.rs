@@ -296,13 +296,8 @@ fn verify_identity(suite: &Suite, recorded: &RecordedCase) -> Result {
         .ok_or_else(|| Error::new("unknown reference"))?;
     let identity =
         reference::identity(&reference.program.canonicalize()?, &reference.version_args)?;
-    let mut env = crate::default_environment();
-    env.extend(suite.env.clone());
-    env.extend(case.env.clone());
-    env.extend(reference.env.clone());
-    env.extend(case.origin.env.clone());
-    let args = case.origin.args.as_ref().unwrap_or(&case.args);
-    if identity != recorded.identity || args != &recorded.args || env != recorded.env {
+    let (args, env) = reference::invocation(suite, case, reference);
+    if identity != recorded.identity || args != recorded.args.as_slice() || env != recorded.env {
         return Err(Error::new(format!(
             "stale reference identity or invocation for {:?}",
             case.name

@@ -144,10 +144,37 @@ impl Workspace {
     }
 }
 
-enum PreparedInput {
+pub enum PreparedInput {
     Closed,
     Pipe(Vec<u8>),
     File(fs::File),
+}
+
+impl PreparedInput {
+    pub fn load(suite: &Suite, input: Option<&Input>) -> Result<Self> {
+        match input {
+            None => Ok(Self::Closed),
+            Some(Input::File { path }) => {
+                Ok(Self::File(fs::File::open(suite.fixture_path(path)?)?))
+            }
+            Some(input @ Input::Pipe { .. }) => Ok(Self::Pipe(input.bytes(suite)?)),
+        }
+    }
+
+    pub fn capture(self, mut command: Command) -> Result<Output> {
+        let pipe = match self {
+            Self::Closed => {
+                command.stdin(Stdio::null());
+                None
+            }
+            Self::File(file) => {
+                command.stdin(file);
+                None
+            }
+            Self::Pipe(bytes) => Some(bytes),
+        };
+        capture(command, pipe)
+    }
 }
 
 /// A prepared case, with at most one candidate execution.
@@ -183,7 +210,7 @@ impl Context {
         }
         let mut command = test.std_command();
         command.args(&case.args).envs(&suite.env).envs(&case.env);
-        let input = prepare_input(suite, case.stdin.as_ref())?;
+        let input = PreparedInput::load(suite, case.stdin.as_ref())?;
         let schema_logs = if case.name == "schema_export"
             && suite
                 .checks
@@ -326,23 +353,12 @@ impl Context {
     pub fn run(&mut self) -> Result<&Output> {
         if !self.attempted {
             self.attempted = true;
-            let mut command = self
+            let command = self
                 .command
                 .take()
                 .ok_or_else(|| Error::new("case command unavailable"))?;
             let input = std::mem::replace(&mut self.input, PreparedInput::Closed);
-            let pipe = match input {
-                PreparedInput::Closed => {
-                    command.stdin(Stdio::null());
-                    None
-                }
-                PreparedInput::File(file) => {
-                    command.stdin(file);
-                    None
-                }
-                PreparedInput::Pipe(bytes) => Some(bytes),
-            };
-            self.output = Some(capture(command, pipe).map_err(|error| {
+            self.output = Some(input.capture(command).map_err(|error| {
                 Error::caused_by(format!("cannot execute case {:?}", self.name), error)
             })?);
         }
@@ -403,16 +419,6 @@ pub fn customize(
     }
     body(&mut context)?;
     context.check()
-}
-
-fn prepare_input(suite: &Suite, input: Option<&Input>) -> Result<PreparedInput> {
-    match input {
-        None => Ok(PreparedInput::Closed),
-        Some(Input::File { path }) => Ok(PreparedInput::File(fs::File::open(
-            suite.fixture_path(path)?,
-        )?)),
-        Some(input @ Input::Pipe { .. }) => Ok(PreparedInput::Pipe(input.bytes(suite)?)),
-    }
 }
 
 pub fn capture(mut command: Command, stdin: Option<Vec<u8>>) -> Result<Output> {

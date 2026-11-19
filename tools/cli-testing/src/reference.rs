@@ -1,8 +1,8 @@
 //! Independent reference execution; normal catalog tests never call this module.
 use crate::{
     Error, Result,
-    catalog::{Case, Input, Suite},
-    context::{capture, check_bytes, check_status},
+    catalog::{Case, Reference, Suite},
+    context::{PreparedInput, capture, check_bytes, check_status},
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -67,30 +67,10 @@ pub fn run(suite: &Suite, case: &Case) -> Result<Capture> {
         ));
     }
     let identity = identity(&program, &reference.version_args)?;
-    let args = case
-        .origin
-        .args
-        .clone()
-        .unwrap_or_else(|| case.args.clone());
-    let mut env = crate::default_environment();
-    env.extend(suite.env.clone());
-    env.extend(case.env.clone());
-    env.extend(reference.env.clone());
-    env.extend(case.origin.env.clone());
+    let (args, env) = invocation(suite, case, reference);
     let mut command = crate::std_command(&program, suite.package_dir());
-    command.args(&args).envs(&env);
-    let input = match &case.stdin {
-        Some(Input::File { path }) => {
-            command.stdin(fs::File::open(suite.fixture_path(path)?)?);
-            None
-        }
-        Some(input @ Input::Pipe { .. }) => Some(input.bytes(suite)?),
-        None => {
-            command.stdin(Stdio::null());
-            None
-        }
-    };
-    let output = capture(command, input)?;
+    command.args(args).envs(&env);
+    let output = PreparedInput::load(suite, case.stdin.as_ref())?.capture(command)?;
     check_status(
         &case.name,
         &output,
@@ -105,10 +85,24 @@ pub fn run(suite: &Suite, case: &Case) -> Result<Capture> {
     check_bytes(&case.name, "reference stderr", &output.stderr, &stderr)?;
     Ok(Capture {
         identity,
-        args,
+        args: args.to_vec(),
         env,
         output,
     })
+}
+
+pub(crate) fn invocation<'a>(
+    suite: &Suite,
+    case: &'a Case,
+    reference: &Reference,
+) -> (&'a [String], BTreeMap<String, String>) {
+    let args = case.origin.args.as_deref().unwrap_or(&case.args);
+    let mut env = crate::default_environment();
+    env.extend(suite.env.clone());
+    env.extend(case.env.clone());
+    env.extend(reference.env.clone());
+    env.extend(case.origin.env.clone());
+    (args, env)
 }
 
 pub(crate) fn hash(bytes: &[u8]) -> String {
