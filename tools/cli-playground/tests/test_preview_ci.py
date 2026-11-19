@@ -246,7 +246,7 @@ def test_compressed_bundle_expansion_is_bounded(monkeypatch: pytest.MonkeyPatch)
     assert len(data) < 512
     monkeypatch.setattr(artifacts, "MAX_ARCHIVE", 512)
     with pytest.raises(ValueError, match="bundle exceeds limits"):
-        artifacts.binary_archive(data)
+        artifacts.archive_digests(data, SHA)
 
 
 class FakeGitHub(GitHub[TokenAuthStrategy]):
@@ -1118,6 +1118,7 @@ def test_trusted_publisher_validates_catalog_without_running_uploaded_code(valid
             call for call in backend.call_args_list if call.args[2].startswith("/api/environments?")
         ]
         assert len(uploads) == 1
+        assert uploads[0].kwargs["data"] == github.payload
     else:
         with pytest.raises(ValueError, match="Failed to publish"):
             preview_ci.publish(github, REPO, 500, "https://play.example", "secret", backend=backend)

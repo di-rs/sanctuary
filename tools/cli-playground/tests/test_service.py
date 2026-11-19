@@ -9,6 +9,7 @@ from uuid import UUID
 import pytest
 from cli_playground import service as service_module
 from cli_playground.artifacts import stage_archive
+from cli_playground.catalog import Catalog
 from cli_playground.config import Settings
 from cli_playground.domain import ArtifactConflictError, SessionBinding, request_stop
 from cli_playground.models import BuildIdentity, BuildUpdate
@@ -78,10 +79,12 @@ def test_archive_timeout_waits_for_worker_without_blocking_metadata(
         entered, release = asyncio.Event(), threading.Event()
         deadline = asyncio.Timeout(None)
 
-        def blocked_stage(source: Path, destination: Path, limit: int) -> list[str]:
+        def blocked_stage(
+            source: Path, destination: Path, limit: int, sha: str
+        ) -> tuple[list[str], Catalog | None]:
             loop.call_soon_threadsafe(entered.set)
             assert release.wait(3), "archive staging blocked the event loop"
-            return stage_archive(source, destination, limit)
+            return stage_archive(source, destination, limit, sha)
 
         monkeypatch.setattr(service_module, "stage_archive", blocked_stage)
         monkeypatch.setattr(service_module, "timeout", lambda _: deadline)

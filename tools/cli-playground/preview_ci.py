@@ -30,8 +30,7 @@ from cli_playground.artifacts import (  # noqa: E402
     CLI_PATTERN,
     MAX_ARCHIVE,
     MAX_CLIS,
-    archive_catalog,
-    binary_archive,
+    archive_digests,
 )
 from github_publication import (  # noqa: E402
     PaginationLimit,
@@ -524,11 +523,7 @@ def publish(
                 bundle = github_request(
                     api, f"{base}/actions/artifacts/{artifact_id}/zip", limit=MAX_ARCHIVE
                 )
-                binaries = binary_archive(bundle)
-                binary_digests = {
-                    name: hashlib.sha256(binary).hexdigest() for name, binary in binaries.items()
-                }
-                archive_catalog(bundle, sha, binary_digests)
+                binary_digests = archive_digests(bundle, sha)
                 response = upload(
                     api,
                     repo,
