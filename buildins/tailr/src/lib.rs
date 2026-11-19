@@ -2,7 +2,7 @@
 
 use std::{
     collections::VecDeque,
-    io::{BufRead, BufReader, Read, Seek, SeekFrom, Write},
+    io::{self, BufRead, BufReader, Read, Seek, SeekFrom, Write},
     str::FromStr,
 };
 
@@ -10,6 +10,23 @@ use std::{
 pub enum TakeValue {
     PlusZero,
     TakeNum(i64),
+}
+
+enum Selection {
+    Empty,
+    FromStart(u64),
+    FromEnd(u64),
+}
+
+impl TakeValue {
+    const fn selection(self) -> Selection {
+        match self {
+            Self::PlusZero => Selection::FromStart(0),
+            Self::TakeNum(0) => Selection::Empty,
+            Self::TakeNum(n) if n > 0 => Selection::FromStart(n.unsigned_abs().saturating_sub(1)),
+            Self::TakeNum(n) => Selection::FromEnd(n.unsigned_abs()),
+        }
+    }
 }
 
 impl FromStr for TakeValue {
@@ -87,45 +104,11 @@ pub fn print_bytes<R: Read + Seek>(
 /// # Errors
 /// Returns input read or output write errors.
 pub fn print_stream_bytes(
-    mut reader: impl BufRead,
-    mut writer: impl Write,
+    reader: impl BufRead,
+    writer: impl Write,
     count: TakeValue,
 ) -> Result<(), std::io::Error> {
-    match count {
-        TakeValue::PlusZero => {
-            std::io::copy(&mut reader, &mut writer)?;
-        }
-        TakeValue::TakeNum(n) if n > 0 => {
-            std::io::copy(
-                &mut reader.by_ref().take(n.unsigned_abs().saturating_sub(1)),
-                &mut std::io::sink(),
-            )?;
-            std::io::copy(&mut reader, &mut writer)?;
-        }
-        TakeValue::TakeNum(0) => {
-            std::io::copy(&mut reader, &mut std::io::sink())?;
-        }
-        TakeValue::TakeNum(n) => {
-            let limit = usize::try_from(n.unsigned_abs()).unwrap_or(usize::MAX);
-            let mut tail = VecDeque::new();
-            loop {
-                let chunk = reader.fill_buf()?;
-                if chunk.is_empty() {
-                    break;
-                }
-                let len = chunk.len();
-                let keep = len.min(limit);
-                let discard = tail.len().saturating_sub(limit.saturating_sub(keep));
-                tail.drain(..discard);
-                tail.extend(chunk.iter().skip(len.saturating_sub(keep)).copied());
-                reader.consume(len);
-            }
-            let (first, second) = tail.as_slices();
-            writer.write_all(first)?;
-            writer.write_all(second)?;
-        }
-    }
-    Ok(())
+    print_stream(reader, writer, count, StreamUnit::Bytes)
 }
 
 /// Print selected raw lines from a non-seekable input.
@@ -133,57 +116,110 @@ pub fn print_stream_bytes(
 /// # Errors
 /// Returns input read or output write errors.
 pub fn print_stream_lines(
+    reader: impl BufRead,
+    writer: impl Write,
+    count: TakeValue,
+) -> Result<(), std::io::Error> {
+    print_stream(reader, writer, count, StreamUnit::Lines)
+}
+
+#[derive(Clone, Copy)]
+enum StreamUnit {
+    Bytes,
+    Lines,
+}
+
+fn print_stream(
     mut reader: impl BufRead,
     mut writer: impl Write,
     count: TakeValue,
-) -> Result<(), std::io::Error> {
-    match count {
-        TakeValue::PlusZero => {
-            std::io::copy(&mut reader, &mut writer)?;
+    unit: StreamUnit,
+) -> io::Result<()> {
+    let skip = match count.selection() {
+        Selection::Empty => {
+            // Zero still consumes a stream through EOF.
+            io::copy(&mut reader, &mut io::sink())?;
+            return Ok(());
         }
-        TakeValue::TakeNum(n) if n > 0 => {
-            for _ in 1..n {
-                if reader.skip_until(b'\n')? == 0 {
-                    return Ok(());
+        Selection::FromStart(skip) => skip,
+        Selection::FromEnd(keep) => {
+            let limit = usize::try_from(keep).unwrap_or(usize::MAX);
+            return match unit {
+                StreamUnit::Bytes => print_last_bytes(reader, writer, limit),
+                StreamUnit::Lines => print_last_lines(reader, writer, limit),
+            };
+        }
+    };
+    if skip > 0 {
+        match unit {
+            StreamUnit::Bytes => {
+                io::copy(&mut reader.by_ref().take(skip), &mut io::sink())?;
+            }
+            StreamUnit::Lines => {
+                for _ in 0..skip {
+                    if reader.skip_until(b'\n')? == 0 {
+                        return Ok(());
+                    }
                 }
             }
-            std::io::copy(&mut reader, &mut writer)?;
         }
-        TakeValue::TakeNum(0) => {
-            std::io::copy(&mut reader, &mut std::io::sink())?;
+    }
+    io::copy(&mut reader, &mut writer)?;
+    Ok(())
+}
+
+fn print_last_bytes(
+    mut reader: impl BufRead,
+    mut writer: impl Write,
+    limit: usize,
+) -> io::Result<()> {
+    let mut tail = VecDeque::new();
+    loop {
+        let chunk = reader.fill_buf()?;
+        if chunk.is_empty() {
+            break;
         }
-        TakeValue::TakeNum(n) => {
-            let limit = usize::try_from(n.unsigned_abs()).unwrap_or(usize::MAX);
-            let mut tail = VecDeque::new();
-            loop {
-                let mut line = Vec::new();
-                if reader.read_until(b'\n', &mut line)? == 0 {
-                    break;
-                }
-                if tail.len() == limit {
-                    tail.pop_front();
-                }
-                tail.push_back(line);
-            }
-            for line in tail {
-                writer.write_all(&line)?;
-            }
+        let len = chunk.len();
+        let keep = len.min(limit);
+        let discard = tail.len().saturating_sub(limit.saturating_sub(keep));
+        tail.drain(..discard);
+        tail.extend(chunk.iter().skip(len.saturating_sub(keep)).copied());
+        reader.consume(len);
+    }
+    let (first, second) = tail.as_slices();
+    writer.write_all(first)?;
+    writer.write_all(second)
+}
+
+fn print_last_lines(
+    mut reader: impl BufRead,
+    mut writer: impl Write,
+    limit: usize,
+) -> io::Result<()> {
+    let mut tail = VecDeque::new();
+    loop {
+        let mut line = Vec::new();
+        if reader.read_until(b'\n', &mut line)? == 0 {
+            break;
         }
+        if tail.len() == limit {
+            tail.pop_front();
+        }
+        tail.push_back(line);
+    }
+    for line in tail {
+        writer.write_all(&line)?;
     }
     Ok(())
 }
 
-fn get_start_index(take_val: TakeValue, total: u64) -> Option<u64> {
+fn get_start_index(count: TakeValue, total: u64) -> Option<u64> {
     if total == 0 {
         return None;
     }
-    match take_val {
-        TakeValue::PlusZero => Some(0),
-        TakeValue::TakeNum(0) => None,
-        TakeValue::TakeNum(num) if num > 0 => {
-            let num = num.saturating_sub(1).unsigned_abs();
-            (num < total).then_some(num)
-        }
-        TakeValue::TakeNum(num) => Some(total.saturating_sub(num.unsigned_abs())),
+    match count.selection() {
+        Selection::Empty => None,
+        Selection::FromStart(skip) => (skip < total).then_some(skip),
+        Selection::FromEnd(keep) => Some(total.saturating_sub(keep)),
     }
 }
