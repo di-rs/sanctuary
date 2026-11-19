@@ -1,0 +1,30 @@
+name: 📥 Select Sanctuary production source
+'on':
+  workflow_call:
+    outputs:
+      sha:
+        value: ${{ jobs.select.outputs.sha }}
+      attempt:
+        value: ${{ jobs.select.outputs.attempt }}
+permissions: {}
+jobs:
+  select:
+    name: 📥 Check out and record source
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      sha: ${{ steps.revision.outputs.sha }}
+      attempt: ${{ steps.revision.outputs.attempt }}
+    steps:
+      - name: 📥 Check out current master
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: master
+          persist-credentials: false
+      - name: 🔎 Record the source commit
+        id: revision
+        run: |
+          printf 'sha=%s\n' "$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          printf 'attempt=%s\n' "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"

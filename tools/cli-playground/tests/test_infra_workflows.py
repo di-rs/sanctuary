@@ -18,10 +18,54 @@ def workflow(filename: str) -> dict[str, Any]:
     return result
 
 
-def assert_source_selects_master(source: dict[str, Any]) -> None:
-    assert source["steps"][0]["with"]["ref"] == "master"
-    assert source["outputs"]["attempt"] == "${{ steps.revision.outputs.attempt }}"
-    assert "GITHUB_RUN_ATTEMPT" in source["steps"][-1]["run"]
+def assert_source_uses_shared_selector(source: dict[str, Any]) -> None:
+    assert source["uses"] == "./.github/workflows/select-production-source.yml"
+    assert source["if"] == "${{ github.ref == 'refs/heads/master' }}"
+    assert source["permissions"] == {"contents": "read"}
+    assert "secrets" not in source
+
+
+@pytest.mark.parametrize("attempt", ["1", "2"])
+def test_production_source_exports_checked_out_revision_and_attempt(
+    tmp_path: Path, attempt: str
+) -> None:
+    selector = workflow("select-production-source.yml")
+    assert selector["on"] == {
+        "workflow_call": {
+            "outputs": {
+                "sha": {"value": "${{ jobs.select.outputs.sha }}"},
+                "attempt": {"value": "${{ jobs.select.outputs.attempt }}"},
+            }
+        }
+    }
+    assert "concurrency" not in selector
+    selection = selector["jobs"]["select"]
+    assert selection["permissions"] == {"contents": "read"}
+    assert "environment" not in selection
+    assert selection["outputs"] == {
+        "sha": "${{ steps.revision.outputs.sha }}",
+        "attempt": "${{ steps.revision.outputs.attempt }}",
+    }
+    checkout, record = selection["steps"]
+    assert checkout["uses"].startswith("actions/checkout@")
+    assert checkout["with"] == {"ref": "master", "persist-credentials": "false"}
+    assert record["id"] == "revision"
+
+    output = tmp_path / "github-output"
+    root = WORKFLOWS.parents[1]
+    head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip()
+    subprocess.run(
+        ["bash", "-euo", "pipefail", "-c", record["run"]],
+        cwd=root,
+        env={
+            **os.environ,
+            "GITHUB_SHA": "0" * 40,
+            "GITHUB_RUN_ATTEMPT": attempt,
+            "GITHUB_OUTPUT": str(output),
+        },
+        check=True,
+    )
+    assert output.read_text() == f"sha={head}\nattempt={attempt}\n"
 
 
 @pytest.mark.parametrize(
@@ -60,7 +104,7 @@ def test_setup_queues_before_selecting_master_and_builds_all_images() -> None:
     setup = workflow("sanctuary-setup.yml")
     assert setup["concurrency"] == QUEUE
     jobs = setup["jobs"]
-    assert_source_selects_master(jobs["source"])
+    assert_source_uses_shared_selector(jobs["source"])
     for name, component in {
         "boxie": "boxie",
         "backend": "cli-playground",
@@ -103,7 +147,7 @@ def test_release_uses_one_queue_and_passes_the_selected_build(
 ) -> None:
     release = workflow(filename)
     assert release["concurrency"] == QUEUE
-    assert_source_selects_master(release["jobs"]["source"])
+    assert_source_uses_shared_selector(release["jobs"]["source"])
     deployment = release["jobs"][f"deploy-{build_job}"]
     assert deployment["uses"] == "./.github/workflows/release-component.yml"
     assert "concurrency" not in deployment
