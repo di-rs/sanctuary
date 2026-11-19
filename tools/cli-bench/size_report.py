@@ -1,9 +1,15 @@
 """Render size measurements as data, using the shared trusted publication boundary."""
 
-import zipfile
-
 from githubkit import GitHub, TokenAuthStrategy
-from report import MAX_ZIP, github_pages, github_request, integer, read_zip, seconds
+from report import (
+    ARTIFACT_DATA_ERRORS,
+    artifact_matches_attempt,
+    download_artifact,
+    github_pages,
+    integer,
+    latest_artifact,
+    read_zip,
+)
 from size_data import BinarySize, SizeReport
 
 JOB = "📦 Measure Linux binary sizes"
@@ -132,31 +138,16 @@ def generate_size(
         return None
     run_id = integer(run["id"])
     artifacts = github_pages(api, f"repos/{repo}/actions/runs/{run_id}/artifacts", "artifacts")
-    artifact = max(
-        (item for item in artifacts if item.get("name") == "cli-size-linux"),
-        key=lambda item: integer(item.get("id")),
-        default={},
-    )
-    report = None
+    artifact = latest_artifact(artifacts, "cli-size-linux")
     try:
-        start, created = seconds(job.get("started_at")), seconds(artifact.get("created_at"))
-        if (
-            not artifact
-            or artifact.get("expired")
-            or start is None
-            or created is None
-            or created < start
-        ):
+        if not artifact_matches_attempt(artifact, job) or artifact.get("expired"):
             raise ValueError("artifact unavailable for this attempt")
-        integer(artifact.get("size_in_bytes"), MAX_ZIP)
-        data = github_request(
-            api, f"repos/{repo}/actions/artifacts/{integer(artifact.get('id'))}/zip", limit=MAX_ZIP
-        )
+        data = download_artifact(api, repo, artifact)
         report = SizeReport.model_validate_json(read_zip(data)["sizes.json"])
         if report.head_sha != run["head_sha"] or report.run_attempt != run["run_attempt"]:
             raise ValueError("artifact revision mismatch")
         if report.target != "x86_64-unknown-linux-gnu":
             raise ValueError("unexpected build target")
-    except ValueError, KeyError, UnicodeError, zipfile.BadZipFile, RecursionError:
+    except ARTIFACT_DATA_ERRORS:
         report = None
     return render_size(repo, run, report)

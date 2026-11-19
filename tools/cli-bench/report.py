@@ -26,6 +26,7 @@ from github_publication import github_request as github_request  # noqa: E402
 
 MAX_ZIP = 8 * 1024 * 1024
 MAX_MEMBER = 1024 * 1024
+ARTIFACT_DATA_ERRORS = (ValueError, KeyError, zipfile.BadZipFile, RecursionError)
 SYSTEMS = ("ubuntu-24.04", "macos-15")
 PLATFORMS = {"ubuntu-24.04": "Linux", "macos-15": "macOS"}
 WORKFLOW = ".github/workflows/cli-bench.yml"
@@ -466,6 +467,33 @@ def generate(
     return markdown
 
 
+def latest_artifact(artifacts: list[dict[str, object]], name: str) -> dict[str, object]:
+    return max(
+        (artifact for artifact in artifacts if artifact.get("name") == name),
+        key=lambda artifact: integer(artifact.get("id")),
+        default={},
+    )
+
+
+def artifact_matches_attempt(artifact: dict[str, object], job: dict[str, object]) -> bool:
+    started, created = seconds(job.get("started_at")), seconds(artifact.get("created_at"))
+    return (
+        started is not None
+        and created is not None
+        and created >= started
+        and job.get("conclusion") != "skipped"
+    )
+
+
+def download_artifact(
+    api: GitHub[TokenAuthStrategy], repo: str, artifact: dict[str, object]
+) -> bytes:
+    integer(artifact.get("size_in_bytes"), MAX_ZIP)
+    return github_request(
+        api, f"repos/{repo}/actions/artifacts/{integer(artifact.get('id'))}/zip", limit=MAX_ZIP
+    )
+
+
 def generate_bench(
     api: GitHub[TokenAuthStrategy],
     repo: str,
@@ -484,37 +512,24 @@ def generate_bench(
     selection: dict[str, object] = {}
     warnings: list[str] = []
     artifacts = github_pages(api, f"{base}/actions/runs/{run_id}/artifacts", "artifacts")
-    for name in ["cli-bench-selection", *(f"cli-bench-{system}" for system in SYSTEMS)]:
-        system = name.removeprefix("cli-bench-")
-        matched = [artifact for artifact in artifacts if artifact.get("name") == name]
-        artifact = max(matched, key=lambda item: integer(item.get("id")), default={})
+    for system in ("selection", *SYSTEMS):
+        name = f"cli-bench-{system}"
+        artifact = latest_artifact(artifacts, name)
         if not artifact or artifact.get("expired"):
-            if name != "cli-bench-selection":
+            if system != "selection":
                 warnings.append(f"{system}: artifact unavailable.")
             continue
         try:
-            if name != "cli-bench-selection":
+            if system != "selection":
                 job = next(
                     (job for job in jobs if job.get("name") == f"⏱️ Run CLI benchmarks ({system})"),
                     {},
                 )
-                started, created = (
-                    seconds(job.get("started_at")),
-                    seconds(artifact.get("created_at")),
-                )
-                if (
-                    started is None
-                    or created is None
-                    or created < started
-                    or job.get("conclusion") == "skipped"
-                ):
+                if not artifact_matches_attempt(artifact, job):
                     warnings.append(f"{system}: artifact unavailable for this attempt.")
                     continue
-            integer(artifact.get("size_in_bytes"), MAX_ZIP)
-            data = github_request(
-                api, f"{base}/actions/artifacts/{integer(artifact.get('id'))}/zip", limit=MAX_ZIP
-            )
-            if name == "cli-bench-selection":
+            data = download_artifact(api, repo, artifact)
+            if system == "selection":
                 selected = table(json.loads(read_zip(data)["selection.json"]))
                 binaries = array(selected.get("binaries"))
                 if len(binaries) > 64:
@@ -525,7 +540,7 @@ def generate_bench(
                 }
             else:
                 suites.extend(read_suites(data, system))
-        except ValueError, KeyError, UnicodeError, zipfile.BadZipFile, RecursionError:
+        except ARTIFACT_DATA_ERRORS:
             warnings.append(f"{name}: invalid artifact data omitted.")
     return render(repo, run, jobs, suites, selection, warnings)
 
