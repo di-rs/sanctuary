@@ -4,7 +4,6 @@ from collections.abc import Callable
 from uuid import UUID, uuid4
 
 from sqlalchemy import func, text
-from sqlalchemy.dialects.postgresql import insert
 from sqlmodel import col, delete, select, update
 
 from cli_playground.database import SessionFactory, connection
@@ -12,7 +11,7 @@ from cli_playground.domain import CreateIntent, SessionBinding, UploadIntent, ch
 from cli_playground.models import BuildIdentity
 from cli_playground.observability import current_request_id
 from cli_playground.sandbox import BoxieUnavailable, SandboxView, validate_sandbox
-from cli_playground.storage import artifact_value, locked_preview, preview_value
+from cli_playground.storage import artifact_value, enqueue_retirement, locked_preview, preview_value
 from cli_playground.tables import Binding, Creation, Retirement, Upload
 
 
@@ -137,15 +136,8 @@ class SessionStore:
 
     async def retire(self, identifier: UUID, *, request_id: UUID | None = None) -> None:
         async with connection(self.sessions, write=True) as session:
-            await session.exec(
-                insert(Retirement)
-                .values(
-                    artifact_id=identifier,
-                    completed=False,
-                    request_id=request_id or UUID(current_request_id() or str(uuid4())),
-                )
-                .on_conflict_do_nothing()
-            )
+            origin = request_id or UUID(current_request_id() or str(uuid4()))
+            await enqueue_retirement(session, identifier, request_id=origin)
 
     async def retirement_request_id(self, identifier: UUID) -> UUID | None:
         async with connection(self.sessions) as session:

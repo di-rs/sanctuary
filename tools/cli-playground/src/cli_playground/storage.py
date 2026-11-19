@@ -87,6 +87,16 @@ def assign_record(row: Preview, record: PreviewRecord) -> None:
     row.build_state = record.build.state if record.build else None
 
 
+async def enqueue_retirement(
+    session: AsyncSession, identifier: UUID, *, request_id: UUID | None
+) -> None:
+    await session.exec(
+        insert(Retirement)
+        .values(artifact_id=identifier, completed=False, request_id=request_id)
+        .on_conflict_do_nothing()
+    )
+
+
 class EnvironmentStore:
     @staticmethod
     def identifier(pr: int) -> str:
@@ -229,16 +239,17 @@ class EnvironmentStore:
     async def publish(self, artifact: ArtifactMetadata, build: BuildIdentity | None) -> Environment:
         async with connection(self.sessions, write=True) as session:
             row = await locked_preview(session, artifact.pr)
-            return await self._publish(session, row, artifact, build)
+            record = await preview_value(session, row)
+            return await self._publish(session, row, record, artifact, build)
 
     async def _publish(
         self,
         session: AsyncSession,
         row: Preview,
+        record: PreviewRecord | None,
         artifact: ArtifactMetadata,
         build: BuildIdentity | None,
     ) -> Environment:
-        record = await preview_value(session, row)
         previous = await session.get(Revision, (artifact.pr, artifact.revision))
         result = publication(
             record,
@@ -257,20 +268,20 @@ class EnvironmentStore:
     async def finish_upload(
         self, artifact: ArtifactMetadata, build: BuildIdentity | None
     ) -> Environment:
-        conflict: ArtifactConflictError | None = None
-        result: Environment | None = None
+        outcome: Environment | ArtifactConflictError
         async with connection(self.sessions, write=True) as session:
             row = await locked_preview(session, artifact.pr)
             intent = await session.get(Upload, artifact.artifact_id)
             if intent is None:
                 previous = await session.get(Revision, (artifact.pr, artifact.revision))
-                if previous and previous.artifact_id == artifact.artifact_id:
-                    check_revision(artifact_value(previous), artifact, build)
-                    return Environment(id=row.id, **artifact_value(previous).model_dump())
-                raise ArtifactConflictError("upload is no longer pending")
+                if previous is None or previous.artifact_id != artifact.artifact_id:
+                    raise ArtifactConflictError("upload is no longer pending")
+                saved = artifact_value(previous)
+                check_revision(saved, artifact, build)
+                return Environment(id=row.id, **saved.model_dump())
             check_revision(artifact_value(intent), artifact, build)
             try:
-                current = await preview_value(session, row)
+                record = await preview_value(session, row)
                 check_upload(
                     UploadIntent(
                         artifact=artifact,
@@ -278,37 +289,24 @@ class EnvironmentStore:
                         previous_revision=intent.previous_revision,
                         cancelled=intent.cancelled,
                     ),
-                    current,
+                    record,
                     row.closed,
                     self.clock(),
                 )
-                result = await self._publish(session, row, artifact, build)
-                if result.artifact_id != artifact.artifact_id:
-                    await session.exec(
-                        insert(Retirement)
-                        .values(
-                            artifact_id=artifact.artifact_id,
-                            completed=False,
-                            request_id=intent.request_id,
-                        )
-                        .on_conflict_do_nothing()
-                    )
+                outcome = await self._publish(session, row, record, artifact, build)
+                retire = outcome.artifact_id != artifact.artifact_id
             except ArtifactConflictError as error:
-                conflict = error
-                await session.exec(
-                    insert(Retirement)
-                    .values(
-                        artifact_id=artifact.artifact_id,
-                        completed=False,
-                        request_id=intent.request_id,
-                    )
-                    .on_conflict_do_nothing()
+                outcome = error
+                retire = True
+            if retire:
+                await enqueue_retirement(
+                    session, artifact.artifact_id, request_id=intent.request_id
                 )
             await session.delete(intent)
-        if conflict is not None:
-            raise conflict
-        assert result is not None
-        return result
+        # Commit intent removal and retirement before reporting a publication conflict.
+        if isinstance(outcome, ArtifactConflictError):
+            raise outcome
+        return outcome
 
     async def collect_artifacts(self) -> None:
         async with connection(self.sessions, write=True) as session:
