@@ -163,6 +163,9 @@ class PostgresLifecycle:
                 event = await self._request_stop(session, row, TerminationReason.REQUESTED)
                 if job.state == JobState.QUEUED:
                     job.state = JobState.NOT_STARTED.value
+                    # No authorized attempt can publish output. Physical cleanup
+                    # still owns the slot and artifact reference.
+                    row.reserved_result_bytes = 0
             result = JobCancellationView(
                 id=identifier,
                 state=JobState(job.state),

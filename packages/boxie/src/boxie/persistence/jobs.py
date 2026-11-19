@@ -56,19 +56,10 @@ async def job_result(session: AsyncSession, owner: Principal, identifier: UUID) 
 
 async def settle_interrupted(session: AsyncSession, identifier: UUID) -> bool:
     # A completion transaction may have committed despite a lost acknowledgement.
-    # A job already marked not_started by cancellation still owns its reservation.
     interrupted = await session.exec(
         update(Job)
-        .where(
-            col(Job.id) == identifier,
-            col(Job.state).in_(("queued", "not_started", "starting", "running")),
-        )
-        .values(
-            state=case(
-                (col(Job.state).in_(("queued", "not_started")), "not_started"),
-                else_="outcome_unknown",
-            )
-        )
+        .where(col(Job.id) == identifier, col(Job.state).in_(("queued", "starting", "running")))
+        .values(state=case((col(Job.state) == "queued", "not_started"), else_="outcome_unknown"))
     )
     return interrupted.rowcount == 1
 

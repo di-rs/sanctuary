@@ -130,7 +130,9 @@ def test_cancel_job_before_authorization(postgres_dsn: str, tmp_path: Path) -> N
                 assert stop is not None and row is not None
                 assert stop.request_id == row.stop_request_id == request_id
                 assert (
-                    row.desired_stop and row.reason == "requested" and row.reserved_result_bytes > 0
+                    row.desired_stop
+                    and row.reason == "requested"
+                    and row.reserved_result_bytes == 0
                 )
 
             clock, docker = Clock(), Daemon()
