@@ -180,6 +180,28 @@ fn recursive_search_preserves_explicit_files_and_missing_path_errors(
 }
 
 #[cli_test]
+#[cfg(unix)]
+fn recursive_search_follows_directory_symlinks_given_as_operands(cx: &TestContext) -> Result<()> {
+    use std::os::unix::fs::symlink;
+
+    let workspace = cx.workspace()?;
+    workspace
+        .child("tree/nested/sample.txt")
+        .write_str("match\n")?;
+    symlink("tree", workspace.path().join("alias"))?;
+    symlink("missing.txt", workspace.path().join("dangling"))?;
+
+    workspace
+        .cmd()
+        .args(["-r", "match", "dangling", "alias"])
+        .assert()
+        .code(1)
+        .stdout("alias/nested/sample.txt:match\n")
+        .stderr("dangling doesn't exists\n");
+    Ok(())
+}
+
+#[cli_test]
 fn recursive_search_visits_nested_files_without_reading_directories(
     cx: &TestContext,
 ) -> Result<()> {

@@ -17,44 +17,35 @@ pub enum ParseError {
 
 #[must_use]
 pub fn find_files(paths: &[PathBuf], recursive: bool) -> Vec<Result<PathBuf, ParseError>> {
-    let mut res = Vec::new();
+    let mut files = Vec::new();
 
     for path in paths {
         if path == Path::new("-") {
-            res.push(Ok(path.clone()));
+            files.push(Ok(path.clone()));
             continue;
         }
 
-        let is_dir = path.is_dir();
-        let exists = path.exists();
-
-        if !exists {
-            res.push(Err(ParseError::PathNotExists(path.display().to_string())));
-        } else if is_dir && !recursive {
-            res.push(Err(ParseError::DirectryWithNonRecursive(
+        match path.metadata() {
+            Ok(metadata) if !metadata.is_dir() => files.push(Ok(path.clone())),
+            Ok(_) if recursive => files.extend(walk_dir_tree(path)),
+            Ok(_) => files.push(Err(ParseError::DirectryWithNonRecursive(
                 path.display().to_string(),
-            )));
-        } else if is_dir {
-            let mut dir_files = walk_dir_tree(path);
-            res.append(&mut dir_files);
-        } else {
-            res.push(Ok(path.clone()));
+            ))),
+            Err(_) => files.push(Err(ParseError::PathNotExists(path.display().to_string()))),
         }
     }
-    res
+    files
 }
 
-fn walk_dir_tree(dir: &PathBuf) -> Vec<Result<PathBuf, ParseError>> {
+fn walk_dir_tree(dir: &Path) -> impl Iterator<Item = Result<PathBuf, ParseError>> {
     WalkDir::new(dir)
         .into_iter()
         .skip(1)
-        .filter(|entry| !entry.as_ref().is_ok_and(|e| e.file_type().is_dir()))
-        .map(|entry| {
-            entry
-                .map(walkdir::DirEntry::into_path)
-                .map_err(ParseError::WalkDirError)
+        .filter_map(|entry| match entry {
+            Ok(entry) if entry.file_type().is_dir() => None,
+            Ok(entry) => Some(Ok(entry.into_path())),
+            Err(error) => Some(Err(ParseError::WalkDirError(error))),
         })
-        .collect()
 }
 
 /// # Errors
