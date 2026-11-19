@@ -93,18 +93,6 @@ where
     }
 }
 
-pub fn and_then<'a, P, F, A, B, NextP>(parser: P, f: F) -> impl Parser<'a, B>
-where
-    P: Parser<'a, A>,
-    NextP: Parser<'a, B>,
-    F: Fn(A) -> NextP,
-{
-    move |input| {
-        let (next_input, result) = parser.parse(input)?;
-        f(result).parse(next_input)
-    }
-}
-
 pub fn either<'a, P1, P2, A>(parser1: P1, parser2: P2) -> impl Parser<'a, A>
 where
     P1: Parser<'a, A>,

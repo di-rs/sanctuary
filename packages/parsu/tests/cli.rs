@@ -169,6 +169,26 @@ fn dies_multiple_root_elements() {
 }
 
 #[test]
+fn reports_tag_and_child_failure_offsets_in_bytes() {
+    for (input, offset) in [
+        ("<é a=\"b\" />", 9),
+        ("<é a=\"b\"><child/></wrong>", 18),
+        ("<é><child x=\"v\" /></é>", 4),
+        ("<é><child/></é />", 16),
+    ] {
+        cargo_bin_cmd!()
+            .arg("-")
+            .write_stdin(input)
+            .assert()
+            .code(1)
+            .stdout("")
+            .stderr(format!(
+                "parsu: cannot parse part of the input: unparsed input starts at byte {offset}\n"
+            ));
+    }
+}
+
+#[test]
 #[allow(
     clippy::panic_in_result_fn,
     reason = "Assertions verify observable CLI behavior; Result propagates fixture errors."
