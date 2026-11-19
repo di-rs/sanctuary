@@ -58,6 +58,25 @@
       "https://github.com/psycopg/psycopg/blob/bced8a8993064a378d5ca852215d99f73f4c6cae/.github/workflows/packages-bin.yml"
     ]
   },
+  "Psycopg C extensions with Cython 3.3.1": {
+    "notices": {
+      "Cython.COPYING.txt": "e1eb1c49a8508e8173dac30157e4a6439a44ad8846194746c424fbc3fc2b95d7",
+      "Cython.LICENSE.txt": "9568a2b155e66ac3e0ba1fd80b52b827b9460e6cf6f233125e7cbca8e206ddc3"
+    },
+    "objects": {
+      "psycopg_binary/_psycopg.cpython-315-x86_64-linux-gnu.so": "b0cbdf92a5236d527cab88b1dfbfa43a0d9dbde831dd00af499b3b37b79a10a7",
+      "psycopg_binary/pq.cpython-315-x86_64-linux-gnu.so": "0b4108481583cfa38397d2361e5f475cfc07e7ae4fcf237523bdd0da8658f87f"
+    },
+    "sources": [
+      "https://github.com/psycopg/psycopg/actions/runs/43127304274/job/130919096449",
+      "https://github.com/psycopg/psycopg/tree/bced8a8993064a378d5ca852215d99f73f4c6cae/psycopg_c",
+      "https://github.com/cython/cython/tree/3.3.1"
+    ],
+    "wheel_notices": {
+      "psycopg_binary-3.3.9.dist-info/licenses/LICENSE.txt": "e3a994d82e644b03a792a930f574002658412f62407f5fee083f2555c5f23118"
+    },
+    "wheel_sha256": "e51c7c493f07b51be56875cfa8a7674824749fa1cda3515339ca64e628f1b992"
+  },
   "cyrus-sasl-lib-2.1.26-24.el7_9": {
     "notices": {
       "cyrus-sasl-lib-2.1.26-24.el7_9.AUTHORS": "573b62290f3745835142337245599b5f3a38707b986d666fc97641f2846798ce",
@@ -100,5 +119,22 @@
     ],
     "upstream_archive_sha256": "b98e19c3bbf6de458697a895654db0d75e93e7738ef22bc1540e2c78fa91748b",
     "upstream_object_sha256": "2abe824bc4b40f400391ad327090796ecc2cd48df173c2f82134ec5c1d3d6c91"
+  },
+  "libxcrypt 4.5.2": {
+    "notices": {
+      "Libxcrypt-4.5.2.AUTHORS": "6d1e45c055b6d9e9bf4e9521419eb3dee4ca42a02dd4d824beaaad476dacfdca",
+      "Libxcrypt-4.5.2.COPYING.LIB": "dc626520dcd53a22f727af3ee42c770e56c97a64fe3adb063799d8ab032fe551",
+      "Libxcrypt-4.5.2.LICENSING": "9144e66d8140feb84f0e4e344906ac425378896320032e0248567ef195cf0135"
+    },
+    "objects": {
+      "psycopg_binary.libs/libcrypt-bc2db45e.so.1": "e2a6f6ff300e287a60dfc0c6fdb76ee01e333068df7c60b4e87453d942ccda65"
+    },
+    "sources": [
+      "https://github.com/psycopg/psycopg/actions/runs/43127304274/job/130919096449",
+      "https://quay.io/repository/pypa/manylinux2014_x86_64?tab=tags&tag=sha256:c163a278006f45883c117b4166b93cdc7b574b62e58292ed9e52879579841d77",
+      "https://github.com/besser82/libxcrypt/tree/v4.5.2"
+    ],
+    "upstream_object_sha256": "bc2db45ec146e845246bd2610dd4d8bf8c9176adda585ba15f51dd30dbf36459",
+    "wheel_sha256": "e51c7c493f07b51be56875cfa8a7674824749fa1cda3515339ca64e628f1b992"
   }
 }

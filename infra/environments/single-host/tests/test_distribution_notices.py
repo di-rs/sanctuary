@@ -147,12 +147,17 @@ def test_release_container_notices(component: str, dockerfile: str, context: str
                         test -s python/psycopg_binary-*/native/reviewed/libcom_err-1.42.9-19.el7.COPYING
                         test -s python/psycopg_binary-*/native/reviewed/cyrus-sasl-lib-2.1.26-24.el7_9.COPYING
                         test -s python/psycopg_binary-*/native/reviewed/keyutils-libs-1.5.8-3.el7.LICENCE.LGPL
+                        test -s python/psycopg_binary-*/native/reviewed/Libxcrypt-4.5.2.LICENSING
+                        test -s python/psycopg_binary-*/native/reviewed/Cython.LICENSE.txt
                         grep -q '^psycopg-binary ' python-packages.txt
                         ! grep -Eq '^(pytest|ruff|mypy) ' python-packages.txt || exit 1
                         if [ "$1" = boxie ]; then
                             test -s capture/LICENSE.zig
                             test -s capture/COPYRIGHT.musl
                             grep -q 'pkg:cargo/temporalio-client' native-wheel-review.json
+                            test -s python/temporalio-*/native/reviewed/ring-0.17.14.LICENSE-BoringSSL
+                            test -s python/temporalio-*/native/reviewed/zstd-sys-*.zstd-LICENSE
+                            test -s python/protobuf-*/native/reviewed/Protobuf-33.6-utf8_range.LICENSE
                         else
                             set -- /app/.venv/lib/python*/site-packages/cli_playground/static
                             cmp frontend/licenses.md "$1/licenses.md"
@@ -195,4 +200,4 @@ def test_release_build_refuses_unverified_native_wheel_inputs() -> None:
     )
     assert result.returncode != 0, "the release build accepted unverified native components"
     assert "Native wheel notices require verification" in result.stdout, result.stdout
-    assert "psycopg-binary" in result.stdout, result.stdout
+    assert "pydantic_core" in result.stdout, result.stdout

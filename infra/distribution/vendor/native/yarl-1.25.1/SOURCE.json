@@ -1,0 +1,24 @@
+{
+  "Embedded Cython 3.3.0 utility code": {
+    "complete": false,
+    "notices": {
+      "Cython.COPYING.txt": "e1eb1c49a8508e8173dac30157e4a6439a44ad8846194746c424fbc3fc2b95d7",
+      "Cython.LICENSE.txt": "9568a2b155e66ac3e0ba1fd80b52b827b9460e6cf6f233125e7cbca8e206ddc3"
+    },
+    "objects": {
+      "yarl/_quoting_c.cpython-315-x86_64-linux-gnu.so": "874fbda5046210b7c0f3d2b11d74396e73b35b917d5a13fe7a4c4af1109293af"
+    },
+    "sources": [
+      "https://github.com/aio-libs/yarl/tree/604eb6da83267f4e8faf1512ffeabc23df10052e",
+      "https://github.com/aio-libs/yarl/actions/runs/35007891886",
+      "https://pypi.org/integrity/yarl/1.25.1/yarl-1.25.1-cp315-cp315-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl/provenance",
+      "https://github.com/cython/cython/tree/3.3.0"
+    ],
+    "upstream_archive_sha256": "03dd38de09bc213e9a8b29761eec33ee1d5318dac0e49d8af36e4d27830e23a7",
+    "wheel_notices": {
+      "yarl-1.25.1.dist-info/licenses/LICENSE": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "yarl-1.25.1.dist-info/licenses/NOTICE": "56d6ac6c8105c0a51304c21db060e361af9a8ea0af9a75c239c28b5d13693838"
+    },
+    "wheel_sha256": "23bf5b403c879a54964e0feac7285688e04bb220074878d737d331522da0a5bf"
+  }
+}

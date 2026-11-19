@@ -1,0 +1,35 @@
+{
+  "Greenlet implementation source": {
+    "complete": false,
+    "notices": {},
+    "objects": {
+      "greenlet/_greenlet.cpython-315-x86_64-linux-gnu.so": "dbe59567443841578b0558bdb3a602b3e91c8027d0e2dec6c112a7fa0059a6cb"
+    },
+    "sources": [
+      "https://github.com/python-greenlet/greenlet/tree/abfe740315a9926ff180c622cf02f122c07f9126",
+      "https://files.pythonhosted.org/packages/3e/6e/0091f175ccd02b02bc8811bbcbcc6ac2e980be116e3b2f7a736ca322bf84/greenlet-3.5.6.tar.gz"
+    ],
+    "upstream_archive_sha256": "8e67c43bdfc88d5fee6db0d3e40175b362fc95fb85f0412d233b9b203c53a575",
+    "wheel_notices": {
+      "greenlet-3.5.6.dist-info/licenses/LICENSE": "769831d6e5dfaf2c20802faccff1fafb4c2025dd8f6253dfa47fcad59d4d0979",
+      "greenlet-3.5.6.dist-info/licenses/LICENSE.PSF": "e5ff3c23c110e494cd7d736c10fd96d462457bafeca310840db6527298c7d46b"
+    }
+  },
+  "Greenlet test extensions": {
+    "complete": true,
+    "notices": {},
+    "objects": {
+      "greenlet/tests/_test_extension.cpython-315-x86_64-linux-gnu.so": "8def394453c8eabf8168c3021140003ffdee1a2b4559b2692acd1b339f47e608",
+      "greenlet/tests/_test_extension_cpp.cpython-315-x86_64-linux-gnu.so": "d09582877bafaac08c1195dcad0613da94076240f0fccc67d37fabd8df7ab495"
+    },
+    "sources": [
+      "https://github.com/python-greenlet/greenlet/tree/abfe740315a9926ff180c622cf02f122c07f9126",
+      "https://files.pythonhosted.org/packages/3e/6e/0091f175ccd02b02bc8811bbcbcc6ac2e980be116e3b2f7a736ca322bf84/greenlet-3.5.6.tar.gz"
+    ],
+    "upstream_archive_sha256": "8e67c43bdfc88d5fee6db0d3e40175b362fc95fb85f0412d233b9b203c53a575",
+    "wheel_notices": {
+      "greenlet-3.5.6.dist-info/licenses/LICENSE": "769831d6e5dfaf2c20802faccff1fafb4c2025dd8f6253dfa47fcad59d4d0979",
+      "greenlet-3.5.6.dist-info/licenses/LICENSE.PSF": "e5ff3c23c110e494cd7d736c10fd96d462457bafeca310840db6527298c7d46b"
+    }
+  }
+}

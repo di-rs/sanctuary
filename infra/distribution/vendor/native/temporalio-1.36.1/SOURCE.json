@@ -1,0 +1,37 @@
+{
+  "ring 0.17.14": {
+    "complete": false,
+    "notices": {
+      "ring-0.17.14.LICENSE": "b3d734001a94efff3579978d953391aa7115f877657d25eb54037a43875d078a",
+      "ring-0.17.14.LICENSE-BoringSSL": "005fc765ddc5115da796cca915baa9557abae13ff35e0a47c47affc56f6c414d",
+      "ring-0.17.14.LICENSE-other-bits": "f025ccfb7dfb6bdfedc75ca0f67acc69e6fb4998143d834f7c2f38a29989680f",
+      "ring-0.17.14.src-polyfill-once_cell-LICENSE-APACHE": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "ring-0.17.14.src-polyfill-once_cell-LICENSE-MIT": "6ee2ed6c77710de911761acd5fc1ad1da00f476beb1a7ef27e78c2d1858deafc",
+      "ring-0.17.14.third_party-fiat-LICENSE": "9eacbcb81be660840c714a560a9d65ba07913db98dd4baf969f78dd499fdd60f"
+    },
+    "objects": {
+      "temporalio/bridge/temporal_sdk_bridge.abi3.so": "292b4753a10762b837073da46619a33e0c7a23a26854d66d5a64150aacbb532b"
+    },
+    "sources": [
+      "https://static.crates.io/crates/ring/ring-0.17.14.crate"
+    ],
+    "upstream_archive_sha256": "a4689e6c2294d81e88dc6261c768b63bc4fcdb852be6d1352498b114f61383b7"
+  },
+  "zstd 1.5.7 from zstd-sys 2.1.3": {
+    "complete": false,
+    "notices": {
+      "zstd-sys-2.1.3+zstd.1.5.7.LICENSE": "ce4868c8e4ebe47a7d4b3c93dbf6b802033e5ae2fa7638098173f80836daac60",
+      "zstd-sys-2.1.3+zstd.1.5.7.LICENSE.BSD-2-Clause": "982cd76c8a6b5c597aa999be672c4f16b953eb6d074fe29c0a931d7aae2c8fc2",
+      "zstd-sys-2.1.3+zstd.1.5.7.LICENSE.BSD-3-Clause": "bf7017a73a95ea63bf3716b13ec2bcd79c92942356e3408c6fb66332bad6d977",
+      "zstd-sys-2.1.3+zstd.1.5.7.zstd-COPYING": "f9c375a1be4a41f7b70301dd83c91cb89e41567478859b77eef375a52d782505",
+      "zstd-sys-2.1.3+zstd.1.5.7.zstd-LICENSE": "7055266497633c9025b777c78eb7235af13922117480ed5c674677adc381c9d8"
+    },
+    "objects": {
+      "temporalio/bridge/temporal_sdk_bridge.abi3.so": "292b4753a10762b837073da46619a33e0c7a23a26854d66d5a64150aacbb532b"
+    },
+    "sources": [
+      "https://static.crates.io/crates/zstd-sys/zstd-sys-2.1.3+zstd.1.5.7.crate"
+    ],
+    "upstream_archive_sha256": "f729a06d0257428fd9d997ac8db7e1407bd0262ab016b085b36bc52957c0052d"
+  }
+}

@@ -54,17 +54,32 @@ def record_native_inputs(
                 continue
             notices = []
             for name, checksum in sorted(review["notices"].items()):
-                if hashlib.sha256((review_directory / name).read_bytes()).hexdigest() != checksum:
+                notice = review_directory / name
+                if not notice.is_file():
+                    notice = REVIEW_ROOT / "common" / name
+                if hashlib.sha256(notice.read_bytes()).hexdigest() != checksum:
                     raise ValueError(f"reviewed native notice differs from its checksum: {name}")
                 relative = Path("reviewed") / name
-                copy_notice(review_directory / name, destination / relative)
+                copy_notice(notice, destination / relative)
                 notices.append(relative.as_posix())
+            wheel_notices = review.get("wheel_notices", {})
+            for name, checksum in sorted(wheel_notices.items()):
+                notice = (site / name).resolve()
+                if (
+                    PurePosixPath(name) not in files
+                    or not notice.is_relative_to(site)
+                    or hashlib.sha256(notice.read_bytes()).hexdigest() != checksum
+                ):
+                    raise ValueError(f"reviewed wheel notice differs from its checksum: {name}")
             verified[component] = {
                 "objects": sorted(objects),
                 "sources": review["sources"],
                 "notices": notices,
+                "wheel_notices": sorted(wheel_notices),
+                "complete": review.get("complete", True),
             }
-            unresolved.difference_update(objects)
+            if review.get("complete", True):
+                unresolved.difference_update(objects)
     supplied = {}
     missing = []
     for sbom in sorted(sboms):

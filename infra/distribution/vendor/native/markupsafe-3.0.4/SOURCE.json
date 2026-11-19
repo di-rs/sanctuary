@@ -1,0 +1,19 @@
+{
+  "MarkupSafe 3.0.4": {
+    "complete": true,
+    "notices": {},
+    "objects": {
+      "markupsafe/_speedups.cpython-315-x86_64-linux-gnu.so": "a8700ecab95bf3c6b70d95f955eb94aa04fabe39be4e26d531eb95d46a7715d2"
+    },
+    "sources": [
+      "https://github.com/pallets/markupsafe/tree/ece26078ec168ebac69f02877238e68d4b376c91",
+      "https://github.com/pallets/markupsafe/actions/runs/37073936755",
+      "https://pypi.org/integrity/markupsafe/3.0.4/markupsafe-3.0.4-cp315-cp315-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl/provenance"
+    ],
+    "upstream_archive_sha256": "2e9ad7dd851bf45fab9f75cbff4cb493fee9979e8d8c7c9c3ee119022518edd6",
+    "wheel_notices": {
+      "markupsafe-3.0.4.dist-info/licenses/LICENSE.txt": "489a8e1108509ed98a37bb983e11e0f7e1d31f0bd8f99a79c8448e7ff37d07ea"
+    },
+    "wheel_sha256": "925f929d6b59a8b3f8b8c6ac363cd0af7eecc81efb3071770b3c6717c450a369"
+  }
+}
