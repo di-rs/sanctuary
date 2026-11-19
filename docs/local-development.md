@@ -80,9 +80,10 @@ every preview recorded by this worktree. If Boxie has yet to acknowledge
 cleanup, the command exits nonzero and keeps the project's containers,
 database and volumes. Restore connectivity and retry `down`. The playground
 blocks new sessions and publications while teardown is pending. Keep the
-original endpoint and credential until cleanup finishes. Manually removing
-the development PostgreSQL container discards its in-memory database and the
-records needed to retry cleanup.
+original endpoint and credential until cleanup finishes. If the playground
+container has stopped, start it with those same settings before retrying.
+Stopping or removing the development PostgreSQL container discards its
+in-memory database and the records needed to retry cleanup.
 
 ## Commands
 
