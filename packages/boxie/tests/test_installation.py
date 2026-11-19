@@ -163,30 +163,29 @@ def test_failed_certificate_generation_leaves_no_final_directory(tmp_path: Path)
 
 
 def test_certificates_have_separate_identities_and_private_ca(tmp_path: Path) -> None:
-    result = subprocess.run(
-        [
-            "bash",
-            str(ROOT / "packages/boxie/infra/certificates.sh"),
-            str(tmp_path / "tls"),
-            str(os.getuid()),
-            str(os.getgid()),
-        ],
-        capture_output=True,
-        text=True,
-    )
-    assert result.returncode == 0, result.stderr
     root = tmp_path / "tls"
+    command = [
+        "bash",
+        str(ROOT / "packages/boxie/infra/certificates.sh"),
+        str(root),
+        str(os.getuid()),
+        str(os.getgid()),
+    ]
+    result = subprocess.run(command, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
     keys = [
         root / name / file
         for name, file in (
             ("server", "frontend.key"),
+            ("server", "internode.key"),
             ("api", "boxie-api.key"),
             ("supervisor", "boxie-supervisor.key"),
             ("ui", "ui-client.key"),
             ("operator", "operator.key"),
         )
     ]
-    assert len({key.read_bytes() for key in keys}) == 5
+    key_contents = {key: key.read_bytes() for key in keys}
+    assert len(set(key_contents.values())) == 6
     assert not any(path.name.endswith(".key") for path in (root / "server").glob("*ca*"))
     check = subprocess.run(
         [
@@ -200,6 +199,15 @@ def test_certificates_have_separate_identities_and_private_ca(tmp_path: Path) ->
     )
     assert check.returncode == 0
     assert all(key.stat().st_mode & 0o077 == 0 for key in keys)
+
+    result = subprocess.run(command, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    assert {key: key.read_bytes() for key in keys} == key_contents
+
+    internode_key = root / "server/internode.key"
+    internode_key.unlink()
+    assert subprocess.run(command, capture_output=True, text=True).returncode == 1
+    assert not internode_key.exists()
 
 
 def test_temporal_schema_setup_can_resume_one_database(tmp_path: Path) -> None:
