@@ -11,11 +11,10 @@ import sys
 import time
 from contextlib import suppress
 from pathlib import Path
-from urllib.error import URLError
-from urllib.request import ProxyHandler, Request, build_opener
+from urllib.request import Request
 from uuid import NAMESPACE_URL, uuid5
 
-from .stack import DevError, Stack
+from .stack import DevError, Stack, wait_for_http
 
 INFRA = Path("packages/boxie/infra")
 PASSWORDS = (
@@ -227,25 +226,20 @@ class Boxie(Stack):
                 time.sleep(1)
         self.run("up", "-d", "--no-build", "supervisor", "api")
         url = self.url()
-        request = Request(
-            url + "readyz", headers={"Authorization": "Bearer " + self.credential.read_text()}
-        )
-        opener = build_opener(ProxyHandler({}))
-        deadline = time.monotonic() + 120
-        while True:
-            try:
-                with opener.open(request, timeout=5):
-                    break
-            except URLError, TimeoutError:
-                if time.monotonic() >= deadline:
-                    raise DevError(
-                        f"Boxie did not become ready at {url}. See local-dev logs --mode boxie."
-                    ) from None
-                time.sleep(1)
+        self.wait_ready(url)
         print(
             f"Ready: {url} (Boxie · gVisor/runsc)\nConsumer credential: {self.credential}",
             flush=True,
         )
+
+    def wait_ready(self, url: str) -> None:
+        request = Request(
+            url + "readyz", headers={"Authorization": "Bearer " + self.credential.read_text()}
+        )
+        if not wait_for_http(request, lambda status, final: status == 200, seconds=120):
+            with suppress(subprocess.CalledProcessError):
+                self.run("logs", "--tail", "60", "api", "supervisor")
+            raise DevError(f"Boxie did not become ready at {url}. See local-dev logs --mode boxie.")
 
     def down(self, *, playground: Stack | None = None) -> None:
         self.local_engine()

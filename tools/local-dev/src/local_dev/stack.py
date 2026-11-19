@@ -7,12 +7,29 @@ import shlex
 import shutil
 import subprocess
 import sys
+import time
+from collections.abc import Callable
 from pathlib import Path
-from urllib.request import urlopen
+from urllib.request import ProxyHandler, Request, build_opener
 
 
 class DevError(Exception):
     """An actionable local setup failure."""
+
+
+def wait_for_http(request: Request, ready: Callable[[int, str], bool], *, seconds: float) -> bool:
+    """Wait for a published loopback service, which can reset early connections."""
+    opener = build_opener(ProxyHandler({}))
+    deadline = time.monotonic() + seconds
+    while (remaining := deadline - time.monotonic()) > 0:
+        try:
+            with opener.open(request, timeout=min(5, remaining)) as response:
+                if ready(response.status, response.url):
+                    return True
+        except OSError:
+            pass
+        time.sleep(min(1, max(0, deadline - time.monotonic())))
+    return False
 
 
 def repository(start: Path) -> Path:
@@ -147,9 +164,12 @@ class Stack:
             raise
         url = self.url()
         # Container health cannot validate the published authority or host mapping.
-        with urlopen(url, timeout=10) as response:
-            if response.status != 200 or "/p/" not in response.url:
-                raise DevError(f"Playground preview is not ready at {url}")
+        if not wait_for_http(
+            Request(url),
+            lambda status, final: status == 200 and final.startswith(url + "p/"),
+            seconds=20,
+        ):
+            raise DevError(f"Playground preview is not ready at {url}")
         print(f"Ready: {url}", flush=True)
 
 
