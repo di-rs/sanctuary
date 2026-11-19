@@ -21,24 +21,43 @@ from boxie.domain.models import SupervisorIdentity
 from boxie.temporal.contracts import maintenance_queue
 from boxie.temporal.maintenance import Maintenance
 
+_CLEANUP_INTERVAL = 12 * 60 * 60
+_POLLING_CATCHUP = timedelta(minutes=1)
+
+
+def _interval(seconds: int) -> ScheduleSpec:
+    return ScheduleSpec(intervals=[ScheduleIntervalSpec(every=timedelta(seconds=seconds))])
+
+
+def _schedule(
+    queue: str, kind: str, seconds: int, *, catchup_window: timedelta = _POLLING_CATCHUP
+) -> Schedule:
+    return Schedule(
+        action=ScheduleActionStartWorkflow(
+            Maintenance.run, kind, id=f"{queue}/{kind}", task_queue=queue
+        ),
+        spec=_interval(seconds),
+        policy=SchedulePolicy(overlap=ScheduleOverlapPolicy.SKIP, catchup_window=catchup_window),
+    )
+
 
 def schedule_definitions(identity: SupervisorIdentity) -> dict[str, Schedule]:
     queue = maintenance_queue(identity)
     return {
-        f"{queue}/{kind}": Schedule(
-            action=ScheduleActionStartWorkflow(
-                Maintenance.run, kind, id=f"{queue}/{kind}", task_queue=queue
-            ),
-            spec=ScheduleSpec(intervals=[ScheduleIntervalSpec(every=timedelta(hours=12))]),
-            policy=SchedulePolicy(
-                overlap=ScheduleOverlapPolicy.SKIP, catchup_window=timedelta(hours=12)
-            ),
+        f"{queue}/{kind}": _schedule(
+            queue, kind, _CLEANUP_INTERVAL, catchup_window=timedelta(seconds=_CLEANUP_INTERVAL)
         )
         for kind in ("artifacts", "retention")
     }
 
 
-async def _check_schedule(client: Client, actual: Schedule, expected: Schedule) -> None:
+async def _check_schedule(
+    client: Client,
+    actual: Schedule,
+    expected: Schedule,
+    *,
+    alternate_specs: tuple[ScheduleSpec, ...] = (),
+) -> None:
     action, wanted = actual.action, expected.action
     if not isinstance(action, ScheduleActionStartWorkflow) or not isinstance(
         wanted, ScheduleActionStartWorkflow
@@ -48,7 +67,7 @@ async def _check_schedule(client: Client, actual: Schedule, expected: Schedule) 
     if (
         actual.state.paused
         or actual.state.limited_actions
-        or actual.spec != expected.spec
+        or actual.spec not in (expected.spec, *alternate_specs)
         or (action.workflow, action.id, action.task_queue, args)
         != (wanted.workflow, wanted.id, wanted.task_queue, list(wanted.args))
         or actual.policy != expected.policy
@@ -78,26 +97,17 @@ async def ensure_schedules(client: Client, identity: SupervisorIdentity) -> None
                     return None
                 legacy = replace(
                     expected,
-                    action=expected.action,
-                    spec=ScheduleSpec(
-                        intervals=[ScheduleIntervalSpec(every=timedelta(seconds=30))]
-                    ),
-                    policy=SchedulePolicy(
-                        overlap=ScheduleOverlapPolicy.SKIP, catchup_window=timedelta(minutes=1)
-                    ),
+                    spec=_interval(30),
+                    policy=replace(expected.policy, catchup_window=_POLLING_CATCHUP),
                 )
-                if actual.spec == ScheduleSpec(
-                    intervals=[ScheduleIntervalSpec(every=timedelta(seconds=300))]
-                ):
-                    legacy.spec = actual.spec
-                await _check_schedule(client, actual, legacy)
+                await _check_schedule(client, actual, legacy, alternate_specs=(_interval(300),))
                 actual.spec = expected.spec
                 actual.policy = expected.policy
                 return ScheduleUpdate(schedule=actual)
 
             await client.get_schedule_handle(identifier).update(upgrade)
     queue = maintenance_queue(identity)
-    for kind, seconds in (("commands", 5), ("journal", 30)):
+    for kind, seconds, alternate_seconds in (("commands", 5, 15), ("journal", 30, 60)):
         identifier = f"{queue}/{kind}"
         handle = client.get_schedule_handle(identifier)
         try:
@@ -106,21 +116,11 @@ async def ensure_schedules(client: Client, identity: SupervisorIdentity) -> None
             if error.status == RPCStatusCode.NOT_FOUND:
                 continue
             raise
-        expected = Schedule(
-            action=ScheduleActionStartWorkflow(
-                Maintenance.run, kind, id=identifier, task_queue=queue
-            ),
-            spec=ScheduleSpec(intervals=[ScheduleIntervalSpec(every=timedelta(seconds=seconds))]),
-            policy=SchedulePolicy(
-                overlap=ScheduleOverlapPolicy.SKIP, catchup_window=timedelta(minutes=1)
-            ),
+        await _check_schedule(
+            client,
+            actual,
+            _schedule(queue, kind, seconds),
+            alternate_specs=(_interval(alternate_seconds),),
         )
-        if actual.spec == ScheduleSpec(
-            intervals=[
-                ScheduleIntervalSpec(every=timedelta(seconds=15 if kind == "commands" else 60))
-            ]
-        ):
-            expected.spec = actual.spec
-        await _check_schedule(client, actual, expected)
         await handle.delete()
     await check_schedules(client, identity)
