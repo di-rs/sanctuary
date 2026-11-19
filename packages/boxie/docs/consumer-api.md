@@ -6,6 +6,7 @@ from your operator. Keep the secret on your server.
 
 - [Manage artifacts and sandboxes](#manage-artifacts-and-sandboxes)
 - [Submit a job and retrieve its result](#submit-a-job-and-retrieve-its-result)
+- [Cancel a job](#cancel-a-job)
 - [Connect a terminal](#connect-a-terminal)
 - [Check service health](#check-service-health)
 - [Follow a request through logs](#follow-a-request-through-logs)
@@ -92,7 +93,7 @@ The supervisor continues draining terminal output independently.
 | `starting` | Boxie committed start authorization. Docker's acknowledgement may still be pending. |
 | `running` | Docker acknowledged start. The command may finish before the next poll. |
 | `succeeded` / `failed` | Boxie committed the output and observed exit code. Zero means success. |
-| `not_started` | Execution ended before start authorization. |
+| `not_started` | The job stopped before Boxie authorized a start. Cleanup may still be pending. |
 | `outcome_unknown` | The command may have changed external state and may still be running. Confirm cleanup and check the effect before submitting again with a fresh key. |
 
 The result endpoint returns 409 while a result is unavailable and 410 once
@@ -103,6 +104,31 @@ state and submission key remain available after expiry. A foreign job ID returns
 also return 429 while other downloads are in progress. Retry with the original
 key for submission or the same URL for download. See the
 [job recovery contract](execution.md#noninteractive-job-recovery).
+
+## Cancel a job
+
+Send `DELETE /v1/jobs/{id}` with the job owner's Bearer secret. The request
+has no body or idempotency key. The `200` response includes the job's `id`,
+`state`, and `cleanup_pending` at the time Boxie reads or records the stop.
+For example, a cancellation that reaches Boxie before start authorization
+can return:
+
+```json
+{"id":"11111111-1111-4111-8111-111111111111","state":"not_started","cleanup_pending":true}
+```
+
+| State in the response | What happens next |
+| --- | --- |
+| `not_started` | Boxie prevents start authorization and finishes any pending cleanup. |
+| `starting` / `running` | Boxie records the stop. A verified completion can still commit before cleanup settles the job. Without a verified result, the job settles as `outcome_unknown`. |
+| `succeeded` / `failed` | Boxie keeps the result through its existing retention window. |
+| `outcome_unknown` | Boxie preserves the uncertain outcome and requests cleanup if it is still needed. The command may already have had effects. |
+
+While `cleanup_pending` is `true`, Boxie has yet to confirm container absence.
+Repeat the same `DELETE` to check cleanup or retry after a lost response. Each
+retry returns the current state and preserves the original stop request. A
+foreign or unknown job ID returns `404`. Boxie can accept cancellation during
+a Temporal outage. If PostgreSQL is unavailable, retry after `503`.
 
 ## Connect a terminal
 

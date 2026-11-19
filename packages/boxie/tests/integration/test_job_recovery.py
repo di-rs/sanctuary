@@ -201,6 +201,12 @@ async def assert_expired_receipt(
         "id": str(identifier),
         "state": "failed",
     }
+    cancelled = await client.delete(route)
+    assert cancelled.status_code == 200 and cancelled.json() == {
+        "id": str(identifier),
+        "state": "failed",
+        "cleanup_pending": False,
+    }
     assert (await counts(life.sessions)) == (0, 0, 0, 0)
 
 
@@ -214,6 +220,7 @@ async def assert_expired_receipt(
         ("after_authorization", "outcome_unknown", 0),
         ("after_effect", "outcome_unknown", 1),
         ("after_result", "failed", 1),
+        ("cancel_running", "outcome_unknown", 1),
     ],
 )
 def test_private_job_recovery(
@@ -232,17 +239,15 @@ def test_private_job_recovery(
     counter = tmp_path / "counter"
     counter.mkdir()
     counter.chmod(0o777)
+    installation_filter = f"label=boxie.installation={config.identity.installation_id}"
     exit_code = 7 if boundary == "after_result" else 0
     output = (
         "printf 'out\\377EXTRA'"
         if boundary == "before_authorization"
         else "printf 'out\\377'; printf 'err' >&2"
     )
-    command = [
-        "/bin/sh",
-        "-c",
-        f"printf 'effect\\n' >> /evidence/effects; {output}; exit {exit_code}",
-    ]
+    finish = "exec /bin/sleep 600" if boundary == "cancel_running" else f"exit {exit_code}"
+    command = ["/bin/sh", "-c", f"printf 'effect\\n' >> /evidence/effects; {output}; {finish}"]
     if boundary == "before_authorization":
         # Extra shell arguments are inert, but must survive both authenticated HTTP hops.
         command.extend(["é" * 2048] * 15 + [""])
@@ -302,14 +307,21 @@ def test_private_job_recovery(
                 assert admitted.spec.command == admitted.snapshot.command == tuple(command)
                 deadline = admitted.accepted_at + timedelta(seconds=policy.max_seconds)
                 assert admitted.absolute_deadline == deadline
-                async with asyncio.timeout(35):
-                    while not (tmp_path / "barrier").exists():
-                        assert original.exitcode is None
-                        await asyncio.sleep(0.05)
-                assert (tmp_path / "barrier").read_text() == boundary
-                assert (counter / "effects").exists() == (
-                    boundary in ("after_effect", "after_result", "cut_stream")
-                )
+                if boundary == "cancel_running":
+                    await wait_for_provision_ack(env, identifier)
+                    async with asyncio.timeout(20):
+                        while not (counter / "effects").exists():
+                            await asyncio.sleep(0.05)
+                    assert docker("ps", "-q", "--filter", installation_filter)
+                else:
+                    async with asyncio.timeout(35):
+                        while not (tmp_path / "barrier").exists():
+                            assert original.exitcode is None
+                            await asyncio.sleep(0.05)
+                    assert (tmp_path / "barrier").read_text() == boundary
+                    assert (counter / "effects").exists() == (
+                        boundary in ("after_effect", "after_result", "cut_stream")
+                    )
                 if boundary == "cut_stream":
                     # Classification must follow the interrupted stream before the supervisor exits.
                     await wait_for_cleanup(first, route, life, expected)
@@ -317,6 +329,14 @@ def test_private_job_recovery(
                 if boundary == "after_effect":
                     # No provisioning activity remains to drive boot handover on redelivery.
                     await wait_for_provision_ack(env, identifier)
+                if boundary == "after_result":
+                    cancelled = await first.delete(route)
+                    assert cancelled.status_code == 200 and cancelled.json() == {
+                        "id": str(identifier),
+                        "state": "failed",
+                        "cleanup_pending": True,
+                    }
+                    assert_result(await first.get(route + "/result"), expected, exit_code, False)
                 if boundary == "graceful_shutdown":
                     # deploy.sh stops the API and supervisor and checks every
                     # installation/host container, including stopped ones, before migration.
@@ -328,11 +348,23 @@ def test_private_job_recovery(
                         "ps",
                         "-aq",
                         "--filter",
-                        f"label=boxie.installation={config.identity.installation_id}",
+                        installation_filter,
                         "--filter",
                         f"label=boxie.host={config.identity.host_id}",
                     )
                     assert (await counts(life.sessions))[1:3] == (1, 1)
+            if boundary == "cancel_running":
+                async with httpx.AsyncClient(base_url=url, headers=CONSUMER_AUTH) as stopped:
+                    assert (await stopped.delete(route, headers=FOREIGN_AUTH)).status_code == 404
+                    for _ in range(2):
+                        cancelled = await stopped.delete(route)
+                        assert cancelled.status_code == 200 and cancelled.json() == {
+                            "id": str(identifier),
+                            "state": "running",
+                            "cleanup_pending": True,
+                        }
+                assert (await counts(life.sessions))[1:3] == (1, 1)
+                assert docker("ps", "-q", "--filter", installation_filter)
             async with (
                 supervisor_process(replacement, postgres_dsn, address, listener, tmp_path, None),
                 serve(app) if boundary == "graceful_shutdown" else nullcontext(url) as restored_url,
@@ -340,7 +372,7 @@ def test_private_job_recovery(
             ):
                 replay = await fresh.post("/v1/jobs", json=body, headers=key)
                 assert replay.status_code == 202 and replay.json()["id"] == str(identifier)
-                if expected == "outcome_unknown":
+                if expected == "outcome_unknown" and boundary != "cancel_running":
                     assert replay.json()["state"] == "outcome_unknown"
                 assert (
                     await fresh.post(
@@ -351,6 +383,14 @@ def test_private_job_recovery(
                 assert (await fresh.get(route + "/result", headers=FOREIGN_AUTH)).status_code == 404
                 assert (await fresh.get(f"/v1/sandboxes/{identifier}")).status_code == 404
                 await wait_for_cleanup(fresh, route, life, expected)
+                if boundary == "cancel_running":
+                    settled = await fresh.delete(route)
+                    assert settled.status_code == 200 and settled.json() == {
+                        "id": str(identifier),
+                        "state": "outcome_unknown",
+                        "cleanup_pending": False,
+                    }
+                    assert not docker("ps", "-aq", "--filter", installation_filter)
                 assert_result(
                     await fresh.get(route + "/result"),
                     expected,
@@ -394,7 +434,7 @@ def test_private_job_recovery(
                 "ps",
                 "-aq",
                 "--filter",
-                f"label=boxie.installation={config.identity.installation_id}",
+                installation_filter,
             ).splitlines()
             if ids:
                 docker("rm", "--force", *ids)
