@@ -12,9 +12,10 @@ pub enum SearchDirection {
 pub struct Search {
     pub query: String,
     pub direction: SearchDirection,
-    pub matches: Vec<TextPosition>,
-    pub active: Option<usize>,
     pub visible: bool,
+    // Rebuilt by find in document order.
+    matches: Vec<TextPosition>,
+    active: Option<usize>,
     revision: u64,
     match_length: usize,
 }
@@ -30,38 +31,18 @@ impl Search {
     }
 
     pub fn select(&mut self, origin: TextPosition, direction: SearchDirection, inclusive: bool) {
-        if self.matches.is_empty() {
-            self.active = None;
-            return;
-        }
-        let origin = (origin.line, origin.grapheme);
-        self.active = Some(match direction {
-            SearchDirection::Forward => self
-                .matches
-                .iter()
-                .position(|at| {
-                    let at = (at.line, at.grapheme);
-                    at > origin || (inclusive && at == origin)
-                })
-                .unwrap_or(0),
-            SearchDirection::Backward => self
-                .matches
-                .iter()
-                .rposition(|at| {
-                    let at = (at.line, at.grapheme);
-                    at < origin || (inclusive && at == origin)
-                })
-                .unwrap_or_else(|| self.matches.len().saturating_sub(1)),
-        });
+        use SearchDirection::{Backward, Forward};
+        let boundary = match (direction, inclusive) {
+            (Forward, true) | (Backward, false) => self.matches.partition_point(|at| *at < origin),
+            (Forward, false) | (Backward, true) => self.matches.partition_point(|at| *at <= origin),
+        };
+        self.select_from(boundary, direction);
     }
 
     pub fn refresh(&mut self, document: &Document) {
         if self.revision != document.revision() {
             self.matches = find(document, &self.query);
-            self.active = self
-                .matches
-                .iter()
-                .position(|position| *position == document.cursor().position);
+            self.active = self.matches.binary_search(&document.cursor().position).ok();
             self.revision = document.revision();
         }
     }
@@ -72,9 +53,7 @@ impl Search {
         }
         let index = self
             .matches
-            .partition_point(|start| {
-                (start.line, start.grapheme) <= (position.line, position.grapheme)
-            })
+            .partition_point(|start| *start <= position)
             .checked_sub(1)?;
         let start = self.matches.get(index)?;
         if start.line != position.line
@@ -90,15 +69,27 @@ impl Search {
     }
 
     pub fn step(&mut self, direction: SearchDirection) {
-        self.active = self.active.map(|index| match direction {
-            SearchDirection::Forward => {
-                let next = index.saturating_add(1);
-                if next < self.matches.len() { next } else { 0 }
-            }
-            SearchDirection::Backward => index
-                .checked_sub(1)
-                .unwrap_or_else(|| self.matches.len().saturating_sub(1)),
+        if let Some(index) = self.active {
+            let boundary = match direction {
+                SearchDirection::Forward => index.saturating_add(1),
+                SearchDirection::Backward => index,
+            };
+            self.select_from(boundary, direction);
+        }
+    }
+
+    // Choose a match on either side of the boundary and wrap at the ends.
+    fn select_from(&mut self, boundary: usize, direction: SearchDirection) {
+        let last = self.matches.len().checked_sub(1);
+        self.active = last.map(|last| match direction {
+            SearchDirection::Forward if boundary > last => 0,
+            SearchDirection::Forward => boundary,
+            SearchDirection::Backward => boundary.checked_sub(1).unwrap_or(last),
         });
+    }
+
+    pub const fn match_count(&self) -> usize {
+        self.matches.len()
     }
 
     pub fn current(&self) -> Option<TextPosition> {
@@ -121,7 +112,7 @@ pub struct SearchSnapshot {
 }
 
 /// Search one rope line at a time; byte offsets never escape as text coordinates.
-pub fn find(document: &Document, query: &str) -> Vec<TextPosition> {
+fn find(document: &Document, query: &str) -> Vec<TextPosition> {
     if query.is_empty() || query.contains(['\r', '\n']) {
         return Vec::new();
     }

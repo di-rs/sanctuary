@@ -26,8 +26,8 @@ impl From<ScreenPosition> for Position {
 }
 
 /// A position between graphemes in a logical text line, not terminal cells.
-#[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Default, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct TextPosition {
-    pub grapheme: usize,
     pub line: usize,
+    pub grapheme: usize,
 }

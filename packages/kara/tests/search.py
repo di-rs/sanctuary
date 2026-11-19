@@ -84,6 +84,12 @@ def main() -> None:
         ([b"/hit\r", b"?absent", b"\x1b", b"n"], b"hit--hit--Xhit"),
     ):
         check(binary, b"hit--hit--hit", [*keys, b"iX", b"\x1b", b"\x13\x11"], expected)
+    check(
+        binary,
+        b"------hit\nhit--hit",
+        [b"/hit\r", b"N", b"iX", b"\x1b", b"\x13\x11"],
+        b"------hit\nXhit--hit",
+    )
     check(binary, b"hit--hit", [b"/hit\r", b"d", b"n", b"iX", b"\x1b", b"\x13\x11"], b"it--Xhit")
 
 
