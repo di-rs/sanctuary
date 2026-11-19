@@ -63,42 +63,16 @@ pub enum CliError {
 impl Reporter for Cli {
     fn report(&self, col: Column) -> std::io::Result<()> {
         use std::io::Write;
-        let mut columns = vec![];
 
-        match col {
-            Column::Col1(val) => {
-                if self.show_col1 {
-                    columns.push(val);
-                }
-            }
-            Column::Col2(val) => {
-                if self.show_col2 {
-                    if self.show_col1 {
-                        columns.push("");
-                    }
-                    columns.push(val);
-                }
-            }
-            Column::Col3(val) => {
-                if self.show_col3 {
-                    if self.show_col1 {
-                        columns.push("");
-                    }
-                    if self.show_col2 {
-                        columns.push("");
-                    }
-                    columns.push(val);
-                }
-            }
-        }
-
-        if !columns.is_empty() {
-            writeln!(
-                std::io::stdout().lock(),
-                "{}",
-                columns.join(&self.delimiter)
-            )?;
-        }
-        Ok(())
+        let (value, preceding) = match col {
+            Column::Col1(value) if self.show_col1 => (value, [false, false]),
+            Column::Col2(value) if self.show_col2 => (value, [self.show_col1, false]),
+            Column::Col3(value) if self.show_col3 => (value, [self.show_col1, self.show_col2]),
+            _ => return Ok(()),
+        };
+        let separators = preceding.into_iter().filter(|&visible| visible).count();
+        let mut line = self.delimiter.repeat(separators);
+        line.push_str(value);
+        writeln!(std::io::stdout().lock(), "{line}")
     }
 }

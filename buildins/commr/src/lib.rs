@@ -54,33 +54,26 @@ where
     let mut line1 = reader1.next().transpose()?;
     let mut line2 = reader2.next().transpose()?;
 
-    while line1.is_some() || line2.is_some() {
-        match (&line1, &line2) {
-            (Some(val1), Some(val2)) => match val1.cmp(val2) {
-                Ordering::Equal => {
-                    reporter.report(Column::Col3(val1))?;
-                    line1 = reader1.next().transpose()?;
-                    line2 = reader2.next().transpose()?;
-                }
-                Ordering::Less => {
-                    reporter.report(Column::Col1(val1))?;
-                    line1 = reader1.next().transpose()?;
-                }
-                Ordering::Greater => {
-                    reporter.report(Column::Col2(val2))?;
-                    line2 = reader2.next().transpose()?;
-                }
+    loop {
+        let column = match (line1.as_deref(), line2.as_deref()) {
+            (Some(left), Some(right)) => match left.cmp(right) {
+                Ordering::Less => Column::Col1(left),
+                Ordering::Greater => Column::Col2(right),
+                Ordering::Equal => Column::Col3(left),
             },
-            (Some(val1), None) => {
-                reporter.report(Column::Col1(val1))?;
-                line1 = reader1.next().transpose()?;
-            }
-            (None, Some(val2)) => {
-                reporter.report(Column::Col2(val2))?;
-                line2 = reader2.next().transpose()?;
-            }
-            _ => (),
+            (Some(left), None) => Column::Col1(left),
+            (None, Some(right)) => Column::Col2(right),
+            (None, None) => return Ok(()),
+        };
+        reporter.report(column)?;
+
+        let advance_left = !matches!(column, Column::Col2(_));
+        let advance_right = !matches!(column, Column::Col1(_));
+        if advance_left {
+            line1 = reader1.next().transpose()?;
+        }
+        if advance_right {
+            line2 = reader2.next().transpose()?;
         }
     }
-    Ok(())
 }
