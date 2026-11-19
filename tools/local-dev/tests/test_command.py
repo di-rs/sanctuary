@@ -3,12 +3,16 @@
 import os
 import subprocess
 from argparse import Namespace
+from contextlib import nullcontext
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import Mock
+from urllib.request import Request
 
 import pytest
 from local_dev.boxie import Boxie
 from local_dev.command import connect, playground, run_action
-from local_dev.stack import DevError, Stack, project_name, repository
+from local_dev.stack import DevError, Stack, project_name, repository, wait_for_http
 
 
 def test_worktree_identity(tmp_path: Path) -> None:
@@ -188,3 +192,46 @@ def test_down_executes_remote_drain_only_for_boxie(
     else:
         stack.down_playground()
         assert commands == [("ps", "--all", "-q", "playground"), ("down", "--volumes")]
+
+
+@pytest.mark.parametrize("backend", ["boxie", "playground"])
+def test_readiness_retries_a_reset_from_the_published_port(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, backend: str
+) -> None:
+    origin = "http://127.0.0.1:49123/"
+    endpoint = origin + ("readyz" if backend == "boxie" else "p/fixture")
+    opener = Mock()
+    opener.open.side_effect = [
+        ConnectionResetError(104, "connection reset"),
+        nullcontext(SimpleNamespace(status=200, url=endpoint)),
+    ]
+    monkeypatch.setattr("local_dev.stack.build_opener", lambda *_: opener)
+    monkeypatch.setattr("local_dev.stack.time.sleep", lambda _: None)
+
+    if backend == "boxie":
+        boxie = Boxie(tmp_path)
+        boxie.state.mkdir(parents=True)
+        boxie.credential.write_text("synthetic-consumer-token")
+        boxie.wait_ready(origin)
+    else:
+        monkeypatch.setattr(Stack, "run", lambda *args, **kwargs: "")
+        monkeypatch.setattr(Stack, "url", lambda self: origin)
+        Stack(tmp_path).start(build=False)
+
+    assert opener.open.call_count == 2
+    request = opener.open.call_args.args[0]
+    assert request.full_url == origin + ("readyz" if backend == "boxie" else "")
+    token = "Bearer synthetic-consumer-token" if backend == "boxie" else None
+    assert request.get_header("Authorization") == token
+
+
+def test_readiness_probe_uses_its_remaining_time(monkeypatch: pytest.MonkeyPatch) -> None:
+    clock = SimpleNamespace(monotonic=Mock(side_effect=[0.0, 0.0, 2.0, 2.0]), sleep=Mock())
+    monkeypatch.setattr("local_dev.stack.time", clock)
+    opener = Mock()
+    opener.open.side_effect = ConnectionResetError(104, "connection reset")
+    monkeypatch.setattr("local_dev.stack.build_opener", lambda *_: opener)
+    request = Request("http://127.0.0.1:49123/readyz")
+
+    assert not wait_for_http(request, lambda status, url: status == 200, seconds=2)
+    opener.open.assert_called_once_with(request, timeout=2)
