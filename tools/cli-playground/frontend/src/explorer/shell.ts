@@ -9,8 +9,12 @@ export function quoteToken(value: string): string {
 export function commandText(cli: string, path: string[]): string {
   return [quoteToken(cli), ...path.map(quoteToken)].join(" ") + " ";
 }
+export function flagNames({ long, short }: Argument) {
+  return { long: long ? `--${long}` : "", short: short ? `-${short}` : "" };
+}
 export function flagText(arg: Argument): string {
-  const flag = arg.long ? `--${arg.long}` : arg.short ? `-${arg.short}` : null;
+  const { long, short } = flagNames(arg);
+  const flag = long || short;
   if (!flag) return "";
   return ` ${quoteToken(flag)} `;
 }
