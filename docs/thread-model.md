@@ -21,6 +21,9 @@ Advisory secret scans must not publish credential values and run without credent
 - **Local CLIs:** Arguments, stdin, files, and filenames are untrusted. Commands
   run with the invoking user's permissions; parsing must not cause unintended
   reads, writes, or execution.
+  Shish history can contain sensitive command arguments. Every new history file
+  must have owner-only permissions from creation, including during editor sync
+  and at interactive exit.
   Kara's atomic saves must preserve existing owner, group, mode, and access ACLs
   or fail before replacement. Staging files must not expose content through inherited
   access rules. Errors after replacement must report committed data with uncertain
