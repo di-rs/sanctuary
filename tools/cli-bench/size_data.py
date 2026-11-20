@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 Name = Annotated[str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$")]
 Sha = Annotated[str, Field(pattern=r"^[0-9a-f]{40}$")]
+type BinarySizeStatus = Literal["failed", "added", "removed", "unchanged", "changed"]
 
 
 class Record(BaseModel):
@@ -34,6 +35,16 @@ class BinarySize(Record):
         if self.base.status == self.head.status == "absent":
             raise ValueError("binary absent from both revisions")
         return self
+
+    @property
+    def status(self) -> BinarySizeStatus:
+        if "failed" in (self.base.status, self.head.status):
+            return "failed"
+        if self.base.status == "absent":
+            return "added"
+        if self.head.status == "absent":
+            return "removed"
+        return "unchanged" if self.base.bytes == self.head.bytes else "changed"
 
 
 class SizeReport(Record):

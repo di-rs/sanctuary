@@ -10,7 +10,7 @@ from report import (
     latest_artifact,
     read_zip,
 )
-from size_data import BinarySize, SizeReport
+from size_data import BinarySize, BinarySizeStatus, SizeReport
 
 JOB = "📦 Measure Linux binary sizes"
 
@@ -21,24 +21,16 @@ def delta(before: int, after: int) -> str:
     return f"{difference:+,} B | {percent}"
 
 
-def row_text(row: BinarySize) -> str:
+def row_text(row: BinarySize, status: BinarySizeStatus) -> str:
     before, after = row.base.bytes, row.head.bytes
-    state = (
-        "Unavailable"
-        if "failed" in (row.base.status, row.head.status)
-        else "Added"
-        if row.base.status == "absent"
-        else "Removed"
-        if row.head.status == "absent"
-        else "Unchanged"
-        if before == after
-        else "Changed"
-    )
-    change = "— | —" if state == "Unavailable" else delta(before or 0, after or 0)
+    if status == "failed":
+        change, label = "— | —", "Unavailable"
+    else:
+        change, label = delta(before or 0, after or 0), status.capitalize()
     return (
         f"| `{row.package}` | `{row.binary}` | "
         f"{f'{before:,} B' if before is not None else '—'} | "
-        f"{f'{after:,} B' if after is not None else '—'} | {change} | {state} |"
+        f"{f'{after:,} B' if after is not None else '—'} | {change} | {label} |"
     )
 
 
@@ -63,9 +55,14 @@ def render_size(repo: str, run: dict[str, object], report: SizeReport | None) ->
         f"[PR `{report.head_sha[:12]}`](https://github.com/{repo}/commit/{report.head_sha})",
         "",
     ]
-    complete = all(
-        build.status != "failed" for row in report.rows for build in (row.base, row.head)
-    )
+    changed: list[tuple[BinarySize, BinarySizeStatus]] = []
+    unchanged: list[tuple[BinarySize, BinarySizeStatus]] = []
+    complete = True
+    for row in sorted(report.rows, key=lambda row: (row.package, row.binary)):
+        status = row.status
+        group = unchanged if status == "unchanged" else changed
+        group.append((row, status))
+        complete = complete and status != "failed"
     if not complete or run["conclusion"] != "success":
         lines += [
             "> **Incomplete:** some builds or workflow steps failed. Missing sizes are not zero; "
@@ -82,20 +79,12 @@ def render_size(repo: str, run: dict[str, object], report: SizeReport | None) ->
             f"**Size change:** {delta(before, after).replace(' | ', ' · ')}.",
             "",
         ]
-    changed = [
-        row
-        for row in report.rows
-        if row.base.status != "complete"
-        or row.head.status != "complete"
-        or row.base.bytes != row.head.bytes
-    ]
-    unchanged = [row for row in report.rows if row not in changed]
     remaining = 120
     for title, rows, opened in (
         ("Changed binaries", changed, " open"),
         ("Unchanged binaries", unchanged, ""),
     ):
-        visible = sorted(rows, key=lambda row: (row.package, row.binary))[:remaining]
+        visible = rows[:remaining]
         remaining -= len(visible)
         lines += [
             f"<details{opened}>",
@@ -103,7 +92,7 @@ def render_size(repo: str, run: dict[str, object], report: SizeReport | None) ->
             "",
             "| Package | Binary | Base size | PR size | Change | Change % | Status |",
             "| --- | --- | ---: | ---: | ---: | ---: | --- |",
-            *(row_text(row) for row in visible),
+            *(row_text(row, status) for row, status in visible),
             "",
             "</details>",
             "",

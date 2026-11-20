@@ -188,9 +188,7 @@ def main() -> None:
         report = collect(
             args.root.resolve(), args.base, args.head, args.attempt, args.output.resolve()
         )
-        failed = any(
-            build.status == "failed" for row in report.rows for build in (row.base, row.head)
-        )
+        failed = any(row.status == "failed" for row in report.rows)
         if summary := os.environ.get("GITHUB_STEP_SUMMARY"):
             from size_report import render_size
 
