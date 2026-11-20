@@ -2,18 +2,20 @@
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
 
-ROOT = Path(__file__).resolve().parents[3]
+INFRA = Path(__file__).resolve().parents[1] / "infra"
 
 
-def test_sandbox_update_preserves_boxie_image_and_custom_profile(tmp_path: Path) -> None:
-    import shutil
-
+@pytest.mark.parametrize("readiness_status", [0, 17])
+def test_sandbox_update_preserves_boxie_image_and_custom_profile(
+    tmp_path: Path, readiness_status: int
+) -> None:
     config = tmp_path / "config"
     boxie = config / "boxie"
     boxie.mkdir(parents=True)
@@ -31,31 +33,36 @@ def test_sandbox_update_preserves_boxie_image_and_custom_profile(tmp_path: Path)
     owner = tmp_path / "owner"
     (owner / "profiles").mkdir(parents=True)
     (owner / "boxie_infra").mkdir()
-    shutil.copy(
-        ROOT / "packages/boxie/infra/boxie_infra/installation.py",
-        owner / "boxie_infra/installation.py",
-    )
+    for name in ("installation.py", "readiness.py"):
+        shutil.copyfile(INFRA / "boxie_infra" / name, owner / "boxie_infra" / name)
     (owner / "profiles/default.json").write_text(json.dumps(profile))
     docker = tmp_path / "docker"
     docker.write_text(
-        f"#!{sys.executable}\nimport json, os, sys\nwith open(os.environ['CALLS'], 'a') as f: f.write(json.dumps(sys.argv[1:]) + '\\n')\n"
+        f"#!{sys.executable}\nimport json, os, sys\nfrom pathlib import Path\n"
+        "with open(os.environ['CALLS'], 'a') as f: f.write(json.dumps(sys.argv[1:]) + '\\n')\n"
+        "if 'exec' in sys.argv:\n"
+        "    assert sys.stdin.buffer.read() == Path(os.environ['EXPECTED_PROBE']).read_bytes()\n"
+        "    sys.exit(int(os.environ['READINESS_STATUS']))\n"
     )
     docker.chmod(0o755)
     log = tmp_path / "calls"
     digest = "ghcr.io/test/sandbox@sha256:" + "c" * 64
     result = subprocess.run(
-        ["bash", str(ROOT / "packages/boxie/infra/sandbox-release.sh"), digest],
+        ["bash", str(INFRA / "sandbox-release.sh"), digest],
         env={
             **os.environ,
             "PATH": str(tmp_path) + ":" + os.environ["PATH"],
             "CALLS": str(log),
+            "EXPECTED_PROBE": str(INFRA / "boxie_infra/readiness.py"),
+            "READINESS_STATUS": str(readiness_status),
             "SANCTUARY_CONFIG_DIR": str(config),
             "SANCTUARY_BOXIE_DIR": str(owner),
         },
+        stdin=subprocess.DEVNULL,
         capture_output=True,
         text=True,
     )
-    assert result.returncode == 0, result.stderr
+    assert result.returncode == readiness_status, result.stderr
     profile["default"]["image_digest"] = digest
     assert json.loads((boxie / "profiles.json").read_text()) == profile
     calls = [json.loads(line) for line in log.read_text().splitlines()]
@@ -69,75 +76,8 @@ def test_sandbox_update_preserves_boxie_image_and_custom_profile(tmp_path: Path)
     assert updates[0][-1] == "supervisor"
     assert "--force-recreate" in updates[0]
     assert not any("backend" in call for call in calls)
-    assert [call[-5:] for call in calls if "exec" in call] == [["exec", "-T", "api", "python", "-"]]
+    assert [call[-6:] for call in calls if "exec" in call] == [
+        ["exec", "-T", "api", "python", "-", "sandbox"]
+    ]
     assert not any("api" in call for call in calls if "stop" in call or "up" in call)
     assert (config / "boxie-image.env").read_text() == "BOXIE_IMAGE=" + boxie_image + "\n"
-
-
-def sandbox_readiness_script() -> str:
-    return (
-        (ROOT / "packages/boxie/infra/sandbox-release.sh")
-        .read_text()
-        .split("<<'PY'\n")[1]
-        .split("\nPY")[0]
-    )
-
-
-def test_sandbox_readiness_retries_until_orchestration_is_ready(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    from email.message import Message
-    from unittest.mock import MagicMock
-    from urllib.error import HTTPError
-
-    credential = tmp_path / "consumer"
-    credential.write_text("token")
-    unready = MagicMock()
-    unready.__enter__.return_value.status = 200
-    unready.__enter__.return_value.read.return_value = b'{"dependencies":{"orchestration":false}}'
-    ready = MagicMock()
-    ready.__enter__.return_value.status = 200
-    ready.__enter__.return_value.read.return_value = b'{"dependencies":{"orchestration":true}}'
-    request = MagicMock(
-        side_effect=[HTTPError("http://boxie", 503, "unready", Message(), None), unready, ready]
-    )
-    monkeypatch.setattr("urllib.request.urlopen", request)
-    monkeypatch.setattr("time.sleep", lambda _: None)
-    exec(sandbox_readiness_script().replace("/run/secrets/consumer", str(credential)), {})
-    assert request.call_count == 3
-    assert request.call_args.kwargs["timeout"] == 3
-    assert request.call_args.args[0].get_header("Authorization") == "Bearer token"
-
-
-def test_sandbox_readiness_exhaustion_fails(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    from email.message import Message
-    from unittest.mock import MagicMock
-    from urllib.error import HTTPError
-
-    credential = tmp_path / "consumer"
-    credential.write_text("token")
-    request = MagicMock(side_effect=HTTPError("http://boxie", 503, "unready", Message(), None))
-    monkeypatch.setattr("urllib.request.urlopen", request)
-    monkeypatch.setattr("time.sleep", lambda _: None)
-    with pytest.raises(SystemExit, match="Boxie orchestration did not become ready"):
-        exec(sandbox_readiness_script().replace("/run/secrets/consumer", str(credential)), {})
-    assert request.call_count == 30
-
-
-def test_sandbox_release_fails_when_api_readiness_check_fails() -> None:
-    script = (ROOT / "packages/boxie/infra/sandbox-release.sh").read_text()
-    release_commands = script[script.index("compose stop --timeout 60 supervisor") :]
-    result = subprocess.run(
-        [
-            "bash",
-            "-euo",
-            "pipefail",
-            "-c",
-            "compose() { [[ $1 != exec ]]; };\n" + release_commands,
-        ],
-        capture_output=True,
-        text=True,
-    )
-    assert result.returncode == 1, result.stderr

@@ -40,25 +40,4 @@ remaining=$(docker ps -aq --filter "label=boxie.installation=$installation" --fi
 compose run --rm --no-deps migrate
 compose up -d --no-build --pull never --no-deps --wait --wait-timeout 150 supervisor
 compose up -d --no-build --pull never --no-deps --wait --wait-timeout 150 api
-compose exec -T api python - <<'PY'
-import json
-import os
-import time
-import urllib.request
-from pathlib import Path
-
-request = urllib.request.Request('http://127.0.0.1:8090/readyz', headers={
-    'Authorization': 'Bearer ' + Path('/run/secrets/consumer').read_text().strip(),
-})
-for attempt in range(30):
-    try:
-        with urllib.request.urlopen(request, timeout=3) as response:
-            data = json.load(response)
-        if data['release'] == os.environ['BOXIE_RELEASE'] and all(data['dependencies'].values()):
-            break
-    except OSError:
-        pass
-    time.sleep(2)
-else:
-    raise SystemExit('Boxie dependencies did not become ready')
-PY
+compose exec -T api python - release <"$owner/boxie_infra/readiness.py"
