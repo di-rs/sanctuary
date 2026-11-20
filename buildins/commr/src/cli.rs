@@ -71,8 +71,7 @@ impl Reporter for Cli {
             _ => return Ok(()),
         };
         let separators = preceding.into_iter().filter(|&visible| visible).count();
-        let mut line = self.delimiter.repeat(separators);
-        line.push_str(value);
-        writeln!(std::io::stdout().lock(), "{line}")
+        let prefix = self.delimiter.repeat(separators);
+        writeln!(std::io::stdout().lock(), "{prefix}{value}")
     }
 }
