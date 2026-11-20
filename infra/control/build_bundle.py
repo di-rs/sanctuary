@@ -35,7 +35,7 @@ def main() -> None:
     channel = tomllib.loads(Path("rust-toolchain.toml").read_text())["toolchain"]["channel"]
     if not re.fullmatch(r"nightly-\d{4}-\d{2}-\d{2}|\d+\.\d+\.\d+", channel):
         raise ValueError("invalid toolchain")
-    run("rustup", "toolchain", "install", channel, "--profile", "minimal")
+    run("rustup", "toolchain", "install", channel, "--profile", "minimal", "--no-self-update")
     metadata = json.loads(
         subprocess.check_output(
             ["cargo", "metadata", "--locked", "--no-deps", "--format-version=1"]

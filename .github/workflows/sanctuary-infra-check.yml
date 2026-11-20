@@ -43,7 +43,17 @@ jobs:
           docker build -f infra/images/App.Dockerfile --target playground --build-arg PACKAGE=cli-playground -t "sanctuary/playground:$GITHUB_SHA" .
           docker build -f packages/boxie/sandbox/Dockerfile -t "sanctuary/sandbox:$GITHUB_SHA" .
       - name: Compile and package the CLI release
+        id: bundle
         run: bash infra/control/build.sh "$PWD" "$PWD" "$GITHUB_SHA" "$GITHUB_SHA" "$RUNNER_TEMP/bundle.zip"
+      - name: Show compiler diagnostics on the disposable runner
+        if: failure() && steps.bundle.outcome == 'failure'
+        run: |
+          if test -f "$RUNNER_TEMP/bundle-build.log"; then
+            marker=$(cat /proc/sys/kernel/random/uuid)
+            echo "::stop-commands::$marker"
+            tail -c 6000 "$RUNNER_TEMP/bundle-build.log" | LC_ALL=C tr -cd '[:print:]\n'
+            printf '\n::%s::\n' "$marker"
+          fi
       - name: Apply production and preview releases on isolated networks
         run: |
           uv sync --locked --all-packages
