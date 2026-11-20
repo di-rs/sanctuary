@@ -97,6 +97,8 @@ def stage_archive(
                 out.write(header)
                 shutil.copyfileobj(incoming, out, length=65536)
         names = sorted(members)
+        if catalog is None:
+            return names, None
         digests = {}
         for name in names:
             with (destination / name).open("rb") as binary:
