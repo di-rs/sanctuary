@@ -10,7 +10,7 @@ import collect_sizes
 import pytest
 import report
 import yaml
-from cli_check.workspace import discover
+from cli_check.workspace import Package, discover
 from conftest import (
     BASE,
     REPO,
@@ -77,14 +77,22 @@ def test_selection_without_benchmark_suites(
     before, after = tmp_path / "base", tmp_path / "head"
     snapshot(before)
     snapshot(after)
-    assert collect_sizes.selected_packages(before, after, paths) == expected
+    assert (
+        collect_sizes.selected_packages(
+            before, after, paths, before_members=discover(before), after_members=discover(after)
+        )
+        == expected
+    )
 
 
 def test_added_removed_and_lock_changes_select_both_revisions(tmp_path: Path) -> None:
     before, after = tmp_path / "base", tmp_path / "head"
     snapshot(before)
     snapshot(after, ("first", "added"))
-    assert collect_sizes.selected_packages(before, after, ["Cargo.lock"]) == {"second", "added"}
+    before_members = discover(before)
+    assert collect_sizes.selected_packages(
+        before, after, ["Cargo.lock"], before_members=before_members, after_members=discover(after)
+    ) == {"second", "added"}
     manifest = after / "utils/helper/Cargo.toml"
     manifest.write_text(manifest.read_text().replace("0.1.0", "0.2.0"))
     lock = after / "Cargo.lock"
@@ -93,7 +101,9 @@ def test_added_removed_and_lock_changes_select_both_revisions(tmp_path: Path) ->
             'name = "helper"\nversion = "0.1.0"', 'name = "helper"\nversion = "0.2.0"'
         )
     )
-    assert collect_sizes.selected_packages(before, after, ["Cargo.lock"]) == {
+    assert collect_sizes.selected_packages(
+        before, after, ["Cargo.lock"], before_members=before_members, after_members=discover(after)
+    ) == {
         "first",
         "second",
         "added",
@@ -415,7 +425,14 @@ def test_reporting_only_pr_skips_builds_and_writes_summary(
     def unexpected_build(*args: object, **kwargs: object) -> None:
         pytest.fail("an unaffected PR must never invoke the build function")
 
+    discoveries: list[str] = []
+
+    def discover_snapshot(root: Path) -> list[Package]:
+        discoveries.append(root.name)
+        return discover(root)
+
     monkeypatch.setattr(collect_sizes, "build_sizes", unexpected_build)
+    monkeypatch.setattr(collect_sizes, "discover", discover_snapshot)
     output = tmp_path / "report.json"
     summary = tmp_path / "summary.md"
     monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
@@ -438,5 +455,6 @@ def test_reporting_only_pr_skips_builds_and_writes_summary(
         ],
     )
     collect_sizes.main()
+    assert discoveries == ["base", "head"]
     assert SizeReport.model_validate_json(output.read_bytes()).rows == []
     assert "No affected binary packages; no builds were needed." in summary.read_text()

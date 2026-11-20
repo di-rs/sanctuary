@@ -4,7 +4,7 @@ import subprocess
 import tomllib
 from pathlib import Path
 
-from .workspace import discover, string, strings, tables
+from .workspace import Package, discover, string, strings, tables
 
 type PackageId = tuple[str, str, str]
 type Closure = dict[PackageId, dict[str, object]]
@@ -33,6 +33,16 @@ def production_change(path: str, directory: str) -> bool:
         return False
     relative = path.removeprefix(prefix)
     return relative in {"Cargo.toml", "build.rs"} or relative.startswith("src/")
+
+
+def source_changed_packages(root: Path, members: list[Package], paths: list[str]) -> set[str]:
+    root = root.resolve()
+    changed: set[str] = set()
+    for member in members:
+        directory = member.directory.relative_to(root).as_posix()
+        if any(production_change(path, directory) for path in paths):
+            changed.add(member.name)
+    return changed
 
 
 def lock_closures(content: str) -> dict[str, Closure]:
@@ -82,16 +92,15 @@ def lock_closures(content: str) -> dict[str, Closure]:
     return result
 
 
+def dependencies_changed(before: Closure | None, after: Closure | None, changed: set[str]) -> bool:
+    return before != after or any(
+        not source and name in changed for name, _, source in (after or {})
+    )
+
+
 def affected_packages(root: Path, base: str, head: str, paths: list[str]) -> set[str]:
     members = discover(root)
-    changed = {
-        member.name
-        for member in members
-        if any(
-            production_change(path, member.directory.relative_to(root.resolve()).as_posix())
-            for path in paths
-        )
-    }
+    changed = source_changed_packages(root, members, paths)
     if "Cargo.lock" not in paths and not changed:
         return changed
     merge_base = git(root, "merge-base", base, head).strip()
@@ -100,10 +109,7 @@ def affected_packages(root: Path, base: str, head: str, paths: list[str]) -> set
     for member in members:
         if member.name not in after:
             raise ValueError(f"Package missing from Cargo.lock: {member.name}")
-        closure = after[member.name]
-        if before.get(member.name) != closure or any(
-            not source and name in changed for name, _, source in closure
-        ):
+        if dependencies_changed(before.get(member.name), after[member.name], changed):
             changed.add(member.name)
     return changed
 

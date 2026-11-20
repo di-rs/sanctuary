@@ -11,38 +11,46 @@ import tempfile
 import tomllib
 from pathlib import Path
 
-from cli_check.affected import git, lock_closures, production_change
+from cli_check.affected import dependencies_changed, git, lock_closures, source_changed_packages
 from cli_check.workspace import Package, discover, string, strings, table
 from size_data import BinarySize, Build, SizeReport
 
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def selected_packages(before: Path, after: Path, paths: list[str]) -> set[str]:
-    members = [*discover(before), *discover(after)]
-    binaries = {member.name for member in members if member.binaries}
+def selected_packages(
+    before: Path,
+    after: Path,
+    paths: list[str],
+    *,
+    before_members: list[Package],
+    after_members: list[Package],
+) -> set[str]:
+    binaries = {member.name for member in [*before_members, *after_members] if member.binaries}
     global_files = {"Cargo.toml", "rust-toolchain", "rust-toolchain.toml"}
     if any(path in global_files or path.startswith(".cargo/") for path in paths):
         return binaries
-    changed: set[str] = set()
-    for root in (before, after):
-        for member in discover(root):
-            directory = member.directory.relative_to(root.resolve()).as_posix()
-            if any(production_change(path, directory) for path in paths):
-                changed.add(member.name)
+    changed = source_changed_packages(before, before_members, paths) | source_changed_packages(
+        after, after_members, paths
+    )
     if not changed and "Cargo.lock" not in paths:
         return set()
     old = lock_closures((before / "Cargo.lock").read_text())
     new = lock_closures((after / "Cargo.lock").read_text())
-    selected = changed & binaries
-    for name in binaries:
-        if old.get(name) != new.get(name) or any(
-            not source and dependency in changed
-            for closure in (old.get(name, {}), new.get(name, {}))
-            for dependency, _, source in closure
-        ):
-            selected.add(name)
-    return selected
+    return {
+        name
+        for name in binaries
+        if name in changed or dependencies_changed(old.get(name), new.get(name), changed)
+    }
+
+
+def selected_binaries(members: list[Package], selected: set[str]) -> set[tuple[str, str]]:
+    return {
+        (member.name, binary.name)
+        for member in members
+        if member.name in selected
+        for binary in member.binaries
+    }
 
 
 def build_sizes(
@@ -121,22 +129,12 @@ def collect(root: Path, base: str, head: str, attempt: int, output: Path) -> Siz
             for path, sha in ((before, base_sha), (after, head_sha)):
                 git(root, "worktree", "add", "--detach", str(path), sha)
                 added.append(path)
-            selected = selected_packages(before, after, paths)
-            old_members, new_members = discover(before), discover(after)
-            keys = sorted(
-                {
-                    (member.name, binary.name)
-                    for member in [*old_members, *new_members]
-                    if member.name in selected
-                    for binary in member.binaries
-                }
+            before_members, after_members = discover(before), discover(after)
+            selected = selected_packages(
+                before, after, paths, before_members=before_members, after_members=after_members
             )
-            old_keys = {
-                (member.name, binary.name) for member in old_members for binary in member.binaries
-            }
-            new_keys = {
-                (member.name, binary.name) for member in new_members for binary in member.binaries
-            }
+            before_binaries = selected_binaries(before_members, selected)
+            after_binaries = selected_binaries(after_members, selected)
             report = SizeReport(
                 base_sha=base_sha,
                 head_sha=head_sha,
@@ -145,12 +143,16 @@ def collect(root: Path, base: str, head: str, attempt: int, output: Path) -> Siz
                 target=host,
                 rows=[
                     BinarySize(
-                        package=p,
-                        binary=b,
-                        base=Build(status="failed" if (p, b) in old_keys else "absent"),
-                        head=Build(status="failed" if (p, b) in new_keys else "absent"),
+                        package=package,
+                        binary=binary,
+                        base=Build(
+                            status="failed" if (package, binary) in before_binaries else "absent"
+                        ),
+                        head=Build(
+                            status="failed" if (package, binary) in after_binaries else "absent"
+                        ),
                     )
-                    for p, b in keys
+                    for package, binary in sorted(before_binaries | after_binaries)
                 ],
             )
             output.parent.mkdir(parents=True, exist_ok=True)
@@ -160,8 +162,8 @@ def collect(root: Path, base: str, head: str, attempt: int, output: Path) -> Siz
                 return report
             print("Selected binary packages: " + ", ".join(sorted(selected)), flush=True)
             for label, snapshot, members in (
-                ("base", before, old_members),
-                ("head", after, new_members),
+                ("base", before, before_members),
+                ("head", after, after_members),
             ):
                 results = build_sizes(snapshot, members, selected, work / f"target-{label}")
                 for row in report.rows:
