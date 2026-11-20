@@ -3,7 +3,7 @@ mod history;
 mod runtime;
 mod syntax;
 
-use std::io::{self, IsTerminal as _, Read as _};
+use std::io;
 use std::path::Path;
 use std::process::ExitCode;
 
@@ -39,31 +39,27 @@ struct Args {
 }
 
 impl Args {
-    fn script(&self) -> Option<&Path> {
-        if self.command.is_some() || self.stdin {
-            None
-        } else {
-            self.operands.first().map(Path::new)
+    fn input(&self) -> Input<'_> {
+        match (self.command.as_deref(), self.operands.first()) {
+            (Some(command), _) => Input::Command(command),
+            (None, Some(script)) if !self.stdin => Input::Script(Path::new(script)),
+            _ => Input::Stdin,
         }
     }
+}
 
-    fn is_interactive(&self) -> bool {
-        self.interactive
-            || (self.command.is_none()
-                && self.script().is_none()
-                && io::stdin().is_terminal()
-                && io::stderr().is_terminal())
-    }
+enum Input<'a> {
+    Command(&'a str),
+    Script(&'a Path),
+    Stdin,
+}
 
-    fn syntax_input(&self) -> io::Result<String> {
-        if let Some(command) = &self.command {
-            Ok(command.clone())
-        } else if let Some(script) = self.script() {
-            std::fs::read_to_string(script)
-        } else {
-            let mut input = String::new();
-            io::stdin().read_to_string(&mut input)?;
-            Ok(input)
+impl Input<'_> {
+    fn read_to_string(self) -> io::Result<String> {
+        match self {
+            Self::Command(command) => Ok(command.to_owned()),
+            Self::Script(script) => std::fs::read_to_string(script),
+            Self::Stdin => io::read_to_string(io::stdin()),
         }
     }
 }
@@ -71,8 +67,9 @@ impl Args {
 fn main() -> anyhow::Result<ExitCode> {
     <Args as cli_schema::Schema>::run(|| {
         let args = Args::parse();
+        let input = args.input();
         if args.no_execute {
-            return match syntax::parse(&args.syntax_input()?, args.bash) {
+            return match syntax::parse(&input.read_to_string()?, args.bash) {
                 Ok(_) => Ok(ExitCode::SUCCESS),
                 Err(error) => {
                     eprintln!("shish: {error}");
@@ -84,6 +81,8 @@ fn main() -> anyhow::Result<ExitCode> {
             .worker_threads(2)
             .enable_all()
             .build()?;
-        runtime.block_on(runtime::run(&args)).map(ExitCode::from)
+        runtime
+            .block_on(runtime::run(&args, input))
+            .map(ExitCode::from)
     })
 }

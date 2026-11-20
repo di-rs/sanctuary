@@ -86,15 +86,17 @@ fn stdin_without_final_newline_preserves_last_status() {
 }
 
 #[test]
-fn syntax_check_accepts_script_path_without_side_effects() {
+fn syntax_check_respects_script_and_stdin_selection() {
     let directory = assert_fs::TempDir::new().unwrap();
     directory
         .child("test.sh")
         .write_str("printf changed > created\n")
         .unwrap();
+    let invalid_stdin = "echo before; )";
     cargo_bin_cmd!()
         .current_dir(&directory)
         .args(["-n", "test.sh"])
+        .write_stdin(invalid_stdin)
         .assert()
         .code(0)
         .stdout("")
@@ -102,6 +104,14 @@ fn syntax_check_accepts_script_path_without_side_effects() {
     directory
         .child("created")
         .assert(predicates::path::missing());
+    cargo_bin_cmd!()
+        .current_dir(&directory)
+        .args(["-n", "-s", "test.sh"])
+        .write_stdin(invalid_stdin)
+        .assert()
+        .code(2)
+        .stdout("")
+        .stderr("shish: syntax error at line 1 col 14\n");
 }
 
 #[test]
