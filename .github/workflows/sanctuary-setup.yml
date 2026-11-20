@@ -10,24 +10,9 @@ jobs:
   source:
     name: 📥 Select current master
     if: ${{ github.ref == 'refs/heads/master' }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    uses: ./.github/workflows/select-production-source.yml # zizmor: ignore[self-repository]
     permissions:
       contents: read
-    outputs:
-      sha: ${{ steps.revision.outputs.sha }}
-      attempt: ${{ steps.revision.outputs.attempt }}
-    steps:
-      - name: 📥 Check out current master
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          ref: master
-          persist-credentials: false
-      - name: 🔎 Record the source commit
-        id: revision
-        run: |
-          printf 'sha=%s\n' "$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-          printf 'attempt=%s\n' "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
   boxie:
     needs: source
     uses: ./.github/workflows/build-image.yml # zizmor: ignore[self-repository]
