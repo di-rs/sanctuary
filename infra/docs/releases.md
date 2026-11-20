@@ -13,7 +13,7 @@ Run either release manually from Actions on `master`:
 A failed stage stops the remaining deployments in its workflow; completed stages
 are not rolled back automatically. Boxie stages use the `boxie` environment;
 the cli-playground release uses `cli-playground`.
-Each stage calls the shared [release transport](../environments/single-host/release.sh) to stream the runner’s local image into Docker over pinned SSH and verify its image ID before updating the service. Service scripts own migration and readiness checks.
+Each stage calls the shared [release transport](../environments/single-host/release.sh) to stream the runner’s local image into Docker over pinned SSH and verify its archive checksum before updating the service. Service scripts own migration and readiness checks.
 
 ## What a release changes
 

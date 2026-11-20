@@ -59,7 +59,7 @@ if name == "scp" and args[-1].endswith("/image.env"):
 with open(os.environ["CALLS"], "a") as log:
     log.write(json.dumps(record) + "\\n")
 if name == "ssh" and "docker image inspect" in args[-1]:
-    print("mismatch" if os.environ["FAIL"] == "image" else os.environ["IMAGE_ID"])
+    print("mismatch" if os.environ["FAIL"] == "image" else "sha256:" + "b" * 64)
 if name == "ssh" and "sed -n" in args[-1]:
     key = args[-1].split("s/^")[1].split("=")[0]
     print(json.loads(os.environ["RETAINED"])[key])
@@ -125,7 +125,7 @@ def test_release_preserves_other_image_and_cleans_credentials(
     calls = [json.loads(line) for line in Path(release_env["CALLS"]).read_text().splitlines()]
     image_env = next(call["image_env"] for call in calls if "image_env" in call)
     image = (
-        IMAGE_ID
+        "sha256:" + "b" * 64
         if component == "boxie-sandbox"
         else f"localhost/sanctuary-{component}:{IMAGE_ID[7:]}"
     )
