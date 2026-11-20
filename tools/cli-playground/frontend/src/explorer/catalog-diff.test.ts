@@ -47,6 +47,29 @@ describe("public interface comparison", () => {
       [["old"], "removed"],
     ]);
   });
+  it("leaves shared spellings unpaired when either side has multiple candidates", () => {
+    const flag = (id: string) => argument({ id, aliases: ["--shared"], short: null, long: null });
+    const child = (name: string) => command({ name, aliases: ["shared"], args: [] });
+    const base = command({
+      args: [flag("old")],
+      subcommands: [child("first-old"), child("second-old")],
+    });
+    const head = command({
+      args: [flag("first-new"), flag("second-new")],
+      subcommands: [child("new")],
+    });
+    const tree = compareCommand(head, base, "available");
+    expect(tree.args.map(({ argument, change }) => [argument.id, change])).toEqual([
+      ["first-new", "added"],
+      ["second-new", "added"],
+      ["old", "removed"],
+    ]);
+    expect(tree.children.map(({ command, change }) => [command.name, change])).toEqual([
+      ["new", "added"],
+      ["first-old", "removed"],
+      ["second-old", "removed"],
+    ]);
+  });
   it("ignores ordering, whitespace and generated usage layout", () => {
     const base = command({
       args: [

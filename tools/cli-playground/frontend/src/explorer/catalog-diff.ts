@@ -64,6 +64,45 @@ const spellings = (arg: Argument) => [
   ...(arg.long ? [`--${arg.long}`] : []),
   ...(arg.short ? [`-${arg.short}`] : []),
 ];
+
+function matchEntries<T extends object>(
+  head: T[],
+  base: T[],
+  identity: (entry: T) => string,
+  publicNames: (entry: T) => string[],
+) {
+  const remaining = new Set(base);
+  const byIdentity = new Map(base.map((entry) => [identity(entry), entry] as const));
+  const matches = new Map<T, T>();
+
+  // Reserve exact matches before looking for unique shared spellings on both sides.
+  for (const entry of head) {
+    const previous = byIdentity.get(identity(entry));
+    if (previous) {
+      matches.set(entry, previous);
+      remaining.delete(previous);
+    }
+  }
+  const sharesName = (entry: T, previous: T) => {
+    const names = publicNames(previous);
+    return publicNames(entry).some((name) => names.includes(name));
+  };
+  const unmatched = head.filter((entry) => !matches.has(entry));
+  for (const entry of unmatched) {
+    const candidates = [...remaining].filter((old) => sharesName(entry, old));
+    if (candidates.length !== 1) continue;
+    const [previous] = candidates;
+    const contenders = unmatched.filter(
+      (other) => !matches.has(other) && sharesName(other, previous),
+    );
+    if (contenders.length === 1) {
+      matches.set(entry, previous);
+      remaining.delete(previous);
+    }
+  }
+  return { matches, remaining };
+}
+
 function compareArgs(
   head: Argument[],
   base: Argument[],
@@ -75,33 +114,7 @@ function compareArgs(
       fields: [],
       change: mode === "unavailable" ? "unchanged" : mode,
     }));
-  const remaining = new Set(base);
-  const matches = new Map<Argument, Argument>();
-  // Prefer stable IDs, then a unique shared public spelling. Internal renames alone are not changes.
-  for (const arg of head) {
-    const previous = base.find((old) => old.id === arg.id);
-    if (previous) {
-      matches.set(arg, previous);
-      remaining.delete(previous);
-    }
-  }
-  for (const arg of head.filter((item) => !matches.has(item))) {
-    const candidates = [...remaining].filter((old) =>
-      spellings(arg).some((name) => spellings(old).includes(name)),
-    );
-    const old = candidates[0];
-    if (
-      candidates.length === 1 &&
-      old &&
-      head.filter(
-        (other) =>
-          !matches.has(other) && spellings(other).some((name) => spellings(old).includes(name)),
-      ).length === 1
-    ) {
-      matches.set(arg, old);
-      remaining.delete(old);
-    }
-  }
+  const { matches, remaining } = matchEntries(head, base, (arg) => arg.id, spellings);
   return [
     ...head.map((argument): ArgumentView => {
       const old = matches.get(argument);
@@ -128,33 +141,12 @@ export function compareCommand(
 ): CommandView {
   const changes = base ? fields(commandProperties(base), commandProperties(command)) : [];
   const args = compareArgs(command.args, base?.args ?? [], mode);
-  const matches = new Map<Command, Command>();
-  const remaining = new Set(base?.subcommands ?? []);
-  for (const child of command.subcommands) {
-    const previous = base?.subcommands.find((old) => old.name === child.name);
-    if (previous) {
-      matches.set(child, previous);
-      remaining.delete(previous);
-    }
-  }
-  const names = (child: Command) => [child.name, ...child.aliases];
-  for (const child of command.subcommands.filter((item) => !matches.has(item))) {
-    const candidates = [...remaining].filter((old) =>
-      names(child).some((name) => names(old).includes(name)),
-    );
-    const previous = candidates[0];
-    if (
-      candidates.length === 1 &&
-      previous &&
-      command.subcommands.filter(
-        (other) =>
-          !matches.has(other) && names(other).some((name) => names(previous).includes(name)),
-      ).length === 1
-    ) {
-      matches.set(child, previous);
-      remaining.delete(previous);
-    }
-  }
+  const { matches, remaining } = matchEntries(
+    command.subcommands,
+    base?.subcommands ?? [],
+    (child) => child.name,
+    (child) => [child.name, ...child.aliases],
+  );
   const children = command.subcommands.map((child) => {
     const previous = matches.get(child);
     return compareCommand(
