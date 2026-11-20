@@ -81,6 +81,7 @@ def run_release(component: str, env: dict[str, str]) -> subprocess.CompletedProc
         ["bash", str(ROOT / "infra/environments/single-host/release.sh"), component],
         cwd=ROOT,
         env=env,
+        timeout=15,
         text=True,
         capture_output=True,
     )
@@ -145,6 +146,20 @@ def test_release_preserves_other_image_and_cleans_credentials(
     assert not Path(calls[0]["private"]).exists()
     assert "private-key" not in result.stdout + result.stderr
     assert "private-token" not in result.stdout + result.stderr
+
+
+def test_failed_registry_encoding_stops_before_upload(
+    tmp_path: Path, release_env: dict[str, str]
+) -> None:
+    encoder = tmp_path / "base64"
+    encoder.write_text("#!/bin/sh\nexit 22\n")
+    encoder.chmod(0o755)
+
+    result = run_release("boxie", release_env)
+
+    assert result.returncode == 22
+    calls = [json.loads(line) for line in Path(release_env["CALLS"]).read_text().splitlines()]
+    assert not any("registry" in call for call in calls)
 
 
 @pytest.mark.parametrize("failure,code", [("copy", 23), ("deploy", 24)])

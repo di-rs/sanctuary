@@ -19,7 +19,8 @@ SSH
 }
 
 write_ghcr_config() {
-    local directory=$1 actor=$2 token=$3
+    local directory=$1 actor=$2 token=$3 auth
+    auth=$(printf '%s:%s' "$actor" "$token" | base64 | tr -d '\n') || return
     mkdir -m 0700 "$directory"
-    printf '{"auths":{"ghcr.io":{"auth":"%s"}}}\n' "$(printf '%s:%s' "$actor" "$token" | base64 | tr -d '\n')" > "$directory/config.json"
+    printf '{"auths":{"ghcr.io":{"auth":"%s"}}}\n' "$auth" > "$directory/config.json"
 }
