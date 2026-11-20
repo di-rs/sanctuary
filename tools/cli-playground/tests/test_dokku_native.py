@@ -7,6 +7,7 @@ import shutil
 import ssl
 import subprocess
 import time
+from concurrent.futures import ThreadPoolExecutor, wait
 from contextlib import ExitStack
 from pathlib import Path
 
@@ -249,12 +250,26 @@ def test_dokku_two_prs_and_production(tmp_path: Path) -> None:
                 "dokku.postgres.playground-pr-22.playground-pr-22",
             }
             neighbor = terminal(sockets, client, tls, f"app-pr-22.{DOMAIN}", second)
-            feature(11, "d" * 40, tmp_path)
-            echo_on_terminal(prod, "updated-prod")
-            echo_on_terminal(neighbor, "updated-b")
-            subprocess.run(remote("feature.sh", "remove", "11"), check=True)
-            echo_on_terminal(prod, "closed-prod")
-            echo_on_terminal(neighbor, "closed-b")
+            # Exercise ordinary browser heartbeats on the same sockets throughout both changes.
+            nonce = 0
+            with ThreadPoolExecutor(max_workers=1) as worker:
+                for operation in ("update", "close"):
+                    if operation == "update":
+                        change = worker.submit(feature, 11, "d" * 40, tmp_path)
+                    else:
+                        change = worker.submit(
+                            subprocess.check_output, remote("feature.sh", "remove", "11"), text=True
+                        )
+                    while not change.done():
+                        nonce += 1
+                        for ws, epoch in (prod, neighbor):
+                            ws.send(
+                                json.dumps({"type": "heartbeat", "epoch": epoch, "nonce": nonce})
+                            )
+                        wait([change], timeout=5)
+                    change.result()
+                    echo_on_terminal(prod, operation + "-prod")
+                    echo_on_terminal(neighbor, operation + "-b")
             assert client.get(f"https://app-pr-11.{DOMAIN}/healthz").status_code in (400, 404)
             for check in ("apps:exists", "postgres:exists"):
                 assert subprocess.run([*DOKKU, check, "playground-pr-11"]).returncode != 0

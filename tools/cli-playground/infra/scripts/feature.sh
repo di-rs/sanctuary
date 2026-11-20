@@ -42,6 +42,7 @@ case $operation in
         grant="$grants/$(digest "$(<"$dir/consumer")")"
         if [[ ! -s $grant ]]; then printf '%s\n' "$app" > "$grant"; fi
         dokku apps:clone --skip-deploy --ignore-existing playground-review-template "$app" </dev/null
+        dokku checks:disable "$app" web </dev/null
         dokku domains:set "$app" "${host#https://}" </dev/null
         dokku config:set --no-restart "$app" "CLI_PLAYGROUND_PUBLIC_URL=$host" </dev/null
         dokku docker-options:add "$app" deploy,run "--volume=$dir/consumer:/run/secrets/consumer:ro" \

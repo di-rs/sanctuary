@@ -23,7 +23,6 @@ for app in cli-playground playground-review-template; do
     dokku apps:exists "$app" || dokku apps:create "$app"
     dokku network:set "$app" initial-network playground-apps
     dokku ports:set "$app" http:80:8000
-    dokku checks:disable "$app" web
     dokku config:set --no-restart "$app" POSTGRES_DATABASE_SCHEME=postgresql+psycopg \
         CLI_PLAYGROUND_DATA_DIR=/var/lib/cli-playground CLI_PLAYGROUND_BOXIE_URL=http://boxie-api:8090 \
         CLI_PLAYGROUND_BOXIE_CREDENTIAL_FILE=/run/secrets/consumer
@@ -33,6 +32,7 @@ done
 dokku config:set --no-restart playground-review-template CLI_PLAYGROUND_BOXIE_URL=http://10.237.93.2:8090
 dokku docker-options:add playground-review-template deploy,run --runtime=runsc --user=65532:65532 \
     --memory=384m --cpus=0.75 --pids-limit=128 --tmpfs=/var/lib/cli-playground:rw,nosuid,noexec,size=96m,uid=65532
+dokku checks:disable cli-playground web
 dokku domains:set cli-playground "$CLI_PLAYGROUND_DOMAIN" "*.$CLI_PLAYGROUND_DOMAIN"
 dokku config:set --no-restart cli-playground "CLI_PLAYGROUND_PUBLIC_URL=https://$CLI_PLAYGROUND_DOMAIN" \
     "CLI_PLAYGROUND_PREVIEW_DOMAIN=$CLI_PLAYGROUND_DOMAIN"
