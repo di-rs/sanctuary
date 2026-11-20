@@ -3,15 +3,11 @@
 import hashlib
 import json
 import sys
+import zipfile
 from pathlib import Path
 
 import pytest
-from cli_playground.artifacts import (
-    archive_catalog,
-    binary_archive,
-    canonical_archive,
-    stage_archive,
-)
+from cli_playground.artifacts import archive_digests, canonical_archive, stage_archive
 from cli_playground.catalog import MAX_CATALOG, Catalog, parse_catalog
 from cli_playground.catalog_build import capture_schema
 from fastapi.testclient import TestClient
@@ -21,16 +17,22 @@ from .helpers import AUTH, binary_bundle, elf_binary, upload
 
 
 def test_catalog_is_validated_and_stripped_from_executable_artifact(tmp_path: Path) -> None:
-    expected = catalog()
-    bundle = binary_bundle({"echor": elf_binary(), "catalog.json": expected.canonical()})
-    assert binary_archive(bundle) == {"echor": elf_binary()}
-    parsed = archive_catalog(bundle, "a" * 40, {"echor": hashlib.sha256(elf_binary()).hexdigest()})
-    assert parsed == expected
+    sha = "a" * 40
+    expected = catalog(sha)
+    binary = elf_binary()
+    bundle = binary_bundle({"catalog.json": expected.canonical(), "echor": binary})
+    assert archive_digests(bundle, sha) == {"echor": hashlib.sha256(binary).hexdigest()}
     source = tmp_path / "upload.zip"
     source.write_bytes(bundle)
-    names = stage_archive(source, tmp_path / "staged", 128)
-    canonical_archive(tmp_path / "staged", names, tmp_path / "canonical.zip")
-    assert archive_catalog((tmp_path / "canonical.zip"), "a" * 40, {}) is None
+    staged = tmp_path / "staged"
+    names, parsed = stage_archive(source, staged, 128, sha)
+    assert names == ["echor"]
+    assert parsed == expected
+    canonical = tmp_path / "canonical.zip"
+    canonical_archive(staged, names, canonical)
+    with zipfile.ZipFile(canonical) as archive:
+        assert archive.namelist() == names
+        assert archive.read("echor") == binary
     assert (
         parsed is not None
         and parsed.digest() == Catalog.model_validate_json(parsed.canonical()).digest()

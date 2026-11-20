@@ -27,63 +27,83 @@ def validate_elf_header(header: bytes) -> None:
         raise ValueError("expected a Linux or System V ELF ABI")
 
 
-def archive_members(archive: zipfile.ZipFile) -> list[zipfile.ZipInfo]:
+def _bundle_members(
+    archive: zipfile.ZipFile,
+) -> tuple[dict[str, zipfile.ZipInfo], zipfile.ZipInfo | None]:
     members = archive.infolist()
     if not 1 <= len(members) <= MAX_CLIS + 1 or sum(m.file_size for m in members) > MAX_ARCHIVE:
         raise ValueError("binary bundle exceeds limits")
-    names: set[str] = set()
+    binaries: dict[str, zipfile.ZipInfo] = {}
     for member in members:
+        name = member.filename
+        is_catalog = name == CATALOG_NAME
         if (
-            (member.filename != CATALOG_NAME and not re.fullmatch(CLI_PATTERN, member.filename))
-            or member.filename in names
+            (not is_catalog and not re.fullmatch(CLI_PATTERN, name))
+            or name in binaries
             or member.is_dir()
             or member.flag_bits & 1
             or member.compress_type not in (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED)
             or (member.external_attr >> 16) & 0o170000 not in (0, 0o100000)
             or not (
                 1 <= member.file_size <= MAX_CATALOG
-                if member.filename == CATALOG_NAME
+                if is_catalog
                 else 64 <= member.file_size <= MAX_BINARY
             )
         ):
             raise ValueError("unsafe binary artifact")
-        names.add(member.filename)
-    if not 1 <= len(names - {CATALOG_NAME}) <= MAX_CLIS:
+        binaries[name] = member
+    catalog = binaries.pop(CATALOG_NAME, None)
+    if not 1 <= len(binaries) <= MAX_CLIS:
         raise ValueError("invalid CLI count")
-    return members
+    return binaries, catalog
 
 
-def binary_archive(data: bytes) -> dict[str, bytes]:
+def _read_catalog(
+    archive: zipfile.ZipFile, member: zipfile.ZipInfo | None, sha: str, digests: dict[str, str]
+) -> Catalog | None:
+    if member is None:
+        return None
+    return parse_catalog(archive.read(member), sha, digests)
+
+
+def archive_digests(data: bytes, sha: str) -> dict[str, str]:
+    """Validate the downloaded bundle and return the digests of its executables."""
     if len(data) > MAX_ARCHIVE:
         raise ValueError("artifact exceeds size limit")
-    binaries = {}
+    digests = {}
     with zipfile.ZipFile(io.BytesIO(data)) as archive:
-        for member in archive_members(archive):
-            if member.filename == CATALOG_NAME:
-                continue
+        members, catalog = _bundle_members(archive)
+        for name, member in members.items():
             binary = archive.read(member)
             validate_elf_header(binary[:64])
-            binaries[member.filename] = binary
-    return binaries
+            digests[name] = hashlib.sha256(binary).hexdigest()
+        _read_catalog(archive, catalog, sha, digests)
+    return digests
 
 
-def stage_archive(source: Path, destination: Path, max_binary_bytes: int) -> list[str]:
+def stage_archive(
+    source: Path, destination: Path, max_binary_bytes: int, sha: str
+) -> tuple[list[str], Catalog | None]:
     """Validate and stage one member at a time so large batches stay off the heap."""
     with zipfile.ZipFile(source) as archive:
-        members = [member for member in archive_members(archive) if member.filename != CATALOG_NAME]
-        if any(member.file_size > max_binary_bytes for member in members):
+        members, catalog = _bundle_members(archive)
+        if any(member.file_size > max_binary_bytes for member in members.values()):
             raise OverflowError("binary exceeds the upload limit")
         destination.mkdir()
-        for member in members:
-            with (
-                archive.open(member) as incoming,
-                (destination / member.filename).open("wb") as out,
-            ):
+        for name, member in members.items():
+            with archive.open(member) as incoming, (destination / name).open("wb") as out:
                 header = incoming.read(64)
                 validate_elf_header(header)
                 out.write(header)
                 shutil.copyfileobj(incoming, out, length=65536)
-    return sorted(member.filename for member in members)
+        names = sorted(members)
+        if catalog is None:
+            return names, None
+        digests = {}
+        for name in names:
+            with (destination / name).open("rb") as binary:
+                digests[name] = hashlib.file_digest(binary, "sha256").hexdigest()
+        return names, _read_catalog(archive, catalog, sha, digests)
 
 
 def canonical_archive(staged: Path, clis: list[str], destination: Path) -> str:
@@ -98,13 +118,3 @@ def canonical_archive(staged: Path, clis: list[str], destination: Path) -> str:
         raise OverflowError("canonical artifact exceeds upload limit")
     with destination.open("rb") as source:
         return hashlib.file_digest(source, "sha256").hexdigest()
-
-
-def archive_catalog(source: Path | bytes, sha: str, binaries: dict[str, str]) -> Catalog | None:
-    with zipfile.ZipFile(io.BytesIO(source) if isinstance(source, bytes) else source) as archive:
-        if CATALOG_NAME not in archive.namelist():
-            return None
-        member = archive.getinfo(CATALOG_NAME)
-        if member.file_size > MAX_CATALOG:
-            raise ValueError("catalog exceeds size limit")
-        return parse_catalog(archive.read(member), sha, binaries)

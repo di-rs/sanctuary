@@ -17,7 +17,7 @@ from uuid import UUID, uuid4
 from anyio import CancelScope
 
 from cli_playground import domain
-from cli_playground.artifacts import archive_catalog, canonical_archive, stage_archive
+from cli_playground.artifacts import canonical_archive, stage_archive
 from cli_playground.catalog import Catalog
 from cli_playground.config import Settings
 from cli_playground.domain import ArtifactConflictError, CreateIntent, SessionBinding, UploadIntent
@@ -329,12 +329,9 @@ class CliPlaygroundService:
                 canonical = temporary / "canonical.zip"
 
                 def prepare() -> tuple[list[str], str, Catalog | None]:
-                    clis = stage_archive(archive, staged, self.settings.max_binary_bytes)
-                    hashes = {}
-                    for cli in clis:
-                        with (staged / cli).open("rb") as binary:
-                            hashes[cli] = hashlib.file_digest(binary, "sha256").hexdigest()
-                    catalog = archive_catalog(archive, sha, hashes)
+                    clis, catalog = stage_archive(
+                        archive, staged, self.settings.max_binary_bytes, sha
+                    )
                     return clis, canonical_archive(staged, clis, canonical), catalog
 
                 try:
