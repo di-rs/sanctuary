@@ -87,10 +87,9 @@ def run_release(component: str, env: dict[str, str]) -> subprocess.CompletedProc
 
 
 @pytest.mark.parametrize(
-    "component,owner,key,retained_keys,command",
+    "component,key,retained_keys,command",
     [
         (
-            "boxie",
             "boxie",
             "BOXIE_IMAGE",
             ("BOXIE_SANDBOX_IMAGE", "OBS_COLLECTOR_IMAGE"),
@@ -98,24 +97,15 @@ def run_release(component: str, env: dict[str, str]) -> subprocess.CompletedProc
         ),
         (
             "boxie-sandbox",
-            "boxie",
             "BOXIE_SANDBOX_IMAGE",
             ("BOXIE_IMAGE", "OBS_COLLECTOR_IMAGE"),
             "sandbox-release.sh",
-        ),
-        (
-            "cli-playground",
-            "cli-playground",
-            "CLI_PLAYGROUND_IMAGE",
-            (),
-            "scripts/deploy.sh",
         ),
     ],
 )
 def test_release_preserves_other_image_and_cleans_credentials(
     release_env: dict[str, str],
     component: str,
-    owner: str,
     key: str,
     retained_keys: tuple[str, ...],
     command: str,
@@ -134,16 +124,10 @@ def test_release_preserves_other_image_and_cleans_credentials(
         *(f"{name}={RETAINED[name]}" for name in retained_keys),
     }
     deployment = next(call["args"][-1] for call in calls if "install -m 0600" in call["args"][-1])
-    assert f"/opt/sanctuary/{owner}/{command}" in deployment
-    assert f"/etc/sanctuary/{owner}-image.env" in deployment
+    assert f"/opt/sanctuary/boxie/{command}" in deployment
+    assert "/etc/sanctuary/boxie-image.env" in deployment
     assert "install -m 0600" in deployment
-    assert (
-        image
-        if component == "boxie-sandbox"
-        else release_env["SOURCE_SHA"]
-        if component == "boxie"
-        else "deploy.sh"
-    ) in deployment
+    assert (image if component == "boxie-sandbox" else release_env["SOURCE_SHA"]) in deployment
     assert calls[-1]["args"][-1].startswith("rm -rf /run/sanctuary-")
     assert not Path(calls[0]["private"]).exists()
     assert "private-key" not in result.stdout + result.stderr

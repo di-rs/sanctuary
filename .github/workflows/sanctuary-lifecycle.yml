@@ -2,6 +2,12 @@ name: 🧪 Sanctuary browser integration
 
 on:
   workflow_dispatch:
+    inputs:
+      suite:
+        description: Native acceptance suite
+        type: choice
+        default: all
+        options: [all, dokku]
 
 permissions:
   contents: read
@@ -53,6 +59,7 @@ jobs:
         run: |
           docker build -f tools/cli-playground/infra/docker/CliPlayground.Dockerfile -t cli-playground:lifecycle .
       - name: 🟢 Set up Node.js and frontend tooling
+        if: inputs.suite != 'dokku'
         uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76 # v1.22.0
         with:
           working-directory: tools/cli-playground/frontend
@@ -64,10 +71,12 @@ jobs:
         run: |
           uv sync --all-packages
       - name: 🌐 Install frontend and Chromium dependencies
+        if: inputs.suite != 'dokku'
         run: |
           pnpm --dir tools/cli-playground/frontend install
           pnpm --dir tools/cli-playground/frontend exec playwright install --with-deps chromium
       - name: 🎭 Run native lifecycle and browser tests
+        if: inputs.suite != 'dokku'
         timeout-minutes: 20
         run: |
           uv run pytest -m integration packages/boxie/tests/integration/test_lifecycle.py tools/cli-playground/tests/test_native.py -vv --durations=10 -o faulthandler_timeout=120

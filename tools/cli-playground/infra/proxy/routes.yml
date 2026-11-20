@@ -2,7 +2,7 @@
 http:
   routers:
     cli-playground:
-      rule: 'Host(`{{ env "CLI_PLAYGROUND_DOMAIN" }}`) || HostRegexp(`^(pr-[1-9][0-9]*|[0-9a-f]{32})[.]{{ env "CLI_PLAYGROUND_DOMAIN" | replace "." "[.]" }}$`)'
+      rule: 'Host(`{{ env "CLI_PLAYGROUND_DOMAIN" }}`) || HostRegexp(`^((?:app-)?pr-[1-9][0-9]*|[0-9a-f]{32})[.]{{ env "CLI_PLAYGROUND_DOMAIN" | replace "." "[.]" }}$`)'
       entryPoints: [websecure]
       service: cli-playground
       tls:
@@ -14,5 +14,5 @@ http:
     cli-playground:
       loadBalancer:
         servers:
-          - url: http://cli-playground.web:8000
+          - url: http://dokku:80
         passHostHeader: true

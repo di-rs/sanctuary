@@ -2,16 +2,18 @@
 name: ${CLI_PLAYGROUND_PROJECT_NAME:-cli-playground}
 services:
   dokku:
-    image: docker.io/dokku/dokku:0.38.34@sha256:70c09c7f5badff1b0a7077fe899db269255a22aed08571f4da605bfcb50fd8a8
+    build:
+      context: ./docker
+      dockerfile: Dokku.Dockerfile
     container_name: sanctuary-dokku
-    network_mode: bridge
+    networks: [proxy, apps]
     restart: unless-stopped
     environment:
       DOKKU_HOSTNAME: ${CLI_PLAYGROUND_DOMAIN}
-      DOKKU_HOST_ROOT: /var/lib/dokku/home/dokku
-      DOKKU_LIB_HOST_ROOT: /var/lib/dokku/var/lib/dokku
+      DOKKU_HOST_ROOT: /srv/sanctuary/dokku/home/dokku
+      DOKKU_LIB_HOST_ROOT: /srv/sanctuary/dokku/var/lib/dokku
     volumes:
-    - /var/lib/dokku:/mnt/dokku
+    - /srv/sanctuary/dokku:/mnt/dokku
     - /var/run/docker.sock:/var/run/docker.sock
   proxy:
     image: traefik:v3.7.19
@@ -23,7 +25,7 @@ services:
     - --entrypoints.web.http.redirections.entrypoint.to=websecure
     - --entrypoints.web.http.redirections.entrypoint.scheme=https
     - --entrypoints.websecure.address=:443
-    - --providers.file.directory=/etc/traefik/routes
+    - --providers.file.filename=/etc/traefik/routes.yml
     - --certificatesresolvers.preview.acme.email=${ACME_EMAIL:?Set the certificate
       contact email}
     - --certificatesresolvers.preview.acme.storage=/certificates/acme.json
@@ -37,7 +39,7 @@ services:
     - 80:80
     - 443:443
     volumes:
-    - ./proxy:/etc/traefik/routes:ro
+    - ./proxy/routes.yml:/etc/traefik/routes.yml:ro
     - certificates:/certificates
     healthcheck:
       test:
@@ -55,17 +57,13 @@ services:
       options:
         max-size: 10m
         max-file: '3'
-    networks:
-    - proxy
-    - apps
+    networks: [proxy]
 volumes:
   certificates:
     external: true
-    name: ${CLI_PLAYGROUND_CERTIFICATES_VOLUME:?Set certificate volume}
+    name: cli-playground-certificates
 networks:
   apps:
     external: true
     name: playground-apps
-  proxy:
-    external: true
-    name: ${CLI_PLAYGROUND_PROXY_NETWORK:?Set proxy network}
+  proxy: {}

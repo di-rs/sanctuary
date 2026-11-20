@@ -1,62 +1,31 @@
 name: 🚀 cli-playground Release
 'on':
   workflow_dispatch: {}
-permissions: {}
+permissions:
+  contents: read
 concurrency:
   group: sanctuary-production
   queue: max
   cancel-in-progress: false
 jobs:
-  source:
-    name: 📥 Select current master
-    if: ${{ github.ref == 'refs/heads/master' }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    permissions:
-      contents: read
-    outputs:
-      sha: ${{ steps.revision.outputs.sha }}
-      attempt: ${{ steps.revision.outputs.attempt }}
-    steps:
-      - name: 📥 Check out current master
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          ref: master
-          persist-credentials: false
-      - name: 🔎 Record the source commit
-        id: revision
-        run: |
-          printf 'sha=%s\n' "$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-          printf 'attempt=%s\n' "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
   deploy-backend:
-    name: 🚀 Update cli-playground backend with Dokku
-    needs: source
-    if: ${{ github.ref == 'refs/heads/master' && vars.DEPLOYMENT_ACCEPTANCE_PASSED == 'true' }}
+    if: github.ref == 'refs/heads/master' && vars.DEPLOYMENT_ACCEPTANCE_PASSED == 'true'
     environment: cli-playground
     runs-on: ubuntu-24.04
     timeout-minutes: 60
-    permissions:
-      contents: read
     steps:
-      - name: 🔎 Require a complete workflow retry
-        env:
-          SOURCE_ATTEMPT: ${{ needs.source.outputs.attempt }}
-        run: |
-          if [[ -z $SOURCE_ATTEMPT || $SOURCE_ATTEMPT != "$GITHUB_RUN_ATTEMPT" ]]; then
-            echo 'Use Re-run all jobs or start a new workflow run to select current master.' >&2
-            exit 1
-          fi
-      - name: 📥 Check out the built source
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: ${{ needs.source.outputs.sha }}
+          ref: master
           persist-credentials: false
-      - name: Build production image locally
-        run: bash infra/environments/single-host/build-image.sh cli-playground
-      - name: 🚀 Deploy backend with Dokku
+      - name: Build and deploy Playground over SSH
         env:
-          SOURCE_SHA: ${{ needs.source.outputs.sha }}
           DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
-        run: bash infra/environments/single-host/release.sh cli-playground
+        run: |
+          private=$(mktemp -d)
+          trap 'rm -rf "$private"' EXIT
+          bash infra/environments/single-host/ssh-config.sh "$private"
+          tag=$(bash infra/environments/single-host/build-image.sh cli-playground)
+          docker save "$tag" | ssh -F "$private/config" deployment bash /opt/sanctuary/cli-playground/scripts/deploy.sh "$tag"

@@ -13,7 +13,8 @@ Run either release manually from Actions on `master`:
 A failed stage stops the remaining deployments in its workflow; completed stages
 are not rolled back automatically. Boxie stages use the `boxie` environment;
 the cli-playground release uses `cli-playground`.
-Each stage calls the shared [release transport](../environments/single-host/release.sh) to stream the runner’s local image into Docker over pinned SSH and verify its archive checksum before updating the service. Service scripts own migration and readiness checks.
+Playground streams its built image into Dokku over pinned SSH. The Boxie stages use the
+[Boxie release transport](../environments/single-host/release.sh) to verify and load each archive.
 
 ## What a release changes
 
@@ -32,9 +33,8 @@ covers PR apps, worker count and restart behavior.
 
 Setup and release workflows share one `sanctuary-production` queue. Each run selects
 current `master` after entering the queue, then builds and deploys that checkout.
-If a run fails, choose **Re-run all jobs** or start a new workflow run. Re-running
-only failed jobs keeps the earlier source selection and is rejected before
-deployment or provisioning starts.
+For setup and Boxie, choose **Re-run all jobs** so the source revision is selected
+again. The single Playground job selects current `master` on each attempt.
 
 Release builds and deployments require
 `DEPLOYMENT_ACCEPTANCE_PASSED`. Pushes do not
@@ -52,7 +52,7 @@ docker compose --env-file /etc/sanctuary/boxie.env --env-file /etc/sanctuary/box
 docker compose --env-file /etc/sanctuary/boxie.env --env-file /etc/sanctuary/boxie-image.env \
   -f /opt/sanctuary/boxie/compose.production.yml -f /opt/sanctuary/boxie/compose.operations.yml \
   -f /opt/sanctuary/boxie/compose.observability.yml logs --tail 100 api supervisor
-docker compose --env-file /etc/sanctuary/cli-playground.env --env-file /etc/sanctuary/cli-playground-image.env \
+docker compose --env-file /etc/sanctuary/settings.env \
   -f /opt/sanctuary/cli-playground/compose.production.yml ps
 docker exec sanctuary-dokku dokku ps:report cli-playground
 docker exec sanctuary-dokku dokku logs cli-playground -n 100
@@ -81,6 +81,11 @@ rerun, both release workflows, migration failure and retry, metrics, tunnel
 configuration and preview publication. The local command tests cannot establish
 those host behaviors. The [host requirements](../../packages/boxie/docs/deployment.md#deployment-prerequisites)
 include the runsc and backup checks.
+
+To exercise the Dokku cutover and PR isolation on a disposable Actions runner,
+run `gh workflow run sanctuary-lifecycle.yml --ref master -f suite=dokku`.
+It uses a local TLS certificate and keeps production and PR terminal connections
+open while a second PR updates and closes.
 
 ## Certificates and backups
 

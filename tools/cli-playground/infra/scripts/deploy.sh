@@ -1,47 +1,26 @@
 #!/usr/bin/env bash
-# Reconcile the platform, then replace only the production Dokku app.
+# Dokku runs the image's release process before scheduling its single web worker.
 set -euo pipefail
-[[ $# == 0 ]] || exit 2
 config=${SANCTUARY_CONFIG_DIR:-/etc/sanctuary}
-owner=${SANCTUARY_CLI_PLAYGROUND_DIR:-/opt/sanctuary/cli-playground}
-set -a
 # shellcheck disable=SC1091
-source "$config/cli-playground.env"
-# shellcheck disable=SC1091
-source "$config/cli-playground-image.env"
-set +a
-bash "$owner/scripts/install.sh"
-python3 "$owner/cli_playground_infra/dokku.py" deploy --image "$CLI_PLAYGROUND_IMAGE"
-container=$(docker ps -q --filter label=com.dokku.app-name=cli-playground --filter label=com.dokku.process-type=web)
-[[ -n $container && $container != *$'\n'* ]]
-if docker exec -i "$container" /app/.venv/bin/python - <<'PY'
-import os
-import time
-from urllib.error import URLError
-from pathlib import Path
-from urllib.request import Request, urlopen
-
-credential = Path(os.environ['CLI_PLAYGROUND_BOXIE_CREDENTIAL_FILE']).read_text().strip()
-request = Request(os.environ['CLI_PLAYGROUND_BOXIE_URL'].rstrip('/') + '/readyz',
-                  headers={'Authorization': 'Bearer ' + credential})
-deadline = time.monotonic() + 300
-while True:
-    stage = 'authenticated Boxie readiness'
-    try:
-        with urlopen(request, timeout=10) as response:
-            if response.status != 200:
-                raise ValueError('unexpected status')
-        break
-    except (URLError, OSError, ValueError) as error:
-        if time.monotonic() >= deadline:
-            raise SystemExit(f'{stage} failed after 300 seconds: {error}') from error
-        print(f'Waiting for {stage}: {error}', flush=True)
-        time.sleep(5)
-PY
-then
-    :
+source "$config/settings.env"
+if (( $# )); then
+    [[ $# == 1 && $1 =~ ^localhost/sanctuary-cli-playground:[a-f0-9]{40}$ ]]
+    docker exec -i sanctuary-dokku dokku git:load-image cli-playground "$1"
 else
-    status=$?
-    docker logs --tail 80 "$container" >&2 || true
-    exit "$status"
+    # Setup has already loaded and verified all four images.
+    # shellcheck disable=SC1091
+    source "$config/cli-playground-image.env"
+    docker exec sanctuary-dokku dokku git:from-image cli-playground "$CLI_PLAYGROUND_IMAGE"
 fi
+for attempt in {1..60}; do
+    if docker exec cli-playground.web.1 /app/.venv/bin/python -c '
+import os, pathlib, urllib.request
+token = pathlib.Path(os.environ["CLI_PLAYGROUND_BOXIE_CREDENTIAL_FILE"]).read_text().strip()
+request = urllib.request.Request(os.environ["CLI_PLAYGROUND_BOXIE_URL"] + "/readyz", headers={"Authorization": "Bearer " + token})
+urllib.request.urlopen(request, timeout=5).close()'; then break; fi
+    (( attempt < 60 )) || exit 1
+    sleep 5
+done
+curl --fail --silent --show-error --retry 60 --retry-all-errors --retry-delay 5 --max-time 10 \
+    "https://$CLI_PLAYGROUND_DOMAIN/healthz"

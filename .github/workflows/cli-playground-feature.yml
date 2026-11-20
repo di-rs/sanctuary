@@ -34,6 +34,7 @@ jobs:
     outputs:
       operation: ${{ steps.current.outputs.operation }}
       sha: ${{ steps.current.outputs.sha }}
+      deployment: ${{ steps.current.outputs.deployment }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -42,7 +43,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           FEATURE_SHA: ${{ github.event.pull_request.head.sha }}
-        run: python3 tools/cli-playground/feature_ci.py select
+        run: python3 tools/cli-playground/feature_ci.py
 
   reconcile:
     needs: select
@@ -82,11 +83,37 @@ jobs:
         if: env.FEATURE_OPERATION == 'deploy'
         run: |
           cargo build --locked --release -p echor
-          python3 tools/cli-playground/feature_ci.py seed
+          bash tools/cli-playground/infra/scripts/seed.sh "$FEATURE_SHA" target/release/echor "$RUNNER_TEMP/seed.zip"
       - name: Reconcile the current PR on the shared host
         env:
           GH_TOKEN: ${{ github.token }}
+          PREVIOUS_DEPLOYMENT: ${{ needs.select.outputs.deployment }}
           DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
-        run: python3 tools/cli-playground/feature_ci.py apply
+        run: |
+          private=$(mktemp -d); trap 'rm -rf "$private"' EXIT
+          bash infra/environments/single-host/ssh-config.sh "$private"
+          feature() { ssh -F "$private/config" deployment bash /opt/sanctuary/cli-playground/scripts/feature.sh "$@"; }
+          ghapi="repos/$GITHUB_REPOSITORY/deployments"
+          [[ $FEATURE_PR =~ ^[1-9][0-9]{0,9}$ && $FEATURE_SHA =~ ^[a-f0-9]{40}$ ]]
+          state=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$FEATURE_PR" --jq '[.head.sha,.state,.base.ref]|join(" ")')
+          if [[ ${state%% *} != "$FEATURE_SHA" ]]; then exit 0; fi
+          if [[ $FEATURE_OPERATION == remove ]]; then
+            # Re-evaluate a reopened PR or reverted change against its current files.
+            GITHUB_OUTPUT="$private/current" python3 tools/cli-playground/feature_ci.py
+            if ! grep -qx operation=remove "$private/current"; then exit 0; fi
+            feature remove "$FEATURE_PR"
+            gh api "$ghapi/$PREVIOUS_DEPLOYMENT/statuses" -f state=inactive --silent
+          elif [[ $state == "$FEATURE_SHA open master" ]]; then
+            tag="localhost/sanctuary-playground-pr-$FEATURE_PR:$FEATURE_SHA"
+            (( $(docker image inspect --format '{{.Size}}' "$tag") <= 1073741824 ))
+            deployment=$(jq -n --arg sha "$FEATURE_SHA" --arg env "cli-playground/feature-pr-$FEATURE_PR" \
+              '{ref:$sha,environment:$env,auto_merge:false,required_contexts:[],transient_environment:true,production_environment:false}' \
+              | gh api "$ghapi" --input - --jq .id)
+            trap 'gh api "$ghapi/$deployment/statuses" -f state=failure --silent' ERR
+            docker save "$tag" | feature deploy "$FEATURE_PR" "$FEATURE_SHA"
+            url=$(feature publish "$FEATURE_PR" "$FEATURE_SHA" < "$RUNNER_TEMP/seed.zip")
+            gh api "$ghapi/$deployment/statuses" -f state=success -f environment_url="$url" --silent
+            printf '[Open Playground](%s)\n' "$url" >> "$GITHUB_STEP_SUMMARY"
+          fi

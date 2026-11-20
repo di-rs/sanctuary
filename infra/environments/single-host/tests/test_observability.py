@@ -55,11 +55,11 @@ def test_host_overlay_resolves_installed_consumer_config(tmp_path: Path) -> None
     ]
     mount = next(v for v in vector["volumes"] if v["target"] == "/etc/vector/cli-playground.yaml")
     assert Path(mount["source"]).is_file() and mount["read_only"]
-    from cli_playground_infra.dokku import PRODUCTION_LOGGING
+    options = (CONSUMER.parent / "scripts/install.sh").read_text()
 
-    assert "--log-driver=journald" in PRODUCTION_LOGGING
-    assert "--log-opt=mode=non-blocking" in PRODUCTION_LOGGING
-    assert "--log-opt=tag=cli-playground-api" in PRODUCTION_LOGGING
+    assert "--log-driver=journald" in options
+    assert "--log-opt=mode=non-blocking" in options
+    assert "--log-opt=tag=cli-playground-api" in options
 
 
 @pytest.mark.integration

@@ -17,8 +17,8 @@ gh workflow run cli-playground-release.yml --ref master
 
 Actions builds the image and streams it to the pinned SSH host. The release
 applies Alembic, deploys the local image with Dokku, then checks public HTTPS
-and authenticated Boxie readiness. Production keeps its PostgreSQL database,
-upload volume and wildcard TLS certificate across releases. Traefik is the public
+and authenticated Boxie readiness. Dokku creates a fresh production database on the first setup. Rerun CLI preview builds
+to republish open PRs. Subsequent releases reuse the database, upload volume and wildcard certificate. Traefik is the public
 listener. The Dokku manager and Boxie have no public ports.
 
 ## Playground app previews

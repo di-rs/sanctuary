@@ -54,7 +54,9 @@ and private settings over SSH, starts Boxie and starts the Dokku platform. It ca
 paid cloud resources.
 
 Setup generates internal credentials and certificates, initializes PostgreSQL and
-Temporal, starts Boxie and its monitoring and tunnel, then deploys the production Playground app behind Traefik. A rerun keeps existing credentials and data. Partial credentials cause
+Temporal, starts Boxie and its monitoring and tunnel, then deploys Playground behind Traefik. The first Dokku setup creates an empty
+Playground database. Rerun CLI preview builds to republish open PRs. Subsequent
+setups keep its credentials and data. Partial credentials cause
 setup to fail for inspection. PostgreSQL and Temporal server/schema upgrades stay
 separate from application releases. Cloud-init handles first boot; later edits to
 host bootstrap code do not reinstall an existing server. On a new host,

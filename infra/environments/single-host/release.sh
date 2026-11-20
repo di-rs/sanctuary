@@ -5,24 +5,9 @@ umask 077
 [[ $# == 1 ]] || exit 2
 component=$1
 case $component in
-    boxie|boxie-sandbox)
-        owner=boxie
-        files=packages/boxie/infra
-        if [[ $component == boxie ]]; then
-            image_key=BOXIE_IMAGE
-            retained_keys=(BOXIE_SANDBOX_IMAGE OBS_COLLECTOR_IMAGE)
-        else
-            image_key=BOXIE_SANDBOX_IMAGE
-            retained_keys=(BOXIE_IMAGE OBS_COLLECTOR_IMAGE)
-        fi
-        ;;
-    cli-playground)
-        owner=cli-playground
-        files=tools/cli-playground/infra
-        image_key=CLI_PLAYGROUND_IMAGE
-        retained_keys=()
-        ;;
-    *) echo 'Unknown release component' >&2; exit 2 ;;
+    boxie) image_key=BOXIE_IMAGE; retained_keys=(BOXIE_SANDBOX_IMAGE OBS_COLLECTOR_IMAGE) ;;
+    boxie-sandbox) image_key=BOXIE_SANDBOX_IMAGE; retained_keys=(BOXIE_IMAGE OBS_COLLECTOR_IMAGE) ;;
+    *) echo 'Unknown Boxie component' >&2; exit 2 ;;
 esac
 [[ $SOURCE_SHA =~ ^[a-f0-9]{40}$ ]]
 [[ $(git rev-parse HEAD) == "$SOURCE_SHA" ]]
@@ -40,28 +25,14 @@ cleanup() {
     exit "$status"
 }
 trap cleanup EXIT
-printf '%s\n' "$DEPLOY_SSH_KEY" > "$private/key"
-printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$private/known_hosts"
-cat > "$private/config" <<SSH
-Host deployment
-  HostName $DEPLOY_HOST
-  User root
-  IdentityFile $private/key
-  IdentitiesOnly yes
-  UserKnownHostsFile $private/known_hosts
-  StrictHostKeyChecking yes
-  BatchMode yes
-  ConnectTimeout 15
-  ServerAliveInterval 30
-  ServerAliveCountMax 6
-SSH
-ssh -F "$private/config" deployment "install -d -m 0700 /opt/sanctuary/$owner $remote"
+bash infra/environments/single-host/ssh-config.sh "$private"
+ssh -F "$private/config" deployment "install -d -m 0700 /opt/sanctuary/boxie $remote"
 remote_created=true
 IMAGE=$(bash infra/environments/single-host/send-image.sh "$private/config" "localhost/sanctuary-$component:$SOURCE_SHA")
-scp -F "$private/config" -r "$files/." "deployment:/opt/sanctuary/$owner/"
+scp -F "$private/config" -r packages/boxie/infra/. "deployment:/opt/sanctuary/boxie/"
 printf '%s=%s\n' "$image_key" "$IMAGE" > "$private/image.env"
 for retained_key in "${retained_keys[@]}"; do
-    retained=$(ssh -F "$private/config" deployment "sed -n 's/^$retained_key=//p' /etc/sanctuary/$owner-image.env")
+    retained=$(ssh -F "$private/config" deployment "sed -n 's/^$retained_key=//p' /etc/sanctuary/boxie-image.env")
     [[ $retained =~ ^(([a-z0-9][a-z0-9./:_-]+@)?sha256:[a-f0-9]{64}|localhost/sanctuary-[a-z-]+:[a-f0-9]{64})$ ]]
     printf '%s=%s\n' "$retained_key" "$retained" >> "$private/image.env"
 done
@@ -69,6 +40,5 @@ scp -F "$private/config" "$private/image.env" "deployment:$remote/image.env"
 case $component in
     boxie) command="/opt/sanctuary/boxie/deploy.sh $SOURCE_SHA" ;;
     boxie-sandbox) command="/opt/sanctuary/boxie/sandbox-release.sh $IMAGE" ;;
-    cli-playground) command=/opt/sanctuary/cli-playground/scripts/deploy.sh ;;
 esac
-ssh -F "$private/config" deployment "set -e; trap 'rm -rf $remote' EXIT; install -m 0600 $remote/image.env /etc/sanctuary/$owner-image.env; bash $command"
+ssh -F "$private/config" deployment "set -e; trap 'rm -rf $remote' EXIT; install -m 0600 $remote/image.env /etc/sanctuary/boxie-image.env; bash $command"

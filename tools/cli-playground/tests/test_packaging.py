@@ -157,20 +157,21 @@ def test_resolved_compose_isolated_topology(
     )
     production = manifest == "compose.production.yml"
     assert config["name"] == values.get("CLI_PLAYGROUND_PROJECT_NAME", "cli-playground")
-    assert all(net["external"] for net in config["networks"].values())
     assert all(volume["external"] for volume in config["volumes"].values())
     if production:
         assert set(config["services"]) == {"dokku", "proxy"}
         manager = config["services"]["dokku"]
-        assert not manager.get("ports") and manager["network_mode"] == "bridge"
+        assert not manager.get("ports") and set(manager["networks"]) == {"proxy", "apps"}
+        assert config["networks"]["apps"]["external"]
         assert {vol["target"] for vol in manager["volumes"]} == {
             "/mnt/dokku",
             "/var/run/docker.sock",
         }
         proxy = config["services"]["proxy"]
-        assert set(proxy["networks"]) == {"proxy", "apps"}
+        assert set(proxy["networks"]) == {"proxy"}
         assert all(vol["target"] != "/var/run/docker.sock" for vol in proxy["volumes"])
         return
+    assert all(net["external"] for net in config["networks"].values())
     assert set(config["services"]) == {"backend"}
     backend = config["services"]["backend"]
     assert set(backend["networks"]) == {"consumer", "database"}

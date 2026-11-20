@@ -13,7 +13,6 @@ from pathlib import Path
 import httpx
 import pytest
 import yaml
-from cli_playground_infra import dokku, installation
 from integration.stack import LifecycleStack
 from websockets.sync.client import ClientConnection, connect
 from websockets.typing import Origin
@@ -22,11 +21,16 @@ from .helpers import binary_bundle
 
 ROOT = Path(__file__).resolve().parents[3]
 DOMAIN = "play.example.test"
+CONFIG = Path("/etc/sanctuary")
+OWNER = Path("/opt/sanctuary/cli-playground")
+GRANTS = CONFIG / "consumer-grants"
+FEATURES = CONFIG / "playground-apps"
+DOKKU = ["docker", "exec", "sanctuary-dokku", "dokku"]
 
 
 def local_tls() -> ssl.SSLContext:
     # Only the certificate issuer and DNS resolution differ from the production edge.
-    proxy = dokku.OWNER / "proxy"
+    proxy = OWNER / "proxy"
     cert = proxy / "fixture.pem"
     subprocess.run(
         [
@@ -52,26 +56,23 @@ def local_tls() -> ssl.SSLContext:
     routes = proxy / "routes.yml"
     rules = yaml.safe_load(routes.read_text())
     rules["http"]["routers"]["cli-playground"]["tls"] = {}
-    routes.write_text(yaml.safe_dump(rules))
-    (proxy / "tls.yml").write_text(
-        yaml.safe_dump(
-            {
-                "tls": {
-                    "stores": {
-                        "default": {
-                            "defaultCertificate": {
-                                "certFile": "/etc/traefik/routes/fixture.pem",
-                                "keyFile": "/etc/traefik/routes/fixture.key",
-                            }
-                        }
-                    }
+    rules["tls"] = {
+        "stores": {
+            "default": {
+                "defaultCertificate": {
+                    "certFile": "/etc/traefik/fixture.pem",
+                    "keyFile": "/etc/traefik/fixture.key",
                 }
             }
-        )
-    )
-    manifest = dokku.OWNER / "compose.production.yml"
+        }
+    }
+    routes.write_text(yaml.safe_dump(rules))
+    manifest = OWNER / "compose.production.yml"
     compose = yaml.safe_load(manifest.read_text())
     edge = compose["services"]["proxy"]
+    edge["volumes"] += [
+        f"./proxy/fixture.{ext}:/etc/traefik/fixture.{ext}:ro" for ext in ("pem", "key")
+    ]
     edge["command"] = [
         arg for arg in edge["command"] if not arg.startswith("--certificatesresolvers.")
     ]
@@ -83,15 +84,15 @@ def local_tls() -> ssl.SSLContext:
 
 
 def prepare_boxie(tmp_path: Path) -> LifecycleStack:
-    dokku.GRANTS.mkdir(mode=0o700, parents=True)
-    dokku.run("docker", "network", "create", "--internal", "boxie-consumers")
+    GRANTS.mkdir(mode=0o700, parents=True)
+    subprocess.run(["docker", "network", "create", "--internal", "boxie-consumers"], check=True)
     overlay = tmp_path / "grants.yml"
     overlay.write_text(
         yaml.safe_dump(
             {
                 "services": {
                     "api": {
-                        "volumes": [f"{dokku.GRANTS}:/run/boxie-consumers:ro"],
+                        "volumes": [f"{GRANTS}:/run/boxie-consumers:ro"],
                         "networks": {"feature": {"aliases": ["boxie-api"]}},
                     }
                 },
@@ -100,7 +101,6 @@ def prepare_boxie(tmp_path: Path) -> LifecycleStack:
         )
     )
     stack = LifecycleStack(tmp_path, runtime_overlay=overlay)
-    stack.postgres = "boxie-postgres"
     stack.start()
     api = tmp_path / "api.json"
     api.write_text(
@@ -108,44 +108,26 @@ def prepare_boxie(tmp_path: Path) -> LifecycleStack:
     )
     stack.runtime_command("restart", "api")
     stack.wait_ready()
-    (dokku.CONFIG / "boxie").mkdir()
-    shutil.copy(tmp_path / "consumer.secret", dokku.CONFIG / "boxie/consumer.secret")
+    (CONFIG / "boxie").mkdir()
+    shutil.copy(tmp_path / "consumer.secret", CONFIG / "boxie/consumer.secret")
     return stack
 
 
-def local_image(app: str, sha: str) -> str:
-    # A new label makes an observable second revision without rebuilding the application.
-    name = "localhost/sanctuary-" + app
+def feature(pr: int, sha: str, directory: Path) -> str:
+    tag = f"localhost/sanctuary-playground-pr-{pr}:{sha}"
+    subprocess.run(["docker", "tag", "cli-playground:lifecycle", tag], check=True)
+    command = ["bash", str(OWNER / "scripts/feature.sh")]
+    with subprocess.Popen(["docker", "save", tag], stdout=subprocess.PIPE) as archive:
+        subprocess.run([*command, "deploy", str(pr), sha], stdin=archive.stdout, check=True)
+        assert archive.wait() == 0
+    seed = directory / f"{sha}.zip"
     subprocess.run(
-        [
-            "docker",
-            "build",
-            "--tag",
-            name,
-            "--label",
-            f"org.opencontainers.image.revision={sha}",
-            "-",
-        ],
-        input=b"FROM cli-playground:lifecycle\n",
-        check=True,
+        ["bash", OWNER / "scripts/seed.sh", sha, ROOT / "target/release/echor", seed], check=True
     )
-    identifier = dokku.output("docker", "image", "inspect", "--format", "{{.Id}}", name)
-    reference = name + ":" + identifier.removeprefix("sha256:")
-    dokku.run("docker", "tag", name, reference)
-    return reference
-
-
-def feature(pr: int, sha: str, archive: bytes) -> str:
-    command = ["bash", str(dokku.OWNER / "scripts/feature.sh")]
-    subprocess.run([*command, "reserve", str(pr)], check=True)
-    reference = local_image(f"playground-pr-{pr}", sha)
-    url = (
-        subprocess.check_output([*command, "deploy", str(pr), sha, reference], input=archive)
-        .decode()
-        .strip()
-    )
+    with seed.open("rb") as source:
+        url = subprocess.check_output([*command, "publish", str(pr), sha], stdin=source, text=True)
     identifier = hashlib.sha256(f"pull-request:{pr}".encode()).hexdigest()[:32]
-    assert url == f"https://app-pr-{pr}.{DOMAIN}/p/{identifier}"
+    assert url.strip() == f"https://app-pr-{pr}.{DOMAIN}/p/{identifier}"
     return identifier
 
 
@@ -200,39 +182,24 @@ def echo_on_terminal(connection: tuple[ClientConnection, int], marker: str) -> N
 
 
 @pytest.mark.integration
-def test_dokku_two_prs_and_production(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_dokku_two_prs_and_production(tmp_path: Path) -> None:
     # This acceptance fixture uses the actual /etc, /opt, network names and ports.
     if os.environ.get("SANCTUARY_DISPOSABLE_DOKKU_HOST") != "1":
         pytest.skip("requires the disposable Linux host in Sanctuary browser integration")
     assert os.environ.get("RUNNER_ENVIRONMENT") == "github-hosted" and os.getuid() == 0
-    assert not any(path.exists() for path in (dokku.CONFIG, dokku.OWNER, Path("/var/lib/dokku")))
-    shutil.copytree(ROOT / "tools/cli-playground/infra", dokku.OWNER)
+    assert not any(path.exists() for path in (CONFIG, OWNER, Path("/var/lib/dokku")))
+    shutil.copytree(ROOT / "tools/cli-playground/infra", OWNER)
     tls = local_tls()
     stack = prepare_boxie(tmp_path)
     try:
-        image = local_image("cli-playground", "c" * 40)
-        monkeypatch.setenv("CLI_PLAYGROUND_IMAGE", image)
-        monkeypatch.setenv("CLI_PLAYGROUND_DOMAIN", DOMAIN)
-        monkeypatch.setenv("ACME_EMAIL", "fixture@example.test")
-        monkeypatch.setenv("CLOUDFLARE_DNS_API_TOKEN", "fixture")
-        installation.render(dokku.CONFIG)
-        (dokku.CONFIG / "cli-playground-image.env").write_text(f"CLI_PLAYGROUND_IMAGE={image}\n")
-        password = (dokku.CONFIG / "cli-playground/postgres-password").read_text().strip()
-        pg = stack.compose("postgres", "ps", "-q", "postgres")
-        dokku.run(
-            "docker",
-            "exec",
-            "-i",
-            pg,
-            "psql",
-            "-U",
-            "postgres",
-            "-v",
-            "ON_ERROR_STOP=1",
-            stdin=f"\\set playground_password '{password}'\n"
-            + (dokku.OWNER / "postgres/postgres.sql").read_text(),
+        (CONFIG / "settings.env").write_text(
+            f"CLI_PLAYGROUND_DOMAIN={DOMAIN}\nACME_EMAIL=fixture@example.test\nCLOUDFLARE_DNS_API_TOKEN=fixture\n"
         )
-        dokku.run("bash", str(dokku.OWNER / "scripts/deploy.sh"))
+        (CONFIG / "cli-playground-image.env").write_text(
+            "CLI_PLAYGROUND_IMAGE=cli-playground:lifecycle\n"
+        )
+        subprocess.run(["bash", OWNER / "scripts/install.sh"], check=True)
+        subprocess.run(["bash", OWNER / "scripts/deploy.sh"], check=True)
         binary = ROOT / "target/release/echor"
         archive = binary_bundle({"echor": binary.read_bytes()})
         with (
@@ -244,32 +211,44 @@ def test_dokku_two_prs_and_production(tmp_path: Path, monkeypatch: pytest.Monkey
                     f"https://{DOMAIN}/api/environments?pr=7&sha=" + "c" * 40,
                     headers={
                         "Authorization": "Bearer "
-                        + (dokku.CONFIG / "cli-playground/preview-token").read_text().strip()
+                        + (CONFIG / "cli-playground/preview-token").read_text().strip()
                     },
                     content=archive,
                 )
                 .raise_for_status()
                 .json()
             )
+            feature(11, "a" * 40, tmp_path)
+            second = feature(22, "b" * 40, tmp_path)
             prod = terminal(sockets, client, tls, f"pr-7.{DOMAIN}", production["id"])
-            feature(11, "a" * 40, archive)
-            second = feature(22, "b" * 40, archive)
+            config = json.loads(
+                subprocess.check_output(["docker", "inspect", "playground-pr-22.web.1"])
+            )[0]
+            assert (
+                config["HostConfig"]["Runtime"] == "runsc"
+                and config["HostConfig"]["ReadonlyRootfs"]
+            )
+            assert config["Config"]["User"] == "65532:65532"
+            assert set(config["NetworkSettings"]["Networks"]) >= {
+                "boxie-consumers",
+                "playground-apps",
+            }
             neighbor = terminal(sockets, client, tls, f"app-pr-22.{DOMAIN}", second)
-            feature(11, "d" * 40, archive)
+            feature(11, "d" * 40, tmp_path)
             echo_on_terminal(prod, "updated-prod")
             echo_on_terminal(neighbor, "updated-b")
-            dokku.run("bash", str(dokku.OWNER / "scripts/feature.sh"), "remove", "11")
+            subprocess.run(["bash", OWNER / "scripts/feature.sh", "remove", "11"], check=True)
             echo_on_terminal(prod, "closed-prod")
             echo_on_terminal(neighbor, "closed-b")
-            assert client.get(f"https://app-pr-11.{DOMAIN}/healthz").status_code == 404
-            assert not dokku.exists(*dokku.DOKKU, "apps:exists", "playground-pr-11")
-            assert not dokku.exists("docker", "network", "inspect", "playground-pr-11-data")
-            assert not (dokku.FEATURES / "playground-pr-11").exists()
+            assert client.get(f"https://app-pr-11.{DOMAIN}/healthz").status_code in (400, 404)
+            for check in ("apps:exists", "postgres:exists"):
+                assert subprocess.run([*DOKKU, check, "playground-pr-11"]).returncode != 0
+            assert not (FEATURES / "playground-pr-11").exists()
             forbidden = client.delete(
                 f"https://{DOMAIN}/api/pull-requests/7",
                 headers={
                     "Authorization": "Bearer "
-                    + (dokku.FEATURES / "playground-pr-22/deploy-token").read_text().strip()
+                    + (FEATURES / "playground-pr-22/publisher").read_text().strip()
                 },
             )
             assert forbidden.status_code == 401

@@ -227,9 +227,12 @@ def test_production_routes_preview_hosts_with_dns_challenge_and_proxy_only_crede
     router = routes["http"]["routers"]["cli-playground"]
     assert router["rule"] == (
         'Host(`{{ env "CLI_PLAYGROUND_DOMAIN" }}`) || '
-        "HostRegexp(`^(pr-[1-9][0-9]*|[0-9a-f]{32})[.]"
+        "HostRegexp(`^((?:app-)?pr-[1-9][0-9]*|[0-9a-f]{32})[.]"
         '{{ env "CLI_PLAYGROUND_DOMAIN" | replace "." "[.]" }}$`)'
     )
+    assert routes["http"]["services"]["cli-playground"]["loadBalancer"]["servers"] == [
+        {"url": "http://dokku:80"}
+    ]
     assert router["entryPoints"] == ["websecure"]
     assert router["tls"] == {
         "certResolver": "preview",

@@ -65,7 +65,7 @@ Advisory secret scans must not publish credential values and run without credent
   by validated, shell-quoted text; never derive terminal control sequences from
   metadata. Disable builder edits outside the observed prompt. Do not log drafts
   or send them to external search or telemetry services.
-- **Sandbox to host:** Only the supervisor receives Docker access. Preserve
+- **Sandbox to host:** The Boxie supervisor holds the host Docker socket. Preserve
   [runsc isolation](../packages/boxie/src/boxie/sandbox/docker.py), the non-root
   user, disabled network, read-only root and artifacts, dropped capabilities,
   and resource limits, including during recovery. The supervisor supplies the
@@ -90,14 +90,14 @@ Advisory secret scans must not publish credential values and run without credent
 - **Playground feature apps:** The trusted feature controller selects the current
   PR SHA. BuildKit fetches its sources into an isolated builder and runs the
   Dockerfile from the trusted checkout. Keep SSH keys, GitHub tokens and the
-  Docker socket outside the build. Only the Dokku manager gets the host socket.
-  PR migrations run under gVisor with the private PR database credential. The
-  gateway runs as a non-root gVisor process with bounded resources on internal
-  networks. Traefik routes the PR hostname to that app. Each feature receives
-  only its own publisher token and Boxie bearer. Boxie resolves the digest of the
+  Docker socket outside the build. Within Playground, only the Dokku manager mounts the host socket.
+  Dokku runs PR migrations and the gateway as the same non-root gVisor user
+  with bounded resources and the PR’s database, publisher and Boxie credentials.
+  Traefik terminates TLS and Dokku routes each hostname to its app. Boxie resolves the digest of the
   bearer from a read-only operator grant directory on each authentication. Removing
-  a grant revokes future authentication. Production credentials stay in the
-  production app. See [Playground deployment](../tools/cli-playground/docs/deployment.md).
+  a grant revokes future authentication. On close, the trusted Boxie operator stops
+  the revoked consumer’s sandboxes and retires its artifacts through the private API.
+  Production credentials stay in the production app. See [Playground deployment](../tools/cli-playground/docs/deployment.md).
 - **Local fixture recipes and recordings:** CLI test catalogs and their reference
   commands are trusted repository code, executed with the developer's permissions.
   Marked CLI README examples run as test code under the same permissions locally

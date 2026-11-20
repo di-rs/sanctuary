@@ -28,7 +28,6 @@ def workflow(name: str) -> dict[str, Any]:
     "filename,job_name",
     [
         ("boxie-release.yml", "deploy-boxie"),
-        ("cli-playground-release.yml", "deploy-backend"),
         ("boxie-release.yml", "deploy-sandbox"),
         ("sanctuary-setup.yml", "provision"),
     ],
@@ -79,7 +78,8 @@ def test_release_uses_one_queue_current_master_and_direct_ssh(job_name: str, app
     filename = "cli-playground-release.yml" if app == "cli-playground" else "boxie-release.yml"
     release = yaml.load((WORKFLOWS / filename).read_text(), Loader=yaml.BaseLoader)
     assert release["concurrency"] == QUEUE
-    assert release["jobs"]["source"]["steps"][0]["with"]["ref"] == "master"
+    checkout_job = job_name if app == "cli-playground" else "source"
+    assert release["jobs"][checkout_job]["steps"][0]["with"]["ref"] == "master"
     deployment = release["jobs"][job_name]
     assert deployment["environment"] == app
     assert "concurrency" not in deployment
@@ -92,11 +92,16 @@ def test_release_uses_one_queue_current_master_and_direct_ssh(job_name: str, app
     selector = {"boxie": "boxie", "sandbox": "boxie-sandbox", "backend": "cli-playground"}[
         component
     ]
-    assert deployment["steps"][-1]["run"] == (
-        f"bash infra/environments/single-host/release.sh {selector}"
-    )
+    if app == "cli-playground":
+        assert 'docker save "$tag" | ssh' in commands
+        assert "/cli-playground/scripts/deploy.sh" in commands
+    else:
+        assert (
+            deployment["steps"][-1]["run"]
+            == f"bash infra/environments/single-host/release.sh {selector}"
+        )
     assert f"build-image.sh {selector}" in commands
-    assert "packages" not in deployment["permissions"]
+    assert "packages" not in deployment.get("permissions", release["permissions"])
     assert "submit-release.sh" not in commands
     assert "release_selection.py" not in commands
     assert "expected-revision" not in commands
@@ -110,16 +115,11 @@ def test_releases_are_manual_and_keep_backend_separate_from_boxie() -> None:
     boxie = yaml.load((WORKFLOWS / "boxie-release.yml").read_text(), Loader=yaml.BaseLoader)
     assert playground["name"] == "🚀 cli-playground Release"
     assert boxie["name"] == "🚀 Boxie Release"
-    for release, components in [
-        (playground, {"backend": "cli-playground"}),
-        (boxie, {"boxie": "boxie", "sandbox": "boxie-sandbox"}),
-    ]:
-        assert release["on"] == {"workflow_dispatch": {}}
-        jobs = release["jobs"]
-        assert set(jobs) == {"source", *(f"deploy-{name}" for name in components)}
+    assert playground["on"] == boxie["on"] == {"workflow_dispatch": {}}
+    assert set(playground["jobs"]) == {"deploy-backend"}
+    assert set(boxie["jobs"]) == {"source", "deploy-boxie", "deploy-sandbox"}
     assert boxie["jobs"]["deploy-boxie"]["needs"] == "source"
     assert set(boxie["jobs"]["deploy-sandbox"]["needs"]) == {"source", "deploy-boxie"}
-    assert playground["jobs"]["deploy-backend"]["needs"] == "source"
     assert not (WORKFLOWS / "boxie-sandbox-release.yml").exists()
 
 
@@ -147,7 +147,9 @@ def test_deployment_ssh_keeps_silent_readiness_checks_connected(
     if transport == "setup":
         script = workflow("setup")["jobs"]["provision"]["steps"][-1]["run"]
     else:
-        script = (WORKFLOWS.parent.parent / "infra/environments/single-host/release.sh").read_text()
+        script = (
+            WORKFLOWS.parent.parent / "infra/environments/single-host/ssh-config.sh"
+        ).read_text()
     config = tmp_path / "ssh_config"
     config.write_text(script.split("<<SSH\n", 1)[1].split("\nSSH", 1)[0])
     result = subprocess.run(
