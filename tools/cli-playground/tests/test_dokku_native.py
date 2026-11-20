@@ -218,7 +218,7 @@ def test_dokku_two_prs_and_production(tmp_path: Path) -> None:
             assert config["Config"]["User"] == "65532:65532"
             assert config["HostConfig"]["LogConfig"] == {
                 "Type": "local",
-                "Config": {"max-size": "4m", "max-file": "2"},
+                "Config": {"max-size": "10m", "max-file": "2"},
             }
             assert set(config["NetworkSettings"]["Networks"]) == {
                 "playground-apps",

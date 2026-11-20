@@ -37,7 +37,7 @@ done
 # Boxie owns this reserved bridge address across independent releases.
 dokku config:set --no-restart playground-review-template CLI_PLAYGROUND_BOXIE_URL=http://10.237.93.2:8090
 dokku docker-options:add playground-review-template deploy,run --runtime=runsc --user=65532:65532 \
-    --log-driver=local --log-opt=max-size=4m --log-opt=max-file=2 \
+    --log-driver=local --log-opt=max-file=2 \
     --memory=384m --cpus=0.75 --pids-limit=128 --tmpfs=/var/lib/cli-playground:rw,nosuid,noexec,size=96m,uid=65532
 dokku checks:disable cli-playground web
 dokku domains:set cli-playground "$CLI_PLAYGROUND_DOMAIN" "*.$CLI_PLAYGROUND_DOMAIN"
