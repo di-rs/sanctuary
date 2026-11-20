@@ -29,6 +29,7 @@ from boxie.temporal.contracts import TASK_QUEUE, lifecycle_queue
 # timestamps refresh between polls, so allow another 30 seconds for scheduling
 # and network delay. Revisit this bound if the production server setting changes.
 WORKER_PRESENCE_SECONDS = 90
+_PROBE_RPC_TIMEOUT = timedelta(seconds=5)
 
 
 def lifecycle_config(data: dict[str, Any]) -> LifecycleConfig:
@@ -88,6 +89,32 @@ class TemporalReadiness(Protocol):
     def workflow_service(self) -> TemporalReadinessService: ...
 
 
+async def temporal_namespace_ready(temporal: TemporalReadiness) -> bool:
+    await temporal.workflow_service.describe_namespace(
+        DescribeNamespaceRequest(namespace=temporal.namespace), timeout=_PROBE_RPC_TIMEOUT
+    )
+    return True
+
+
+async def temporal_poller_ready(
+    temporal: TemporalReadiness, queue_name: str, kind: TaskQueueType.ValueType
+) -> bool:
+    """Check for a worker poll within the presence window."""
+    queue = await temporal.workflow_service.describe_task_queue(
+        DescribeTaskQueueRequest(
+            namespace=temporal.namespace,
+            task_queue=TaskQueue(name=queue_name),
+            task_queue_type=kind,
+        ),
+        timeout=_PROBE_RPC_TIMEOUT,
+    )
+    return any(
+        (datetime.now(UTC) - poller.last_access_time.ToDatetime(tzinfo=UTC)).total_seconds()
+        < WORKER_PRESENCE_SECONDS
+        for poller in queue.pollers
+    )
+
+
 class Dependencies:
     def __init__(
         self,
@@ -106,30 +133,13 @@ class Dependencies:
                 or not await self.temporal.service_client.check_health()
             ):
                 return False
-            await self.temporal.workflow_service.describe_namespace(
-                DescribeNamespaceRequest(namespace=self.temporal.namespace),
-                timeout=timedelta(seconds=5),
-            )
+            await temporal_namespace_ready(self.temporal)
+            queue_name = lifecycle_queue(self.identity) if self.identity else TASK_QUEUE
             for kind in (
                 TaskQueueType.TASK_QUEUE_TYPE_WORKFLOW,
                 TaskQueueType.TASK_QUEUE_TYPE_ACTIVITY,
             ):
-                queue = await self.temporal.workflow_service.describe_task_queue(
-                    DescribeTaskQueueRequest(
-                        namespace=self.temporal.namespace,
-                        task_queue=TaskQueue(
-                            name=lifecycle_queue(self.identity) if self.identity else TASK_QUEUE
-                        ),
-                        task_queue_type=kind,
-                    ),
-                    timeout=timedelta(seconds=5),
-                )
-                # Recent presence is bounded evidence, not instantaneous liveness.
-                if not any(
-                    (datetime.now(UTC) - p.last_access_time.ToDatetime(tzinfo=UTC)).total_seconds()
-                    < WORKER_PRESENCE_SECONDS
-                    for p in queue.pollers
-                ):
+                if not await temporal_poller_ready(self.temporal, queue_name, kind):
                     return False
             if self.schedules is not None:
                 await self.schedules()

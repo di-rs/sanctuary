@@ -234,9 +234,22 @@ def test_disconnect_completion_is_cancelled_once(
         os.close(read)
 
 
-def test_dependency_probes_follow_configured_namespace_and_owned_queues() -> None:
+@pytest.mark.parametrize(
+    "unready",
+    [
+        None,
+        "namespace",
+        "workflow_poller",
+        "activity_poller",
+        "maintenance_workflow_poller",
+        "maintenance_activity_poller",
+    ],
+)
+def test_dependency_probes_follow_configured_namespace_and_owned_queues(
+    unready: str | None,
+) -> None:
     import asyncio
-    from datetime import UTC, datetime
+    from datetime import UTC, datetime, timedelta
     from types import SimpleNamespace
     from uuid import uuid4
 
@@ -245,6 +258,7 @@ def test_dependency_probes_follow_configured_namespace_and_owned_queues() -> Non
     from boxie.observability.process import api_dependencies
     from boxie.temporal.contracts import lifecycle_queue, maintenance_queue
     from google.protobuf.timestamp_pb2 import Timestamp
+    from temporalio.api.enums.v1 import TaskQueueType
     from temporalio.api.taskqueue.v1 import PollerInfo
     from temporalio.api.workflowservice.v1 import (
         DescribeNamespaceRequest,
@@ -255,26 +269,41 @@ def test_dependency_probes_follow_configured_namespace_and_owned_queues() -> Non
 
     async def exercise() -> None:
         identity = SupervisorIdentity(uuid4(), "configured host")
-        seen: list[tuple[str, str, int]] = []
+        workflow = TaskQueueType.TASK_QUEUE_TYPE_WORKFLOW
+        activity = TaskQueueType.TASK_QUEUE_TYPE_ACTIVITY
+        expected_polls = {
+            (lifecycle_queue(identity), workflow): "workflow_poller",
+            (lifecycle_queue(identity), activity): "activity_poller",
+            (maintenance_queue(identity), workflow): "maintenance_workflow_poller",
+            (maintenance_queue(identity), activity): "maintenance_activity_poller",
+        }
+        seen: list[tuple[str, TaskQueueType.ValueType]] = []
         observed = asyncio.Event()
 
         async def ready() -> bool:
             return True
 
         async def namespace(
-            request: DescribeNamespaceRequest, **kwargs: Any
+            request: DescribeNamespaceRequest, *, timeout: timedelta
         ) -> DescribeNamespaceResponse:
             assert request.namespace == "configured-namespace"
+            assert timeout == timedelta(seconds=5)
+            if unready == "namespace":
+                raise RuntimeError("namespace unavailable")
             return DescribeNamespaceResponse()
 
         async def queue(
-            request: DescribeTaskQueueRequest, **kwargs: Any
+            request: DescribeTaskQueueRequest, *, timeout: timedelta
         ) -> DescribeTaskQueueResponse:
-            seen.append((request.namespace, request.task_queue.name, request.task_queue_type))
-            if len(seen) == 4:
+            assert request.namespace == "configured-namespace"
+            assert timeout == timedelta(seconds=5)
+            poll = (request.task_queue.name, request.task_queue_type)
+            seen.append(poll)
+            if len(seen) == len(expected_polls):
                 observed.set()
             timestamp = Timestamp()
-            timestamp.FromDatetime(datetime.now(UTC))
+            age = 91 if expected_polls[poll] == unready else 1
+            timestamp.FromDatetime(datetime.now(UTC) - timedelta(seconds=age))
             return DescribeTaskQueueResponse(pollers=[PollerInfo(last_access_time=timestamp)])
 
         temporal: Any = SimpleNamespace(
@@ -290,19 +319,11 @@ def test_dependency_probes_follow_configured_namespace_and_owned_queues() -> Non
         try:
             await asyncio.wait_for(observed.wait(), 1)
             await asyncio.sleep(0)
-            assert {(namespace, queue) for namespace, queue, _ in seen} == {
-                ("configured-namespace", lifecycle_queue(identity)),
-                ("configured-namespace", maintenance_queue(identity)),
-            }
-            assert all(
-                f'boxie_dependency_ready{{dependency="{name}"}} 1.0'.encode() in metrics.render()
-                for name in (
-                    "workflow_poller",
-                    "activity_poller",
-                    "maintenance_workflow_poller",
-                    "maintenance_activity_poller",
-                )
-            )
+            assert sorted(seen) == sorted(expected_polls)
+            rendered = metrics.render()
+            for name in ("supervisor", "temporal", "namespace", *expected_polls.values()):
+                value = "0.0" if name == unready else "1.0"
+                assert f'boxie_dependency_ready{{dependency="{name}"}} {value}'.encode() in rendered
         finally:
             task.cancel()
             await asyncio.gather(task, return_exceptions=True)
