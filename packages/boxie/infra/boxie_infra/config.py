@@ -36,6 +36,7 @@ def main() -> None:
         "--consumer-credential",
         help="credential path for this consumer; defaults to its existing path or /run/secrets/consumer",
     )
+    parser.add_argument("--consumer-grants-dir")
     parser.add_argument("--profiles", default="/etc/boxie/profiles.json")
     parser.add_argument("--postgres-dsn", default="/run/secrets/postgres-dsn")
     parser.add_argument("--temporal-address", default="temporal:7233")
@@ -86,6 +87,8 @@ def main() -> None:
             "supervisor_url": args.supervisor_url,
             "supervisor_credential_file": args.supervisor_credential,
             "consumer_credential_files": credentials,
+            "consumer_grants_dir": args.consumer_grants_dir
+            or previous_api.get("consumer_grants_dir"),
             "job_policy": job_policy,
             "bind_host": args.bind_host,
         },

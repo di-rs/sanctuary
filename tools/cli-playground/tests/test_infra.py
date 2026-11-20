@@ -211,11 +211,9 @@ async def test_generated_ssh_identity_and_host_key_keep_private_material_secret(
 def test_production_routes_preview_hosts_with_dns_challenge_and_proxy_only_credentials() -> None:
     root = Path(__file__).resolve().parents[1]
     compose = yaml.safe_load((root / "infra/compose.production.yml").read_text())
-    backend = compose["services"]["backend"]
-    assert backend["environment"]["CLI_PLAYGROUND_PREVIEW_DOMAIN"] == "${CLI_PLAYGROUND_DOMAIN}"
-    assert not any("CLOUDFLARE" in key or key.startswith("CF_") for key in backend["environment"])
-    assert "CLI_PLAYGROUND_BOXIE_URL" in backend["environment"]
-    assert "CLI_PLAYGROUND_SANDBOX_RUNTIME" not in backend["environment"]
+    manager = compose["services"]["dokku"]
+    assert "ports" not in manager
+    assert not any("CLOUDFLARE" in key or key.startswith("CF_") for key in manager["environment"])
     proxy = compose["services"]["proxy"]
     assert (
         "--certificatesresolvers.preview.acme.dnschallenge.provider=cloudflare" in proxy["command"]
@@ -246,9 +244,10 @@ def test_production_routes_preview_hosts_with_dns_challenge_and_proxy_only_crede
 
 def test_backend_healthcheck_uses_public_url_host(monkeypatch: pytest.MonkeyPatch) -> None:
     root = Path(__file__).resolve().parents[1]
-    compose = yaml.safe_load((root / "infra/compose.production.yml").read_text())
-    command = compose["services"]["backend"]["healthcheck"]["test"]
-    assert command[:3] == ["CMD", "/app/.venv/bin/python", "-c"]
+    image = (root / "infra/docker/CliPlayground.Dockerfile").read_text()
+    line = next(line for line in image.splitlines() if line.startswith("HEALTHCHECK "))
+    command = json.loads(line.split(" CMD ", 1)[1])
+    assert command[:2] == ["/app/.venv/bin/python", "-c"]
     monkeypatch.setenv("CLI_PLAYGROUND_PUBLIC_URL", "https://play.example.com")
     monkeypatch.delenv("CLI_PLAYGROUND_PREVIEW_DOMAIN", raising=False)
     requests: list[urllib.request.Request] = []
@@ -263,7 +262,7 @@ def test_backend_healthcheck_uses_public_url_host(monkeypatch: pytest.MonkeyPatc
         return Response()
 
     monkeypatch.setattr(urllib.request, "urlopen", urlopen)
-    exec(command[3], {})
+    exec(command[2], {})
     assert len(requests) == 1
     assert requests[0].full_url == "http://127.0.0.1:8000/healthz"
     assert requests[0].get_header("Host") == "play.example.com"

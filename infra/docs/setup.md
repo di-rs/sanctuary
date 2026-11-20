@@ -50,12 +50,11 @@ from `master`. This manual workflow builds Boxie, the cli-playground backend and
 sandbox, and the collector from current `master`; it does not ask for image
 digests. It then runs Pulumi, waits for cloud-init, loads the images directly into
 the server’s Docker engine over pinned SSH, copies the committed files
-and private settings over SSH, and starts the Compose projects. It can create
+and private settings over SSH, starts Boxie and starts the Dokku platform. It can create
 paid cloud resources.
 
 Setup generates internal credentials and certificates, initializes PostgreSQL and
-Temporal, starts Boxie and its monitoring and tunnel, then starts cli-playground and
-its proxy. A rerun keeps existing credentials and data. Partial credentials cause
+Temporal, starts Boxie and its monitoring and tunnel, then deploys the production Playground app behind Traefik. A rerun keeps existing credentials and data. Partial credentials cause
 setup to fail for inspection. PostgreSQL and Temporal server/schema upgrades stay
 separate from application releases. Cloud-init handles first boot; later edits to
 host bootstrap code do not reinstall an existing server. On a new host,
@@ -110,5 +109,3 @@ gh secret set CLI_PLAYGROUND_DEPLOY_TOKEN --repo "$repository" --env cli-playgro
 All retrieved values are checked before the first GitHub write. If a GitHub write
 fails, rerun the handoff after correcting permissions; overwriting the same
 settings is safe. Setup never receives your GitHub administration credential.
-Registry authentication uses the workflow's temporary package token, stored in
-temporary files under `/run`; it expires with the token's lifetime.

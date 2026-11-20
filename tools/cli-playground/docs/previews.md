@@ -1,5 +1,8 @@
 # Publish pull-request previews
 
+CLI changes use the shared gateway at `pr-N.<playground-domain>`. Changes to the
+Playground application get a [separate Dokku app and deployment link](deployment.md#playground-app-previews).
+
 ## Enable PR comments and live previews
 
 Benchmark comments need no custom secret. The

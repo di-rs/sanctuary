@@ -14,5 +14,5 @@ http:
     cli-playground:
       loadBalancer:
         servers:
-          - url: http://backend:8000
+          - url: http://cli-playground.web:8000
         passHostHeader: true

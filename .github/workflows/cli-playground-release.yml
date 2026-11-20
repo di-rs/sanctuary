@@ -29,7 +29,7 @@ jobs:
           printf 'sha=%s\n' "$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           printf 'attempt=%s\n' "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
   deploy-backend:
-    name: 🚀 Update cli-playground Backend with Compose
+    name: 🚀 Update cli-playground backend with Dokku
     needs: source
     if: ${{ github.ref == 'refs/heads/master' && vars.DEPLOYMENT_ACCEPTANCE_PASSED == 'true' }}
     environment: cli-playground
@@ -53,7 +53,7 @@ jobs:
           persist-credentials: false
       - name: Build production image locally
         run: bash infra/environments/single-host/build-image.sh cli-playground
-      - name: 🚀 Copy backend files and run Compose
+      - name: 🚀 Deploy backend with Dokku
         env:
           SOURCE_SHA: ${{ needs.source.outputs.sha }}
           DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}

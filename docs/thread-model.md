@@ -87,6 +87,17 @@ Advisory secret scans must not publish credential values and run without credent
   Contributors run selected browser demos inside the disposable local playground and
   publish WebM recordings of synthetic session data. Treat the checkout and its
   build scripts as trusted local code. PR policy only reads the attachment links.
+- **Playground feature apps:** The trusted feature controller selects the current
+  PR SHA. BuildKit fetches its sources into an isolated builder and runs the
+  Dockerfile from the trusted checkout. Keep SSH keys, GitHub tokens and the
+  Docker socket outside the build. Only the Dokku manager gets the host socket.
+  PR migrations run under gVisor with the private PR database credential. The
+  gateway runs as a non-root gVisor process with bounded resources on internal
+  networks. Traefik routes the PR hostname to that app. Each feature receives
+  only its own publisher token and Boxie bearer. Boxie resolves the digest of the
+  bearer from a read-only operator grant directory on each authentication. Removing
+  a grant revokes future authentication. Production credentials stay in the
+  production app. See [Playground deployment](../tools/cli-playground/docs/deployment.md).
 - **Local fixture recipes and recordings:** CLI test catalogs and their reference
   commands are trusted repository code, executed with the developer's permissions.
   Marked CLI README examples run as test code under the same permissions locally

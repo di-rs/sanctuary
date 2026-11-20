@@ -1,8 +1,9 @@
 # Shared-host deployment
 
 This deployment puts Boxie and the browser playground on one Hetzner server.
-Pulumi creates the server, disk, DNS, and operator access. Docker Compose runs the
-services; GitHub Actions performs setup and releases over pinned SSH.
+Pulumi creates the server, disk, DNS and operator access. Dokku runs the Playground
+apps. Compose runs Boxie, its dependencies and the edge proxy. GitHub Actions
+performs setup and releases over pinned SSH.
 
 ## Choose an operation
 

@@ -1,8 +1,9 @@
 # Infrastructure architecture
 
 The shared-host environment composes Boxie and CLI playground on one Linux host.
-Pulumi provisions the Hetzner server, disk, DNS, and operator access. Docker Compose
-runs service-owned projects; GitHub Actions uses pinned SSH for setup and releases.
+Pulumi provisions the Hetzner server, disk, DNS and operator access. Dokku runs
+the production Playground and its per-PR apps. Compose runs the Dokku manager,
+Traefik, Boxie and its dependencies. GitHub Actions uses pinned SSH for releases.
 
 ## Ownership and access
 

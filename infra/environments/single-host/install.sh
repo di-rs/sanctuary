@@ -27,7 +27,7 @@ done
 bash /opt/sanctuary/boxie/credentials.sh /etc/sanctuary/boxie
 python3 /opt/sanctuary/cli-playground/cli_playground_infra/installation.py
 bash /opt/sanctuary/boxie/install.sh "$source" "$(cat "$source/revision")" cli-playground
-bash /opt/sanctuary/cli-playground/scripts/install.sh
+bash /opt/sanctuary/cli-playground/scripts/provision.sh
 bash /opt/sanctuary/cli-playground/scripts/deploy.sh
 timeout 180 docker compose --env-file /etc/sanctuary/boxie.env \
     -f /opt/sanctuary/boxie/observability/compose.yml \

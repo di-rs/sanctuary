@@ -3,7 +3,7 @@
 set -euo pipefail
 config=$1
 tag=$2
-[[ $tag =~ ^localhost/sanctuary-(boxie|boxie-sandbox|cli-playground|collector):[a-f0-9]{40}$ ]]
+[[ $tag =~ ^localhost/sanctuary-(boxie|boxie-sandbox|cli-playground|collector|playground-pr-[1-9][0-9]{0,9}):[a-f0-9]{40}$ ]]
 id=$(docker image inspect --format '{{.Id}}' "$tag")
 [[ $id =~ ^sha256:[a-f0-9]{64}$ ]]
 delivery_tag="${tag%:*}:${id#sha256:}"

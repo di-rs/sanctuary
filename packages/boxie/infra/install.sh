@@ -8,7 +8,8 @@ consumer=$3
 owner=${SANCTUARY_BOXIE_DIR:-/opt/sanctuary/boxie}
 bash "$owner/credentials.sh" /etc/sanctuary/boxie
 bash "$owner/certificates.sh" /etc/sanctuary/tls
-python3 "$owner/boxie_infra/config.py" --output /etc/sanctuary/boxie --data-dir /srv/sanctuary/boxie \
+install -d -m 0700 /etc/sanctuary/consumer-grants
+python3 "$owner/boxie_infra/config.py" --consumer-grants-dir /run/boxie-consumers --output /etc/sanctuary/boxie --data-dir /srv/sanctuary/boxie \
     --installation-id "$(cat /etc/sanctuary/boxie/installation-id)" --host-id "$(cat /etc/sanctuary/boxie/host-id)" --consumer-id "$consumer"
 export OBS_JOURNAL_GROUP_GID
 OBS_JOURNAL_GROUP_GID=$(getent group systemd-journal | cut -d: -f3)

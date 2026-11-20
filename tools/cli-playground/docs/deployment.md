@@ -1,9 +1,54 @@
 # Deploy CLI playground
 
-For production setup and releases, use the [shared-host guide](../../../infra/README.md).
-This guide covers a local Compose deployment and its service boundaries. Provision
-its [database](database.md#database-and-cutover) before starting the backend; configure
-[preview publication](previews.md) after the service is reachable.
+## Production
+
+The `cli-playground` Dokku app serves the built frontend and one gateway worker
+on the same Hetzner VM as Boxie. The gateway owns upload recovery and its local
+staging directory. Keep one web process per app. During a release Dokku stops
+that app's old process before starting its replacement, which briefly interrupts
+that app's connections. Boxie owns sandbox execution and has a separate release.
+
+After [host setup](../../../infra/docs/setup.md), deploy current `master` from
+an authenticated operator checkout with one command.
+
+```sh
+gh workflow run cli-playground-release.yml --ref master
+```
+
+Actions builds the image and streams it to the pinned SSH host. The release
+applies Alembic, deploys the local image with Dokku, then checks public HTTPS
+and authenticated Boxie readiness. Production keeps its PostgreSQL database,
+upload volume and wildcard TLS certificate across releases. Traefik is the public
+listener. The Dokku manager and Boxie have no public ports.
+
+## Playground app previews
+
+A PR that changes the frontend, backend, or their build inputs gets a GitHub
+deployment named `cli-playground/feature-pr-N`. Open **View deployment** on the PR
+to try that revision at `app-pr-N.<playground-domain>`. Its terminal includes
+`echor` from the trusted base checkout. A PR that also changes a CLI gets the
+usual [CLI binary preview](previews.md) at `pr-N.<playground-domain>`.
+
+Each feature app has its own PostgreSQL instance, upload storage, publisher token
+and Boxie consumer. A push updates the same URL. Closing the PR or removing its
+Playground changes destroys its app and revokes its token. Reopening an eligible
+PR recreates it. The [feature workflow](../../../.github/workflows/cli-playground-feature.yml)
+uses the existing `cli-playground` SSH environment.
+
+Feature storage is disposable. A database container restart clears that preview's
+database. Rerun its feature workflow to migrate and seed it again. The shared host
+accepts three simultaneous app previews by default. A full host reports capacity
+in the workflow. After a slot becomes available, rerun the current PR workflow.
+To change capacity, set the desired count in
+`/etc/sanctuary/playground-apps/limit` on the host. Each preview has a 384 MiB
+gateway and a 320 MiB database limit, in addition to its Boxie terminal workload.
+
+To reconcile an existing PR or retry after a host restart, supply its number.
+The workflow reads the current commit and open or closed state from GitHub.
+
+```sh
+gh workflow run cli-playground-feature.yml --ref master -f pr=123
+```
 
 ## Independent local unit
 
@@ -45,22 +90,12 @@ Both local and production manifests default to project `cli-playground`. Overrid
 `COMPOSE_PROJECT_NAME` or `--project-name`, which overrides the manifest identity.
 Their external network and volume identifiers remain independently configured.
 
-The credential must be a regular non-symlink file, mode `0600`, containing a
+The consumer credential must be a regular non-symlink file, mode `0600`, containing a
 16–4096-character printable token. The local unit publishes only localhost:8000.
-The independently resolvable production manifest uses an explicit immutable
-`CLI_PLAYGROUND_IMAGE`, external `CLI_PLAYGROUND_PROXY_NETWORK` and
-`CLI_PLAYGROUND_CERTIFICATES_VOLUME`; only Traefik publishes 80/443 and receives the
-Cloudflare certificate-renewal credential. Boxie's artifact data and supervisor
+Boxie's artifact data and supervisor
 credential never enter cli-playground. Runtime images contain only their own installed
 package/dependencies and, for cli-playground, its real built frontend assets.
 
 Operator modules are installed separately from runtime images. Run
 `uv sync --all-packages` for local infrastructure checks. Application
 release jobs use native OpenSSH and do not read Pulumi state.
-
-## Application releases
-
-An application release updates the backend and its built frontend together, leaving
-the proxy and Boxie running. Runtime manifests, image builds, and operator scripts
-remain under [infra/](../infra/); shared-host provisioning composes them without
-moving their ownership into the runtime.

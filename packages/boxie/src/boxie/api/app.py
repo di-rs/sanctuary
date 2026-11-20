@@ -1,6 +1,7 @@
 """Construct an unprivileged private API from injected application ports."""
 
 from collections.abc import Awaitable, Callable, Mapping
+from pathlib import Path
 from types import MappingProxyType
 from typing import Self
 from uuid import UUID
@@ -27,6 +28,7 @@ class ApiConfig(BaseModel):
 
     release: str = Field(min_length=1)
     consumers: Mapping[str, bytes] = Field(min_length=1, repr=False)
+    consumer_grants_dir: Path | None = None
     job_policy: JobPolicy = Field(default_factory=JobPolicy)
 
     @field_validator("consumers")
@@ -52,7 +54,7 @@ def create_app(
     request_completed: Callable[[str, str, str, float], None] | None = None,
 ) -> FastAPI:
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
-    auth = ConsumerAuth(config.consumers)
+    auth = ConsumerAuth(config.consumers, config.consumer_grants_dir)
 
     @app.exception_handler(Exception)
     async def unhandled_error(request: Request, _error: Exception) -> PlainTextResponse:

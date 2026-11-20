@@ -1,0 +1,92 @@
+name: 🌱 Playground feature environments
+
+# Only trusted controller code runs on the runner. BuildKit fetches the exact PR
+# revision inside its isolated builder and executes the default branch's Dockerfile.
+on: # zizmor: ignore[dangerous-triggers]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: Pull request number to reconcile
+        required: true
+        type: string
+  pull_request_target:
+    branches: [master]
+    types: [opened, synchronize, reopened, closed]
+
+permissions: {}
+concurrency:
+  group: playground-feature-${{ github.event.number || inputs.pr }}
+  queue: max
+  cancel-in-progress: false
+
+env:
+  FEATURE_PR: ${{ github.event.number || inputs.pr }}
+
+jobs:
+  select:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+      deployments: read
+    outputs:
+      operation: ${{ steps.current.outputs.operation }}
+      sha: ${{ steps.current.outputs.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - id: current
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FEATURE_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python3 tools/cli-playground/feature_ci.py select
+
+  reconcile:
+    needs: select
+    if: ${{ needs.select.outputs.operation != 'skip' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    environment:
+      name: cli-playground
+      deployment: false
+    permissions:
+      contents: read
+      pull-requests: read
+      deployments: write
+    env:
+      FEATURE_OPERATION: ${{ needs.select.outputs.operation }}
+      FEATURE_SHA: ${{ needs.select.outputs.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Create isolated image builder
+        if: env.FEATURE_OPERATION == 'deploy'
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069
+        with:
+          cache-binary: false
+          buildkitd-flags: --log-format=json
+      - name: Build branch frontend and backend
+        if: env.FEATURE_OPERATION == 'deploy'
+        run: |
+          [[ $FEATURE_PR =~ ^[1-9][0-9]{0,9}$ && $FEATURE_SHA =~ ^[0-9a-f]{40}$ ]]
+          docker buildx build --load --platform linux/amd64 \
+            --label "org.opencontainers.image.revision=$FEATURE_SHA" \
+            --tag "localhost/sanctuary-playground-pr-$FEATURE_PR:$FEATURE_SHA" \
+            --file - "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git#$FEATURE_SHA" \
+            < tools/cli-playground/infra/docker/CliPlayground.Dockerfile
+      - name: Build representative terminal input from trusted source
+        if: env.FEATURE_OPERATION == 'deploy'
+        run: |
+          cargo build --locked --release -p echor
+          python3 tools/cli-playground/feature_ci.py seed
+      - name: Reconcile the current PR on the shared host
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: python3 tools/cli-playground/feature_ci.py apply

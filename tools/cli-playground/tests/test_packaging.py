@@ -157,13 +157,23 @@ def test_resolved_compose_isolated_topology(
     )
     production = manifest == "compose.production.yml"
     assert config["name"] == values.get("CLI_PLAYGROUND_PROJECT_NAME", "cli-playground")
-    assert set(config["services"]) == ({"backend", "proxy"} if production else {"backend"})
-    for service in config["services"].values():
-        assert all(v["target"] != "/var/run/docker.sock" for v in service.get("volumes", []))
+    assert all(net["external"] for net in config["networks"].values())
+    assert all(volume["external"] for volume in config["volumes"].values())
+    if production:
+        assert set(config["services"]) == {"dokku", "proxy"}
+        manager = config["services"]["dokku"]
+        assert not manager.get("ports") and manager["network_mode"] == "bridge"
+        assert {vol["target"] for vol in manager["volumes"]} == {
+            "/mnt/dokku",
+            "/var/run/docker.sock",
+        }
+        proxy = config["services"]["proxy"]
+        assert set(proxy["networks"]) == {"proxy", "apps"}
+        assert all(vol["target"] != "/var/run/docker.sock" for vol in proxy["volumes"])
+        return
+    assert set(config["services"]) == {"backend"}
     backend = config["services"]["backend"]
-    assert set(backend["networks"]) == (
-        {"consumer", "database", "proxy"} if production else {"consumer", "database"}
-    )
+    assert set(backend["networks"]) == {"consumer", "database"}
     assert config["networks"]["database"]["name"] == "test-database"
     assert not backend.get("depends_on")
     assert backend["environment"]["CLI_PLAYGROUND_BOXIE_URL"] == values["CLI_PLAYGROUND_BOXIE_URL"]
@@ -172,5 +182,3 @@ def test_resolved_compose_isolated_topology(
         "/run/secrets/consumer",
         "/var/lib/cli-playground",
     }
-    assert all(net["external"] for net in config["networks"].values())
-    assert all(volume["external"] for volume in config["volumes"].values())

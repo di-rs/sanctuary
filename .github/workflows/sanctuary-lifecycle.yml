@@ -14,7 +14,7 @@ jobs:
   browser:
     name: 🎭 Verify cli-playground with Boxie
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    timeout-minutes: 65
     env:
       PYTHONUNBUFFERED: '1'
     steps:
@@ -71,3 +71,8 @@ jobs:
         timeout-minutes: 20
         run: |
           uv run pytest -m integration packages/boxie/tests/integration/test_lifecycle.py tools/cli-playground/tests/test_native.py -vv --durations=10 -o faulthandler_timeout=120
+      - name: Exercise production and two Dokku PR apps on this disposable runner
+        timeout-minutes: 25
+        run: |
+          sudo env PATH="$PATH" RUNNER_ENVIRONMENT="$RUNNER_ENVIRONMENT" SANCTUARY_DISPOSABLE_DOKKU_HOST=1 \
+            .venv/bin/python -m pytest -m integration tools/cli-playground/tests/test_dokku_native.py -s -v --tb=short

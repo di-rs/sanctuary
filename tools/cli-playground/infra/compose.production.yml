@@ -1,49 +1,18 @@
 # Backend and proxy are independently operated; activation requires acceptance gates.
 name: ${CLI_PLAYGROUND_PROJECT_NAME:-cli-playground}
 services:
-  backend:
-    image: ${CLI_PLAYGROUND_IMAGE:?Set approved immutable cli-playground image}
-    environment:
-      CLI_PLAYGROUND_DATA_DIR: /var/lib/cli-playground
-      CLI_PLAYGROUND_PUBLIC_URL: https://${CLI_PLAYGROUND_DOMAIN:?Set cli-playground domain}
-      CLI_PLAYGROUND_DEPLOY_TOKEN: ${CLI_PLAYGROUND_DEPLOY_TOKEN:?Set deployment token}
-      CLI_PLAYGROUND_BOXIE_URL: ${CLI_PLAYGROUND_BOXIE_URL:?Set private Boxie endpoint}
-      CLI_PLAYGROUND_BOXIE_CREDENTIAL_FILE: /run/secrets/consumer
-      CLI_PLAYGROUND_PREVIEW_DOMAIN: ${CLI_PLAYGROUND_DOMAIN}
-    volumes:
-    - ${CLI_PLAYGROUND_DATABASE_URL_FILE:?Set Playground database URL file}:/run/secrets/CLI_PLAYGROUND_DATABASE_URL:ro
-    - data:/var/lib/cli-playground
-    - ${CLI_PLAYGROUND_BOXIE_CREDENTIAL_FILE:?Set consumer credential file}:/run/secrets/consumer:ro
-    networks:
-    - consumer
-    - database
-    - proxy
-    read_only: true
-    tmpfs:
-    - /tmp
-    cap_drop:
-    - ALL
-    security_opt:
-    - no-new-privileges:true
-    init: true
+  dokku:
+    image: docker.io/dokku/dokku:0.38.34@sha256:70c09c7f5badff1b0a7077fe899db269255a22aed08571f4da605bfcb50fd8a8
+    container_name: sanctuary-dokku
+    network_mode: bridge
     restart: unless-stopped
-    logging:
-      driver: journald
-      options:
-        mode: non-blocking
-        max-buffer-size: 4m
-        tag: cli-playground-api
-    healthcheck:
-      test:
-      - CMD
-      - /app/.venv/bin/python
-      - -c
-      - import os,urllib.parse,urllib.request; r=urllib.request.Request('http://127.0.0.1:8000/healthz',headers={'Host':urllib.parse.urlsplit(os.environ['CLI_PLAYGROUND_PUBLIC_URL']).netloc});
-        urllib.request.urlopen(r,timeout=3).close()
-      interval: 10s
-      timeout: 5s
-      retries: 6
-      start_period: 20s
+    environment:
+      DOKKU_HOSTNAME: ${CLI_PLAYGROUND_DOMAIN}
+      DOKKU_HOST_ROOT: /var/lib/dokku/home/dokku
+      DOKKU_LIB_HOST_ROOT: /var/lib/dokku/var/lib/dokku
+    volumes:
+    - /var/lib/dokku:/mnt/dokku
+    - /var/run/docker.sock:/var/run/docker.sock
   proxy:
     image: traefik:v3.7.19
     command:
@@ -54,7 +23,7 @@ services:
     - --entrypoints.web.http.redirections.entrypoint.to=websecure
     - --entrypoints.web.http.redirections.entrypoint.scheme=https
     - --entrypoints.websecure.address=:443
-    - --providers.file.filename=/etc/traefik/routes.yml
+    - --providers.file.directory=/etc/traefik/routes
     - --certificatesresolvers.preview.acme.email=${ACME_EMAIL:?Set the certificate
       contact email}
     - --certificatesresolvers.preview.acme.storage=/certificates/acme.json
@@ -68,11 +37,8 @@ services:
     - 80:80
     - 443:443
     volumes:
-    - ./proxy/routes.yml:/etc/traefik/routes.yml:ro
+    - ./proxy:/etc/traefik/routes:ro
     - certificates:/certificates
-    depends_on:
-      backend:
-        condition: service_healthy
     healthcheck:
       test:
       - CMD
@@ -91,20 +57,15 @@ services:
         max-file: '3'
     networks:
     - proxy
+    - apps
 volumes:
-  data:
-    external: true
-    name: ${CLI_PLAYGROUND_DATA_VOLUME:?Set product volume}
   certificates:
     external: true
     name: ${CLI_PLAYGROUND_CERTIFICATES_VOLUME:?Set certificate volume}
 networks:
-  consumer:
+  apps:
     external: true
-    name: ${CLI_PLAYGROUND_CONSUMER_NETWORK:?Set private consumer network}
+    name: playground-apps
   proxy:
     external: true
     name: ${CLI_PLAYGROUND_PROXY_NETWORK:?Set proxy network}
-  database:
-    external: true
-    name: ${CLI_PLAYGROUND_DATABASE_NETWORK:?Set private PostgreSQL network}

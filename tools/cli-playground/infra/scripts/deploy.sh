@@ -1,17 +1,20 @@
 #!/usr/bin/env bash
-# Update the backend without recreating the public proxy.
+# Reconcile the platform, then replace only the production Dokku app.
 set -euo pipefail
 [[ $# == 0 ]] || exit 2
 config=${SANCTUARY_CONFIG_DIR:-/etc/sanctuary}
 owner=${SANCTUARY_CLI_PLAYGROUND_DIR:-/opt/sanctuary/cli-playground}
-compose() {
-    docker compose --env-file "$config/cli-playground.env" --env-file "$config/cli-playground-image.env" \
-        -f "$owner/compose.production.yml" "$@"
-}
-compose config --quiet
-compose run --pull never --rm --no-deps backend alembic upgrade head
-compose up -d --no-build --pull never --no-deps --wait --wait-timeout 180 backend
-if compose exec -T backend /app/.venv/bin/python - <<'PY'
+set -a
+# shellcheck disable=SC1091
+source "$config/cli-playground.env"
+# shellcheck disable=SC1091
+source "$config/cli-playground-image.env"
+set +a
+bash "$owner/scripts/install.sh"
+python3 "$owner/cli_playground_infra/dokku.py" deploy --image "$CLI_PLAYGROUND_IMAGE"
+container=$(docker ps -q --filter label=com.dokku.app-name=cli-playground --filter label=com.dokku.process-type=web)
+[[ -n $container && $container != *$'\n'* ]]
+if docker exec -i "$container" /app/.venv/bin/python - <<'PY'
 import os
 import time
 from urllib.error import URLError
@@ -28,10 +31,6 @@ while True:
         with urlopen(request, timeout=10) as response:
             if response.status != 200:
                 raise ValueError('unexpected status')
-        stage = 'public HTTPS readiness'
-        with urlopen(os.environ['CLI_PLAYGROUND_PUBLIC_URL'].rstrip('/') + '/healthz', timeout=15) as response:
-            if response.status != 200:
-                raise ValueError('unexpected status')
         break
     except (URLError, OSError, ValueError) as error:
         if time.monotonic() >= deadline:
@@ -43,6 +42,6 @@ then
     :
 else
     status=$?
-    compose logs --tail 80 proxy >&2 || true
+    docker logs --tail 80 "$container" >&2 || true
     exit "$status"
 fi

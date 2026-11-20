@@ -21,4 +21,5 @@ COPY --from=build /app/.venv /app/.venv
 COPY tools/cli-playground/alembic.ini /app/alembic.ini
 ENV PATH="/app/.venv/bin:$PATH"
 EXPOSE 8000
+HEALTHCHECK --interval=10s --timeout=5s --start-period=20s --retries=6 CMD ["/app/.venv/bin/python", "-c", "import os,urllib.parse,urllib.request; url=urllib.parse.urlsplit(os.environ['CLI_PLAYGROUND_PUBLIC_URL']); req=urllib.request.Request('http://127.0.0.1:8000/healthz',headers={'Host':url.netloc}); urllib.request.urlopen(req,timeout=3).close()"]
 CMD ["uvicorn", "cli_playground.app:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--ws-max-size", "65536", "--no-proxy-headers"]

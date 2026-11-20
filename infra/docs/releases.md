@@ -24,7 +24,9 @@ resume after the restart; an empty capacity table is not a release condition.
 The separate native host acceptance run covers terminal allocation and cleanup.
 
 The sandbox stage changes Boxie's default profile digest and recreates
-Boxie's supervisor, preserving other profile fields. The backend stage recreates only `backend`; its proxy stays up.
+Boxie's supervisor, preserving other profile fields. The Playground release updates
+the `cli-playground` Dokku app. Its [deployment guide](../../tools/cli-playground/docs/deployment.md)
+covers PR apps, worker count and restart behavior.
 
 ## Queue and retry behavior
 
@@ -40,7 +42,7 @@ trigger releases.
 
 ## Inspect a failed release
 
-An unsuccessful SSH or Compose command fails the Actions run. On the host, inspect
+An unsuccessful SSH, Compose or Dokku command fails the Actions run. On the host, inspect
 services and recent logs before rerunning the workflow:
 
 ```sh
@@ -52,11 +54,13 @@ docker compose --env-file /etc/sanctuary/boxie.env --env-file /etc/sanctuary/box
   -f /opt/sanctuary/boxie/compose.observability.yml logs --tail 100 api supervisor
 docker compose --env-file /etc/sanctuary/cli-playground.env --env-file /etc/sanctuary/cli-playground-image.env \
   -f /opt/sanctuary/cli-playground/compose.production.yml ps
+docker exec sanctuary-dokku dokku ps:report cli-playground
+docker exec sanctuary-dokku dokku logs cli-playground -n 100
 ```
 
 A migration failure leaves Boxie's API and supervisor stopped. Check migration
 output and database state before retrying; do not start an older application
-against a newer schema. After an SSH interruption, first check whether Compose
+against a newer schema. After an SSH interruption, first check whether the service manager
 finished the operation and whether the application is healthy. Fix the cause and
 rerun the workflow. There is no automatic rollback or separate deployment state
 to clear.

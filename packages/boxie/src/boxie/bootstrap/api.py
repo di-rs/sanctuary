@@ -59,6 +59,7 @@ def load_configuration(path: Path) -> ApiProcessConfig:
         {
             "release": data.pop("release"),
             "consumers": consumers,
+            "consumer_grants_dir": data.pop("consumer_grants_dir", None),
             "job_policy": data.pop("job_policy", {}),
         },
     )

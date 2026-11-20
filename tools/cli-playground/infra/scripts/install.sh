@@ -7,8 +7,9 @@ if ! docker network inspect cli-playground-proxy >/dev/null 2>&1; then docker ne
 for volume in cli-playground-data cli-playground-certificates; do
     if ! docker volume inspect "$volume" >/dev/null 2>&1; then docker volume create "$volume" >/dev/null; fi
 done
-bash "$owner/scripts/provision.sh"
-timeout 180 docker compose --env-file "$config/cli-playground.env" --env-file "$config/cli-playground-image.env" \
-    -f "$owner/compose.production.yml" run --rm --no-deps backend alembic upgrade head
-timeout 180 docker compose --env-file "$config/cli-playground.env" --env-file "$config/cli-playground-image.env" \
-    -f "$owner/compose.production.yml" up -d --no-build --wait --wait-timeout 150
+if ! docker network inspect playground-apps >/dev/null 2>&1; then
+    docker network create --internal playground-apps >/dev/null
+fi
+[[ $(docker network inspect --format '{{.Internal}}' playground-apps) == true ]]
+docker compose --env-file "$config/cli-playground.env" -f "$owner/compose.production.yml" \
+    up -d --wait --wait-timeout 300 dokku proxy
