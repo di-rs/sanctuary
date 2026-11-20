@@ -83,7 +83,7 @@ over both entry points. Exercise `preview_ci.py`, `report.py --kind bench` and
 `report.py --kind size` from a different working directory in their respective
 tests. Verify bounded responses, timeouts, pagination, credential redaction and
 stale-revision handling before removing the copies. [Benchmark policy tests](../tools/cli-bench/tests/test_github_policy.py) ·
-[Preview policy tests](../tools/cli-playground/tests/test_preview_github_policy.py)
+[Preview policy tests](../tools/cli-playground/tests/test_infra_workflows.py)
 
 ## Follow-up cleanup
 

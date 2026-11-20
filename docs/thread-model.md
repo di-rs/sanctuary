@@ -149,4 +149,4 @@ informs repository reviews; it does not configure Codex Security Cloud monitorin
 Its structure follows [OpenAI's threat-model guidance](https://learn.chatgpt.com/docs/security/threat-model).
 
 Production setup and releases stream locally built Sanctuary images from the runner
-to the pinned SSH host. The runner verifies the loaded Docker image ID before activation.
+to the pinned SSH host. The host verifies the archive checksum before activation.
