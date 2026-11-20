@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import cast
 
 import collect_sizes
 import pytest
@@ -271,6 +272,30 @@ def test_size_publication_is_sticky_owned_and_ordered(size_github: FakeGitHub) -
 
 def test_size_rejects_previous_attempt_archive(size_github: FakeGitHub) -> None:
     size_github.jobs[0]["started_at"] = "2026-10-13T00:04:00Z"
+    result = report.generate(size_github, REPO, 500, kind="size")
+    assert result is not None and "artifact unavailable or invalid" in result
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"expired": True},
+        {"created_at": "2026-10-12T23:59:59Z"},
+        {"size_in_bytes": report.MAX_ZIP + 1},
+    ],
+    ids=["expired", "previous-attempt", "oversized"],
+)
+def test_size_does_not_fall_back_to_an_older_archive(
+    size_github: FakeGitHub, change: dict[str, object]
+) -> None:
+    responses = size_github.responses
+    metadata = cast(
+        dict[str, object], responses[f"{BASE}/actions/runs/500/artifacts?per_page=100&page=1"]
+    )
+    artifacts = cast(list[dict[str, object]], metadata["artifacts"])
+    artifacts.insert(0, artifacts[0] | {"id": 2} | change)
+    responses[f"{BASE}/actions/artifacts/2/zip"] = responses[f"{BASE}/actions/artifacts/1/zip"]
+
     result = report.generate(size_github, REPO, 500, kind="size")
     assert result is not None and "artifact unavailable or invalid" in result
 
