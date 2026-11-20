@@ -295,28 +295,74 @@ fn t6_stdin_outfile_count(cx: &TestContext) -> Result<()> {
 }
 
 #[cli_test]
+fn rejects_output_aliases_without_truncating(cx: &TestContext) -> Result<()> {
+    check_output_aliases(cx, false)
+}
+
+#[cli_test]
+fn rejects_redirected_stdin_aliases_without_truncating(cx: &TestContext) -> Result<()> {
+    check_output_aliases(cx, true)
+}
+
 #[allow(
     clippy::panic_in_result_fn,
     reason = "Assertions verify observable CLI behavior; Result propagates fixture errors."
 )]
-fn rejects_output_aliases_without_truncating(cx: &TestContext) -> Result<()> {
+fn check_output_aliases(cx: &TestContext, redirected: bool) -> Result<()> {
     let dir = assert_fs::TempDir::new()?;
     let input = dir.path().join("input");
     let alias = dir.path().join("alias");
-    std::fs::write(&input, b"a\na\n")?;
-    std::fs::hard_link(&input, &alias)?;
+    let contents = b"red\nred\nblue\n";
+    fs::write(&input, contents)?;
+    fs::hard_link(&input, &alias)?;
     let symlink = dir.path().join("symlink");
     std::os::unix::fs::symlink(&input, &symlink)?;
     for output in [&input, &alias, &symlink] {
-        cx.cmd()
-            .arg(&input)
-            .arg(output)
-            .assert()
-            .code(65)
-            .stdout("")
-            .stderr(predicates::str::contains("same file"));
-        assert_eq!(std::fs::read(&input)?, b"a\na\n");
+        let mut command = cx.std_command();
+        if redirected {
+            command.arg("-").stdin(fs::File::open(&input)?);
+        } else {
+            command.arg(&input);
+        }
+        let result = command.arg(output).output()?;
+        assert_eq!(
+            (result.status.code(), fs::read(&input)?.as_slice()),
+            (Some(65), contents.as_slice()),
+            "output path: {}",
+            output.display()
+        );
+        assert_eq!(result.stdout, b"");
+        assert_eq!(
+            result.stderr,
+            b"Error: input and output refer to the same file\n"
+        );
     }
+    Ok(())
+}
+
+#[cli_test]
+#[allow(
+    clippy::panic_in_result_fn,
+    reason = "Assertions verify observable CLI behavior; Result propagates fixture errors."
+)]
+fn writes_redirected_stdin_to_distinct_output(cx: &TestContext) -> Result<()> {
+    let dir = assert_fs::TempDir::new()?;
+    let input = dir.path().join("input");
+    let output = dir.path().join("output");
+    let contents = b"red\nred\nblue\n";
+    fs::write(&input, contents)?;
+    fs::write(&output, b"stale data that must not survive")?;
+    let result = cx
+        .std_command()
+        .arg("-")
+        .arg(&output)
+        .stdin(fs::File::open(&input)?)
+        .output()?;
+    assert_eq!(result.status.code(), Some(0));
+    assert_eq!(result.stdout, b"");
+    assert_eq!(result.stderr, b"");
+    assert_eq!(fs::read(&input)?, contents);
+    assert_eq!(fs::read(&output)?, b"red\nblue\n");
     Ok(())
 }
 
