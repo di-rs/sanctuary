@@ -10,3 +10,20 @@ mkdir -p demo/tests/expected demo/tests/inputs && \
   printf '%s\\n' 'schema = 1' 'binary = \"probe\"' 'reference = \"echo\"' '[references.echo]' 'program = \"/bin/echo\"' 'platform = \"linux\"' '[[cases]]' 'name = \"sample\"' 'args = [\"hello\"]' 'expect = { exit = 0 }' 'origin = { reference = \"echo\", args = [\"-n\", \"hello\"], reason = \"printf emits no final newline.\" }' > demo/tests/cases.toml && \
   printf hello > demo/tests/expected/sample.out"""
 args = ["list", "--suite", "demo/tests/cases.toml", "--limit", "1", "--offset", "0"]
+
+[[cases]]
+name = "partial-promotion"
+setup = """\
+mkdir -p promotion/tests/expected && \
+  printf '%s\\n' '[package]' 'name = "probe"' > promotion/Cargo.toml && \
+  printf '%s\\n' 'schema = 1' 'binary = "probe"' 'reference = "echo"' \
+  '[references.echo]' 'program = "/bin/echo"' 'platform = "linux"' \
+  '[[cases]]' 'name = "first"' 'args = ["updated"]' 'expect = { exit = 0 }' \
+  '[[cases]]' 'name = "second"' 'args = ["updated"]' 'expect = { exit = 0 }' \
+  > promotion/tests/cases.toml && \
+  printf 'old\\n' > promotion/tests/expected/first.out && \
+  printf 'old\\n' > promotion/tests/expected/second.out && \
+  cli-testing --suite promotion/tests/cases.toml record --output promotion/capture && \
+  chmod a-w promotion/tests/expected/second.out"""
+args = ["--suite", "promotion/tests/cases.toml", "apply", "promotion/capture"]
+after = "head -n 1 promotion/tests/expected/*.out"

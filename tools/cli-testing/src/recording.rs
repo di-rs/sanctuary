@@ -137,25 +137,37 @@ fn new_recording_directory(suite: &Suite, output: &Path) -> Result<PathBuf> {
 /// Rejects incomplete, stale, tampered or conflicting recordings before writes.
 /// An I/O failure during promotion reports which writes already completed.
 pub fn apply(suite: &Suite, directory: &Path) -> Result<Vec<PathBuf>> {
-    let replacements = prepare_apply(suite, directory)?;
+    promote(suite, prepare_apply(suite, directory)?)
+}
+
+fn promote(suite: &Suite, replacements: BTreeMap<PathBuf, Vec<u8>>) -> Result<Vec<PathBuf>> {
     let mut written = Vec::new();
     for (relative, bytes) in replacements {
-        let path = suite.fixture_path(&relative)?;
-        if fs::read(&path)? == bytes {
-            continue;
-        }
-        fs::write(&path, bytes).map_err(|error| {
+        if replace_fixture(suite, &relative, &bytes).map_err(|error| {
+            let destination = suite.package_dir().join("tests").join(&relative);
             Error::caused_by(
                 format!(
                     "cannot promote {}; already wrote {written:?}",
-                    path.display()
+                    destination.display()
                 ),
                 error,
             )
-        })?;
-        written.push(relative);
+        })? {
+            written.push(relative);
+        }
     }
     Ok(written)
+}
+
+fn replace_fixture(suite: &Suite, relative: &Path, bytes: &[u8]) -> Result<bool> {
+    let path = suite.fixture_path(relative)?;
+    let current =
+        fs::read(&path).map_err(|error| Error::caused_by("cannot read destination", error))?;
+    if current == bytes {
+        return Ok(false);
+    }
+    fs::write(&path, bytes).map_err(|error| Error::caused_by("cannot write destination", error))?;
+    Ok(true)
 }
 
 /// Preflight a recording and list fixtures whose bytes would change.
@@ -413,4 +425,72 @@ fn promote_stream(
         )?;
     }
     Ok(())
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[allow(
+        clippy::panic_in_result_fn,
+        reason = "Assertions verify the error and disk state; Result propagates setup failures."
+    )]
+    fn promotion_reports_completed_writes_on_lookup_and_read_failure() -> Result {
+        use std::error::Error as _;
+
+        for (replace_with_directory, operation) in
+            [(false, "cannot inspect"), (true, "cannot read destination")]
+        {
+            let package = assert_fs::TempDir::new()
+                .map_err(|error| Error::caused_by("cannot create test package", error))?;
+            let root = package.path();
+            fs::create_dir_all(root.join("tests/expected"))?;
+            fs::write(root.join("Cargo.toml"), "[package]\nname = 'probe'\n")?;
+            let catalog = root.join("tests/cases.toml");
+            fs::write(
+                &catalog,
+                r#"
+schema = 1
+binary = "probe"
+[[cases]]
+name = "probe"
+args = []
+origin = { manual = "Fixed test bytes." }
+expect = { exit = 0, stdout_file = "first.out", stderr_file = "second.out" }
+"#,
+            )?;
+            let first = PathBuf::from("expected/first.out");
+            let second = PathBuf::from("expected/second.out");
+            let first_path = root.join("tests").join(&first);
+            let second_path = root.join("tests").join(&second);
+            fs::write(&first_path, b"old")?;
+            fs::write(&second_path, b"old")?;
+            let suite = Suite::load(&catalog)?;
+
+            // Change the second destination after loading, before the write phase.
+            fs::remove_file(&second_path)?;
+            if replace_with_directory {
+                fs::create_dir(&second_path)?;
+            }
+            let replacements =
+                BTreeMap::from([(first, b"first".to_vec()), (second, b"second".to_vec())]);
+            let Err(error) = promote(&suite, replacements) else {
+                return Err(Error::new("promotion unexpectedly succeeded"));
+            };
+            let message = error.to_string();
+            assert!(message.contains("tests/expected/second.out"), "{error}");
+            assert!(
+                message.contains(r#"already wrote ["expected/first.out"]"#),
+                "{error}"
+            );
+            assert!(
+                error
+                    .source()
+                    .is_some_and(|source| source.to_string().contains(operation))
+            );
+            assert_eq!(fs::read(&first_path)?, b"first");
+        }
+        Ok(())
+    }
 }
