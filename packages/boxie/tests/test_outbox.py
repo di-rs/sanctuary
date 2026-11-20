@@ -185,9 +185,17 @@ def test_daily_cleanup_drains_more_than_one_batch(
     asyncio.run(exercise())
 
 
-@pytest.mark.parametrize("previous", [False, True])
-def test_upgrade_replaces_polling_schedules_with_twice_daily_cleanup(
-    temporal_stack: Any, previous: bool
+@pytest.mark.parametrize(
+    ("previous", "operator_interval"),
+    [
+        pytest.param(False, None, id="older-polling"),
+        pytest.param(True, None, id="newer-polling"),
+        pytest.param(True, ("artifacts", 60), id="modified-cleanup"),
+        pytest.param(True, ("commands", 30), id="modified-retired"),
+    ],
+)
+def test_maintenance_schedule_migration(
+    temporal_stack: Any, previous: bool, operator_interval: tuple[str, int] | None
 ) -> None:
     from boxie.domain.models import SupervisorIdentity
     from boxie.temporal.contracts import maintenance_queue
@@ -211,16 +219,17 @@ def test_upgrade_replaces_polling_schedules_with_twice_daily_cleanup(
         )
         identity = SupervisorIdentity(uuid4(), "upgrade")
         queue = maintenance_queue(identity)
-        identifiers = [
-            f"{queue}/{kind}" for kind in ("commands", "journal", "artifacts", "retention")
-        ]
+        intervals = {
+            "commands": 15 if previous else 5,
+            "journal": 60 if previous else 30,
+            "artifacts": 300 if previous else 30,
+            "retention": 300 if previous else 30,
+        }
+        if operator_interval is not None:
+            kind, seconds = operator_interval
+            intervals[kind] = seconds
         try:
-            for kind, seconds in (
-                ("commands", 15 if previous else 5),
-                ("journal", 60 if previous else 30),
-                ("artifacts", 300 if previous else 30),
-                ("retention", 300 if previous else 30),
-            ):
+            for kind, seconds in intervals.items():
                 await client.create_schedule(
                     f"{queue}/{kind}",
                     Schedule(
@@ -235,6 +244,17 @@ def test_upgrade_replaces_polling_schedules_with_twice_daily_cleanup(
                         ),
                     ),
                 )
+            if operator_interval is not None:
+                with pytest.raises(
+                    RuntimeError, match="maintenance schedule configuration differs"
+                ):
+                    await ensure_schedules(client, identity)
+                kind, seconds = operator_interval
+                actual = (await client.get_schedule_handle(f"{queue}/{kind}").describe()).schedule
+                assert actual.spec.intervals == [
+                    ScheduleIntervalSpec(every=timedelta(seconds=seconds))
+                ]
+                return
             await ensure_schedules(client, identity)
             await ensure_schedules(client, identity)
             for kind in ("commands", "journal"):
@@ -248,9 +268,9 @@ def test_upgrade_replaces_polling_schedules_with_twice_daily_cleanup(
                 ]
             await check_schedules(client, identity)
         finally:
-            for identifier in identifiers:
+            for kind in intervals:
                 try:
-                    await client.get_schedule_handle(identifier).delete()
+                    await client.get_schedule_handle(f"{queue}/{kind}").delete()
                 except RPCError as error:
                     if error.status != RPCStatusCode.NOT_FOUND:
                         raise
