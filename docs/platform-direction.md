@@ -23,6 +23,11 @@ let people try repository commands in a browser. As the platform develops, it
 will use the same consumer boundary as other applications rather than determine
 Sanctuary's runtime or account model.
 
+A self-hosted n8n team could run its invoice checker in Boxie. A support
+engineer whose export must stay on their computer could try a Sanctuary
+command in the browser. For the alternatives and criteria for choosing a
+trial, see [Choosing a Sanctuary pilot](ideas/README.md).
+
 ## Where the implementation stands
 
 Today, Boxie exposes a private consumer API for bounded Bash terminals and
