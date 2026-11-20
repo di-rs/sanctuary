@@ -79,7 +79,8 @@ def local_tls() -> ssl.SSLContext:
     manifest.write_text(yaml.safe_dump(compose))
     with Path("/etc/hosts").open("a") as hosts:
         print(f"127.0.0.1 {DOMAIN} pr-7.{DOMAIN} app-pr-11.{DOMAIN} app-pr-22.{DOMAIN}", file=hosts)
-    os.environ["CURL_CA_BUNDLE"] = str(cert)
+    shutil.copyfile(cert, "/usr/local/share/ca-certificates/playground-fixture.crt")
+    subprocess.run(["update-ca-certificates"], check=True)
     return ssl.create_default_context(cafile=cert)
 
 
@@ -108,19 +109,36 @@ def prepare_boxie(tmp_path: Path) -> LifecycleStack:
     return stack
 
 
+def remote(script: str, *args: str) -> list[str]:
+    return [
+        "ssh",
+        "-F",
+        os.environ["DOKKU_TEST_SSH_CONFIG"],
+        "deployment",
+        "bash",
+        str(OWNER / "scripts" / script),
+        *args,
+    ]
+
+
+def stream_image(tag: str, command: list[str]) -> None:
+    subprocess.run(["docker", "tag", "cli-playground:lifecycle", tag], check=True)
+    with subprocess.Popen(["docker", "save", tag], stdout=subprocess.PIPE) as archive:
+        subprocess.run(command, stdin=archive.stdout, check=True)
+        assert archive.wait() == 0
+
+
 def feature(pr: int, sha: str, directory: Path) -> str:
     tag = f"localhost/sanctuary-playground-pr-{pr}:{sha}"
-    subprocess.run(["docker", "tag", "cli-playground:lifecycle", tag], check=True)
-    command = ["bash", str(OWNER / "scripts/feature.sh")]
-    with subprocess.Popen(["docker", "save", tag], stdout=subprocess.PIPE) as archive:
-        subprocess.run([*command, "deploy", str(pr), sha], stdin=archive.stdout, check=True)
-        assert archive.wait() == 0
+    stream_image(tag, remote("feature.sh", "deploy", str(pr), sha))
     seed = directory / f"{sha}.zip"
     subprocess.run(
         ["bash", OWNER / "scripts/seed.sh", sha, ROOT / "target/release/echor", seed], check=True
     )
     with seed.open("rb") as source:
-        url = subprocess.check_output([*command, "publish", str(pr), sha], stdin=source, text=True)
+        url = subprocess.check_output(
+            remote("feature.sh", "publish", str(pr), sha), stdin=source, text=True
+        )
     identifier = hashlib.sha256(f"pull-request:{pr}".encode()).hexdigest()[:32]
     assert url.strip() == f"https://app-pr-{pr}.{DOMAIN}/p/{identifier}"
     return identifier
@@ -194,7 +212,9 @@ def test_dokku_two_prs_and_production(tmp_path: Path) -> None:
             "CLI_PLAYGROUND_IMAGE=cli-playground:lifecycle\n"
         )
         subprocess.run(["bash", OWNER / "scripts/install.sh"], check=True)
-        subprocess.run(["bash", OWNER / "scripts/deploy.sh"], check=True)
+        subprocess.run(remote("deploy.sh"), check=True)
+        production_tag = "localhost/sanctuary-cli-playground:" + "c" * 40
+        stream_image(production_tag, remote("deploy.sh", production_tag))
         binary = ROOT / "target/release/echor"
         archive = binary_bundle({"echor": binary.read_bytes()})
         with (
@@ -232,7 +252,7 @@ def test_dokku_two_prs_and_production(tmp_path: Path) -> None:
             feature(11, "d" * 40, tmp_path)
             echo_on_terminal(prod, "updated-prod")
             echo_on_terminal(neighbor, "updated-b")
-            subprocess.run(["bash", OWNER / "scripts/feature.sh", "remove", "11"], check=True)
+            subprocess.run(remote("feature.sh", "remove", "11"), check=True)
             echo_on_terminal(prod, "closed-prod")
             echo_on_terminal(neighbor, "closed-b")
             assert client.get(f"https://app-pr-11.{DOMAIN}/healthz").status_code in (400, 404)

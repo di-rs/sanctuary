@@ -38,7 +38,7 @@ jobs:
       - name: 🛡️ Install signed gVisor and configure sandbox runtime
         run: |
           sudo apt-get update
-          sudo apt-get install -y apt-transport-https ca-certificates curl gnupg
+          sudo apt-get install -y apt-transport-https ca-certificates curl gnupg openssh-server
           curl --fail --silent --show-error --location --max-time 60 https://gvisor.dev/archive.key \
             | sudo gpg --batch --yes --dearmor -o /usr/share/keyrings/gvisor-archive-keyring.gpg
           printf '%s\n' 'deb [arch=amd64 signed-by=/usr/share/keyrings/gvisor-archive-keyring.gpg] https://storage.googleapis.com/gvisor/releases release main' \
@@ -83,5 +83,16 @@ jobs:
       - name: Exercise production and two Dokku PR apps on this disposable runner
         timeout-minutes: 25
         run: |
+          private=$(mktemp -d)
+          ssh-keygen -q -t ed25519 -N '' -f "$private/key"
+          printf '[127.0.0.1]:22222 %s\n' "$(< /etc/ssh/ssh_host_ed25519_key.pub)" > "$private/known_hosts"
+          bash infra/environments/single-host/ssh-config.sh "$private" 127.0.0.1
+          echo '  Port 22222' >> "$private/config"
+          sudo install -d /run/sshd
+          sudo install -m 0644 "$private/key.pub" /run/dokku-acceptance-key.pub
+          sudo /usr/sbin/sshd -f /dev/null -h /etc/ssh/ssh_host_ed25519_key -p 22222 -o ListenAddress=127.0.0.1 \
+            -o PidFile=/run/dokku-acceptance-sshd.pid -o AuthorizedKeysFile=/run/dokku-acceptance-key.pub \
+            -o UsePAM=yes -o PermitRootLogin=prohibit-password -o PasswordAuthentication=no -o KbdInteractiveAuthentication=no
           sudo env PATH="$PATH" RUNNER_ENVIRONMENT="$RUNNER_ENVIRONMENT" SANCTUARY_DISPOSABLE_DOKKU_HOST=1 \
-            .venv/bin/python -m pytest -m integration tools/cli-playground/tests/test_dokku_native.py -s -v --tb=short
+            DOKKU_TEST_SSH_CONFIG="$private/config" .venv/bin/python -m pytest -m integration \
+            tools/cli-playground/tests/test_dokku_native.py -s -v --tb=short

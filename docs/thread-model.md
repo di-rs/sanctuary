@@ -160,4 +160,5 @@ informs repository reviews; it does not configure Codex Security Cloud monitorin
 Its structure follows [OpenAI's threat-model guidance](https://learn.chatgpt.com/docs/security/threat-model).
 
 Production setup and releases stream locally built Sanctuary images from the runner
-to the pinned SSH host. The host verifies the archive checksum before activation.
+to the pinned SSH host. Setup and Boxie compare the server’s loaded image ID with the one built on the runner.
+Playground releases stream the archive to Dokku over the authenticated SSH connection.

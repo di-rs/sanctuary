@@ -49,6 +49,8 @@ args = sys.argv[1:]
 if name == "docker":
     if args[:2] == ["image", "inspect"]:
         print(os.environ["IMAGE_ID"])
+    elif args[:2] == ["image", "save"]:
+        sys.stdout.buffer.write(b"fixture-image")
     sys.exit(0)
 config = pathlib.Path(args[1])
 record = {"name": name, "args": args, "private": str(config.parent)}
@@ -58,8 +60,10 @@ if name == "scp" and args[-1].endswith("/image.env"):
     record["image_env"] = pathlib.Path(args[-2]).read_text()
 with open(os.environ["CALLS"], "a") as log:
     log.write(json.dumps(record) + "\\n")
+if name == "ssh" and args[-1] == "docker image load":
+    assert sys.stdin.buffer.read() == b"fixture-image"
 if name == "ssh" and "docker image inspect" in args[-1]:
-    print("mismatch" if os.environ["FAIL"] == "image" else "sha256:" + "b" * 64)
+    print("sha256:" + "b" * 64 if os.environ["FAIL"] == "image" else os.environ["IMAGE_ID"])
 if name == "ssh" and "sed -n" in args[-1]:
     key = args[-1].split("s/^")[1].split("=")[0]
     print(json.loads(os.environ["RETAINED"])[key])
@@ -115,7 +119,7 @@ def test_release_preserves_other_image_and_cleans_credentials(
     calls = [json.loads(line) for line in Path(release_env["CALLS"]).read_text().splitlines()]
     image_env = next(call["image_env"] for call in calls if "image_env" in call)
     image = (
-        "sha256:" + "b" * 64
+        IMAGE_ID
         if component == "boxie-sandbox"
         else f"localhost/sanctuary-{component}:{IMAGE_ID[7:]}"
     )

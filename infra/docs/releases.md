@@ -14,7 +14,7 @@ A failed stage stops the remaining deployments in its workflow; completed stages
 are not rolled back automatically. Boxie stages use the `boxie` environment;
 the cli-playground release uses `cli-playground`.
 Playground streams its built image into Dokku over pinned SSH. The Boxie stages use the
-[Boxie release transport](../environments/single-host/release.sh) to verify and load each archive.
+[Boxie release transport](../environments/single-host/release.sh) to stream each archive and verify that the server loaded the exact image built by Actions.
 
 ## What a release changes
 
