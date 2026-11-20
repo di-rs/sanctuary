@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 from boxie.api.downloads import JobDownloads
 from boxie.application.ports import ArtifactAccess, JobAccess, Lifecycle
 from boxie.contracts.consumer import CreateSandboxWire, ViewWire
-from boxie.contracts.jobs import CreateJob, JobResultView, JobView
+from boxie.contracts.jobs import CreateJob, JobCancellationView, JobResultView, JobState, JobView
 from boxie.domain.models import Principal, TerminationReason
 
 
@@ -91,6 +91,17 @@ def job_routes(
     @router.get("/{job_id}")
     async def get_job(job_id: UUID, request: Request) -> JobView:
         return await jobs.get_job(principal(request), job_id)
+
+    @router.delete("/{job_id}")
+    async def cancel_job(job_id: UUID, request: Request) -> JobCancellationView:
+        job = await jobs.cancel_job(principal(request), job_id)
+        if (
+            deliver is not None
+            and job.cleanup_pending
+            and job.state not in (JobState.SUCCEEDED, JobState.FAILED)
+        ):
+            await deliver(job.id)
+        return job
 
     @router.get("/{job_id}/result")
     async def get_result(job_id: UUID, request: Request, response: Response) -> JobResultView:

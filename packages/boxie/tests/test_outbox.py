@@ -533,6 +533,8 @@ def test_actual_api_process_accepts_status_and_stop_during_temporal_outage(
     import sys
 
     import httpx
+    from boxie.application.admission import JobPolicy
+    from boxie.persistence.postgres import PostgresLifecycle
 
     async def exercise() -> None:
         client = await Client.connect(
@@ -542,7 +544,16 @@ def test_actual_api_process_accepts_status_and_stop_during_temporal_outage(
             data_converter=pydantic_data_converter,
         )
         async with lifecycle_stack(postgres_dsn, tmp_path, client) as stack:
-            view = await stack.life.submit(OWNER, "api-outage", await upload(stack.artifacts))
+            spec = await upload(stack.artifacts)
+            view = await stack.life.submit(OWNER, "api-outage", spec)
+            job_life = PostgresLifecycle(
+                stack.sessions,
+                stack.life.resolver,
+                stack.life.identity,
+                stack.life.dependencies,
+                job_policy=JobPolicy(profile_grants={"one": frozenset({"shell"})}),
+            )
+            job = await job_life.submit_job(OWNER, "job-outage", replace(spec, is_job=True))
             dsn_path = tmp_path / "dsn.secret"
             dsn_path.write_text(postgres_dsn)
             dsn_path.chmod(0o600)
@@ -601,10 +612,28 @@ def test_actual_api_process_accepts_status_and_stop_during_temporal_outage(
                         assert (await http.get("/readyz")).status_code == 503
                         assert (await http.delete(f"/v1/sandboxes/{view.id}")).status_code == 200
                         assert (await stack.life.load_request(view.id)).desired_stop
-                        assert (await counts(stack.sessions))[1:3] == (1, 1)
+                        route = f"/v1/jobs/{job.id}"
+                        for _ in range(2):
+                            stopped = await http.delete(route)
+                            assert stopped.status_code == 200
+                            assert stopped.json() == {
+                                "id": str(job.id),
+                                "state": "not_started",
+                                "cleanup_pending": True,
+                            }
+                        assert (await job_life.load_request(job.id)).desired_stop
+                        assert len(await stack.delivery.store.pending(job.id)) == 2
+                        assert (await counts(stack.sessions))[1:3] == (2, 2)
                 finally:
                     process.terminate()
                     await asyncio.wait_for(process.wait(), 5)
+            async with embedded_workers(client, stack.life, stack.supervisor, stack.artifacts):
+                async with asyncio.timeout(15):
+                    while (await counts(stack.sessions))[1:3] != (0, 0):
+                        await asyncio.sleep(0.05)
+                settled = await job_life.cancel_job(OWNER, job.id)
+                assert settled.state == "not_started" and not settled.cleanup_pending
+                assert stack.daemon.creates == 0
 
     asyncio.run(exercise())
 

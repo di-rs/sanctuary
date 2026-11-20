@@ -25,7 +25,7 @@ from boxie.application.admission import (
 from boxie.application.ports import AdmissionProfileResolver
 from boxie.contracts.consumer import SpecWire, ViewWire, spec_wire
 from boxie.contracts.execution import SnapshotWire
-from boxie.contracts.jobs import JobResultView, JobView
+from boxie.contracts.jobs import JobCancellationView, JobResultView, JobState, JobView
 from boxie.domain.errors import BoxieError
 from boxie.domain.lifecycle import SandboxRequest, SupervisorObservation
 from boxie.domain.models import (
@@ -145,6 +145,35 @@ class PostgresLifecycle:
     async def get_job(self, principal: Principal, identifier: UUID) -> JobView:
         async with consumer_session(self.sessions) as session:
             return await job_view(session, principal, identifier)
+
+    async def cancel_job(self, principal: Principal, identifier: UUID) -> JobCancellationView:
+        async with consumer_session(self.sessions) as session:
+            # Lock in completion/cleanup order. The job lock also serializes
+            # the queued transition with the one-time authorization update.
+            row = await self._lock_sandbox(session, principal, identifier)
+            job = await session.scalar(
+                select(Job)
+                .where(Job.id == identifier, Job.consumer_id == principal.consumer_id)
+                .with_for_update()
+            )
+            if job is None:
+                raise BoxieError(404, "job not found")
+            event = None
+            if row is not None and job.state not in (JobState.SUCCEEDED, JobState.FAILED):
+                event = await self._request_stop(session, row, TerminationReason.REQUESTED)
+                if job.state == JobState.QUEUED:
+                    job.state = JobState.NOT_STARTED.value
+                    # No authorized attempt can publish output. Physical cleanup
+                    # still owns the slot and artifact reference.
+                    row.reserved_result_bytes = 0
+            result = JobCancellationView(
+                id=identifier,
+                state=JobState(job.state),
+                cleanup_pending=row is not None and row.cleaned_at is None,
+            )
+        if event is not None:
+            deliver(self.diagnostics, event)
+        return result
 
     async def get_result(self, principal: Principal, identifier: UUID) -> JobResultView:
         async with consumer_session(self.sessions) as session:
@@ -334,42 +363,50 @@ class PostgresLifecycle:
         include_jobs: bool = False,
     ) -> SandboxView:
         async with consumer_session(self.sessions) as session:
-            row = (
-                await session.exec(
-                    select(Sandbox)
-                    .where(Sandbox.id == sandbox_id, Sandbox.consumer_id == principal.consumer_id)
-                    .with_for_update()
-                )
-            ).one_or_none()
+            row = await self._lock_sandbox(session, principal, sandbox_id)
             if row is None or (row.spec.get("is_job") and not include_jobs):
                 raise BoxieError(404, "sandbox not found")
-            if row.cleaned_at is not None or row.desired_stop:
-                return view(row)
-            was_pending = row.cleanup_pending
-            row.reason = row.reason or reason.value
-            if row.stop_request_id is None:
-                row.stop_request_id = (
-                    row.creation_request_id
-                    if row.reason == TerminationReason.PROVISIONING_FAILED.value
-                    else UUID(current_request_id() or str(uuid4()))
-                )
-            row.desired_stop = True
-            row.state, row.cleanup_pending = "terminating", True
-            if not was_pending:
-                row.cleanup_pending_since = cast(
-                    datetime, await session.scalar(select(func.clock_timestamp()))
-                )
-            await self._enqueue(session, sandbox_id, "stop", request_id=row.stop_request_id)
-        deliver(
-            self.diagnostics,
-            Transition(
-                event="termination.requested",
-                sandbox_id=sandbox_id,
-                reason=row.reason,
-                request_id=row.stop_request_id,
-            ),
-        )
+            event = await self._request_stop(session, row, reason)
+        if event is not None:
+            deliver(self.diagnostics, event)
         return view(row)
+
+    @staticmethod
+    async def _lock_sandbox(
+        session: AsyncSession, principal: Principal, sandbox_id: UUID
+    ) -> Sandbox | None:
+        return await session.scalar(
+            select(Sandbox)
+            .where(Sandbox.id == sandbox_id, Sandbox.consumer_id == principal.consumer_id)
+            .with_for_update()
+        )
+
+    async def _request_stop(
+        self, session: AsyncSession, row: Sandbox, reason: TerminationReason
+    ) -> Transition | None:
+        if row.cleaned_at is not None or row.desired_stop:
+            return None
+        was_pending = row.cleanup_pending
+        row.reason = row.reason or reason.value
+        if row.stop_request_id is None:
+            row.stop_request_id = (
+                row.creation_request_id
+                if row.reason == TerminationReason.PROVISIONING_FAILED.value
+                else UUID(current_request_id() or str(uuid4()))
+            )
+        row.desired_stop = True
+        row.state, row.cleanup_pending = "terminating", True
+        if not was_pending:
+            row.cleanup_pending_since = cast(
+                datetime, await session.scalar(select(func.clock_timestamp()))
+            )
+        await self._enqueue(session, row.id, "stop", request_id=row.stop_request_id)
+        return Transition(
+            event="termination.requested",
+            sandbox_id=row.id,
+            reason=row.reason,
+            request_id=row.stop_request_id,
+        )
 
     async def load_request(self, sandbox_id: UUID) -> SandboxRequest:
         """Activity-side lookup only: spec/snapshot may contain secrets."""

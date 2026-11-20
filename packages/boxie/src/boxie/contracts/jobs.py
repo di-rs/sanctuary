@@ -40,6 +40,10 @@ class JobView(WireModel):
     state: JobState
 
 
+class JobCancellationView(JobView):
+    cleanup_pending: bool
+
+
 class JobResultView(WireModel):
     exit_code: int
     stdout_base64: str
