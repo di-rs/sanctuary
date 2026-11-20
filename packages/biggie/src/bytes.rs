@@ -39,38 +39,43 @@ impl ByteOptions {
 /// ```
 /// # Errors
 /// Invalid options fail before writing; write errors preserve partial output.
-pub fn generate_bytes(mut writer: impl Write, options: &ByteOptions) -> Result<()> {
+pub fn generate_bytes(writer: impl Write, options: &ByteOptions) -> Result<()> {
     options.validate()?;
-    let mut rng = match options.source {
-        ByteSource::Random { seed } => Some(rng_from_seed(seed)),
-        ByteSource::Pattern(_) => None,
-    };
-    log::debug!(requested_bytes = options.bytes; "generating bytes");
+    match &options.source {
+        ByteSource::Random { seed } => {
+            let mut rng = rng_from_seed(*seed);
+            write_chunks(writer, options.bytes, |chunk| rng.fill_bytes(chunk))
+        }
+        ByteSource::Pattern(pattern) => {
+            let mut pattern = pattern.iter().copied().cycle();
+            write_chunks(writer, options.bytes, |chunk| {
+                for (byte, value) in chunk.iter_mut().zip(&mut pattern) {
+                    *byte = value;
+                }
+            })
+        }
+    }
+}
+
+fn write_chunks(
+    mut writer: impl Write,
+    byte_count: u64,
+    mut fill_chunk: impl FnMut(&mut [u8]),
+) -> Result<()> {
+    log::debug!(requested_bytes = byte_count; "generating bytes");
     let mut buffer = [0_u8; 8192];
-    let mut remaining = options.bytes;
-    let mut position = 0_usize;
+    let mut remaining = byte_count;
     while remaining > 0 {
         let count = remaining.min(8192);
         let bytes = buffer
             .get_mut(..usize::try_from(count)?)
             .context("invalid byte buffer length")?;
-        match &options.source {
-            ByteSource::Random { .. } => rng.as_mut().context("missing RNG")?.fill_bytes(bytes),
-            ByteSource::Pattern(pattern) => {
-                for byte in bytes.iter_mut() {
-                    *byte = *pattern.get(position).context("invalid pattern index")?;
-                    position = position.saturating_add(1);
-                    if position == pattern.len() {
-                        position = 0;
-                    }
-                }
-            }
-        }
+        fill_chunk(bytes);
         writer
             .write_all(bytes)
             .context("Cannot write generated data")?;
         remaining = remaining.saturating_sub(count);
     }
-    log::debug!(bytes_written = options.bytes; "generation complete");
+    log::debug!(bytes_written = byte_count; "generation complete");
     Ok(())
 }
