@@ -8,10 +8,11 @@ config=${SANCTUARY_CONFIG_DIR:-/etc/sanctuary}
 owner=${SANCTUARY_BOXIE_DIR:-/opt/sanctuary/boxie}
 image_file=${SANCTUARY_BOXIE_IMAGE_FILE:-$config/boxie-image.env}
 export BOXIE_RELEASE=$revision BOXIE_API_CONFIG=$owner/api.json
+manifests=(-f "$owner/compose.production.yml" -f "$owner/compose.operations.yml" -f "$owner/compose.observability.yml")
+if [[ -f $config/playground-network.yml ]]; then manifests+=(-f "$config/playground-network.yml"); fi
 compose() {
     docker compose --env-file "$config/boxie.env" --env-file "$image_file" \
-        -f "$owner/compose.production.yml" -f "$owner/compose.operations.yml" \
-        -f "$owner/compose.observability.yml" "$@"
+        "${manifests[@]}" "$@"
 }
 python3 - "$config/boxie/api.json" "$BOXIE_API_CONFIG" "$revision" <<'PY'
 import json

@@ -14,7 +14,6 @@ if [[ ! -e $token && ! -L $token ]]; then openssl rand -hex 32 > "$token"; fi
 [[ ! -L $token && -f $token && -s $token && -n $(find "$token" -perm 0600) ]] || {
     echo 'Expected a private, nonempty preview credential.' >&2; exit 1
 }
-docker network inspect playground-apps >/dev/null 2>&1 || docker network create --internal playground-apps
 [[ $(docker network inspect --format '{{.Internal}}' playground-apps) == true ]]
 docker volume create cli-playground-certificates >/dev/null
 docker compose --env-file "$config/settings.env" -f "$owner/compose.production.yml" up -d --build --remove-orphans --wait
@@ -23,7 +22,6 @@ dokku nginx:set --global proxy-read-timeout 3600s
 for app in cli-playground playground-review-template; do
     dokku apps:exists "$app" || dokku apps:create "$app"
     dokku network:set "$app" initial-network playground-apps
-    dokku network:set "$app" attach-post-create boxie-consumers
     dokku ports:set "$app" http:80:8000
     dokku checks:disable "$app" web
     dokku config:set --no-restart "$app" POSTGRES_DATABASE_SCHEME=postgresql+psycopg \
@@ -31,6 +29,8 @@ for app in cli-playground playground-review-template; do
         CLI_PLAYGROUND_BOXIE_CREDENTIAL_FILE=/run/secrets/consumer
     dokku docker-options:add "$app" deploy,run --read-only --cap-drop=ALL --security-opt=no-new-privileges --tmpfs=/tmp:rw,nosuid,size=48m
 done
+# Boxie owns this reserved bridge address across independent releases.
+dokku config:set --no-restart playground-review-template CLI_PLAYGROUND_BOXIE_URL=http://10.237.93.2:8090
 dokku docker-options:add playground-review-template deploy,run --runtime=runsc --user=65532:65532 \
     --memory=384m --cpus=0.75 --pids-limit=128 --tmpfs=/var/lib/cli-playground:rw,nosuid,noexec,size=96m,uid=65532
 dokku domains:set cli-playground "$CLI_PLAYGROUND_DOMAIN" "*.$CLI_PLAYGROUND_DOMAIN"

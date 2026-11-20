@@ -140,18 +140,16 @@ def test_only_manual_setup_can_provision_cloud_resources() -> None:
     assert "submit-release.sh" not in commands
 
 
-@pytest.mark.parametrize("transport", ["setup", "release"])
-def test_deployment_ssh_keeps_silent_readiness_checks_connected(
-    transport: str, tmp_path: Path
-) -> None:
-    if transport == "setup":
-        script = workflow("setup")["jobs"]["provision"]["steps"][-1]["run"]
-    else:
-        script = (
-            WORKFLOWS.parent.parent / "infra/environments/single-host/ssh-config.sh"
-        ).read_text()
-    config = tmp_path / "ssh_config"
-    config.write_text(script.split("<<SSH\n", 1)[1].split("\nSSH", 1)[0])
+def test_deployment_ssh_keeps_silent_readiness_checks_connected(tmp_path: Path) -> None:
+    helper = "infra/environments/single-host/ssh-config.sh"
+    assert helper in workflow("setup")["jobs"]["provision"]["steps"][-1]["run"]
+    assert helper in workflow("release")["jobs"]["deploy-backend"]["steps"][-1]["run"]
+    assert (
+        helper
+        in (WORKFLOWS.parent.parent / "infra/environments/single-host/release.sh").read_text()
+    )
+    subprocess.run(["bash", WORKFLOWS.parent.parent / helper, tmp_path, "fixture.test"], check=True)
+    config = tmp_path / "config"
     result = subprocess.run(
         ["ssh", "-G", "-F", str(config), "deployment"],
         capture_output=True,

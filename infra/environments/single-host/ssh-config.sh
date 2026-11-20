@@ -3,12 +3,16 @@
 set -euo pipefail
 umask 077
 directory=$1
-[[ $DEPLOY_HOST =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]+$ ]]
-printf '%s\n' "$DEPLOY_SSH_KEY" > "$directory/key"
-printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$directory/known_hosts"
+host=${2:-${DEPLOY_HOST:-}}
+[[ $host =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]+$ ]]
+# Setup already wrote its Pulumi key and known_hosts here.
+if (( $# == 1 )); then
+    printf '%s\n' "$DEPLOY_SSH_KEY" > "$directory/key"
+    printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$directory/known_hosts"
+fi
 cat > "$directory/config" <<SSH
 Host deployment
-  HostName $DEPLOY_HOST
+  HostName $host
   User root
   IdentityFile $directory/key
   IdentitiesOnly yes

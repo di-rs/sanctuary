@@ -1,0 +1,15 @@
+# The review apps use gVisor, which cannot resolve Docker's embedded DNS.
+services:
+  api:
+    networks:
+      playground:
+        ipv4_address: 10.237.93.2
+        aliases: [boxie-api]
+networks:
+  playground:
+    name: playground-apps
+    internal: true
+    ipam:
+      config:
+        - subnet: 10.237.93.0/24
+          ip_range: 10.237.93.128/25

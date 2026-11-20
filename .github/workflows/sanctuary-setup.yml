@@ -158,20 +158,7 @@ jobs:
             path.chmod(0o600)
         PYCODE
         [[ $GITHUB_RUN_ID =~ ^[0-9]+$ && $GITHUB_RUN_ATTEMPT =~ ^[0-9]+$ ]]
-        host=$(cat "$private/host")
-        cat > "$private/config" <<SSH
-        Host deployment
-          HostName $host
-          User root
-          IdentityFile $private/key
-          IdentitiesOnly yes
-          UserKnownHostsFile $private/known_hosts
-          StrictHostKeyChecking yes
-          BatchMode yes
-          ConnectTimeout 15
-          ServerAliveInterval 30
-          ServerAliveCountMax 6
-        SSH
+        bash infra/environments/single-host/ssh-config.sh "$private" "$(<"$private/host")"
         remote="/run/sanctuary-setup-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
         echo 'Waiting for host bootstrap'
         ssh -F "$private/config" deployment 'bash -se' <<'BOOTSTRAP'

@@ -5,6 +5,7 @@ set -euo pipefail
 source=$1
 /usr/local/sbin/sanctuary-storage-guard
 install -d -m 0700 /etc/sanctuary
+install -m 0644 "$source/infra/environments/single-host/playground-network.yml" /etc/sanctuary/playground-network.yml
 for file in settings.env tunnel.json boxie-image.env cli-playground-image.env; do
     install -m 0600 "$source/$file" "/etc/sanctuary/$file"
 done

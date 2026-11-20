@@ -50,6 +50,11 @@ case $operation in
             --shm-size 160m --custom-env PGDATA=/dev/shm/pgdata </dev/null >/dev/null
         dokku postgres:linked "$app" "$app" </dev/null || dokku postgres:link "$app" "$app" \
             --no-restart --env-var CLI_PLAYGROUND_DATABASE_URL </dev/null >/dev/null
+        # libpq accepts a numeric peer while retaining the plugin's private user and database.
+        link="dokku.postgres.$app.$app"
+        db_ip=$(docker inspect --format "{{(index .NetworkSettings.Networks \"$link\").IPAddress}}" "dokku.postgres.$app")
+        [[ $db_ip =~ ^[0-9]+(\.[0-9]+){3}$ ]]
+        dokku config:set --no-restart "$app" "PGHOSTADDR=$db_ip" </dev/null
         dokku git:load-image "$app" "$repository:$sha"
         clean_images "$sha"
         ;;

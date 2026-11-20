@@ -87,19 +87,14 @@ def prepare_boxie(tmp_path: Path) -> LifecycleStack:
     GRANTS.mkdir(mode=0o700, parents=True)
     subprocess.run(["docker", "network", "create", "--internal", "boxie-consumers"], check=True)
     overlay = tmp_path / "grants.yml"
-    overlay.write_text(
-        yaml.safe_dump(
-            {
-                "services": {
-                    "api": {
-                        "volumes": [f"{GRANTS}:/run/boxie-consumers:ro"],
-                        "networks": {"feature": {"aliases": ["boxie-api"]}},
-                    }
-                },
-                "networks": {"feature": {"external": True, "name": "boxie-consumers"}},
-            }
-        )
+    shared = yaml.safe_load(
+        (ROOT / "infra/environments/single-host/playground-network.yml").read_text()
     )
+    api_service = shared["services"]["api"]
+    api_service["volumes"] = [f"{GRANTS}:/run/boxie-consumers:ro"]
+    api_service["networks"]["feature"] = {"aliases": ["boxie-api"]}
+    shared["networks"]["feature"] = {"external": True, "name": "boxie-consumers"}
+    overlay.write_text(yaml.safe_dump(shared))
     stack = LifecycleStack(tmp_path, runtime_overlay=overlay)
     stack.start()
     api = tmp_path / "api.json"
@@ -229,9 +224,9 @@ def test_dokku_two_prs_and_production(tmp_path: Path) -> None:
                 and config["HostConfig"]["ReadonlyRootfs"]
             )
             assert config["Config"]["User"] == "65532:65532"
-            assert set(config["NetworkSettings"]["Networks"]) >= {
-                "boxie-consumers",
+            assert set(config["NetworkSettings"]["Networks"]) == {
                 "playground-apps",
+                "dokku.postgres.playground-pr-22.playground-pr-22",
             }
             neighbor = terminal(sockets, client, tls, f"app-pr-22.{DOMAIN}", second)
             feature(11, "d" * 40, tmp_path)

@@ -42,6 +42,7 @@ in the workflow. After a slot becomes available, rerun the current PR workflow.
 To change capacity, set the desired count in
 `/etc/sanctuary/playground-apps/limit` on the host. Each preview has a 384 MiB
 gateway and a 320 MiB database limit, in addition to its Boxie terminal workload.
+The private Playground bridge reserves `10.237.93.2` for the Boxie API across releases.
 
 To reconcile an existing PR or retry after a host restart, supply its number.
 The workflow reads the current commit and open or closed state from GitHub.
