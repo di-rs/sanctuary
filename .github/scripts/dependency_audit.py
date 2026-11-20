@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -133,10 +134,25 @@ def frontend_package_count(frontend: Path) -> int:
             ]
         except yaml.YAMLError as error:
             raise ValueError("Invalid pnpm lockfile YAML") from error
-    if not documents:
-        raise ValueError("Empty pnpm lockfile")
-    # pnpm v12 can put its own packages in a boot document before the project document.
-    importers = json_object(documents[-1].get("importers"), "frontend lockfile importers")
+    if len(documents) != 2:
+        raise ValueError("Expected pnpm boot and frontend project lockfile documents")
+    boot, project = documents
+    boot_importers = json_object(boot.get("importers"), "pnpm boot importers")
+    boot_root = json_object(boot_importers.get("."), "pnpm boot importer")
+    managers = json_object(boot_root.get("packageManagerDependencies"), "boot package managers")
+    pnpm = json_object(managers.get("pnpm"), "boot pnpm dependency")
+    boot_packages = json_object(boot.get("packages"), "pnpm boot packages")
+    pin = manifest.get("packageManager")
+    version = pnpm.get("version")
+    if (
+        not isinstance(version, str)
+        or not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?", version)
+        or pnpm.get("specifier") != version
+        or pin != f"pnpm@{version}"
+        or pin not in boot_packages
+    ):
+        raise ValueError("Frontend packageManager pin and pnpm boot lockfile disagree")
+    importers = json_object(project.get("importers"), "frontend lockfile importers")
     importer = json_object(importers.get("."), "frontend lockfile importer")
     direct_count = 0
     for section in ("dependencies", "devDependencies", "optionalDependencies"):
@@ -148,7 +164,7 @@ def frontend_package_count(frontend: Path) -> int:
         }:
             raise ValueError(f"Frontend manifest and lockfile disagree on {section}")
         direct_count += len(direct)
-    project_packages = json_object(documents[-1].get("packages"), "frontend project packages")
+    project_packages = json_object(project.get("packages"), "frontend project packages")
     if not direct_count or not project_packages:
         raise ValueError("pnpm lockfile contains no frontend application dependencies")
     return len(

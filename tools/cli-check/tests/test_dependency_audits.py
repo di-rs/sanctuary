@@ -59,7 +59,7 @@ def frontend_report(case: str) -> dict[str, object]:
         "advisories": advisories,
         "metadata": {
             "vulnerabilities": counts,
-            "totalDependencies": {"empty": 0, "partial": 1}.get(case, 2),
+            "totalDependencies": {"empty": 0, "partial": 1, "project only": 1}.get(case, 2),
         },
     }
 
@@ -90,6 +90,11 @@ def write_command(path: Path, script: str) -> None:
         ("python", "export failed", 0, "Incomplete"),
         ("python", "empty export", 0, "Incomplete"),
         ("frontend", "boot only", 0, "Incomplete"),
+        ("frontend", "project only", 0, "Incomplete"),
+        ("frontend", "manager pin drift", 0, "Incomplete"),
+        ("frontend", "boot specifier drift", 0, "Incomplete"),
+        ("frontend", "boot resolution drift", 0, "Incomplete"),
+        ("frontend", "missing boot package", 0, "Incomplete"),
         ("frontend", "missing lockfile", 0, "Incomplete"),
         ("frontend", "manifest drift", 0, "Incomplete"),
     ],
@@ -118,11 +123,22 @@ def test_audit_workflow(
     frontend.mkdir(parents=True)
     frontend.joinpath("package.json").write_text(
         json.dumps(
-            {"devDependencies": {"audit-pkg": "2.0.0" if case == "manifest drift" else "1.0.0"}}
+            {
+                "packageManager": "pnpm@12.9.2" if case == "manager pin drift" else "pnpm@12.9.1",
+                "devDependencies": {"audit-pkg": "2.0.0" if case == "manifest drift" else "1.0.0"},
+            }
         )
     )
     if case != "missing lockfile":
         lockfile = BOOT_LOCK if case == "boot only" else f"{BOOT_LOCK}---\n{PROJECT_LOCK}"
+        if case == "project only":
+            lockfile = PROJECT_LOCK
+        elif case == "boot specifier drift":
+            lockfile = lockfile.replace("specifier: 12.9.1", "specifier: 12.9.2")
+        elif case == "boot resolution drift":
+            lockfile = lockfile.replace("version: 12.9.1", "version: 12.9.2")
+        elif case == "missing boot package":
+            lockfile = lockfile.replace("pnpm@12.9.1: {}", "other@12.9.1: {}")
         frontend.joinpath("pnpm-lock.yaml").write_text(lockfile)
     report = python_report(case) if ecosystem == "python" else frontend_report(case)
     result = subprocess.run(
