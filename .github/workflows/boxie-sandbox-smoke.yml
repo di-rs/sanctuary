@@ -5,6 +5,7 @@ on:
     branches: [master]
     types: [opened, synchronize, reopened, ready_for_review, labeled]
     paths:
+      - '.github/scripts/install-gvisor.sh'
       - '.github/workflows/boxie-sandbox-smoke.yml'
       - 'packages/boxie/sandbox/Dockerfile'
       - 'packages/boxie/sandbox/Dockerfile.dockerignore'
@@ -34,18 +35,7 @@ jobs:
         with:
           persist-credentials: false
       - name: 🛡️ Install signed gVisor and configure sandbox runtime
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y apt-transport-https ca-certificates curl gnupg
-          curl --fail --silent --show-error --location --max-time 60 https://gvisor.dev/archive.key \
-            | sudo gpg --batch --yes --dearmor -o /usr/share/keyrings/gvisor-archive-keyring.gpg
-          printf '%s\n' 'deb [arch=amd64 signed-by=/usr/share/keyrings/gvisor-archive-keyring.gpg] https://storage.googleapis.com/gvisor/releases release main' \
-            | sudo tee /etc/apt/sources.list.d/gvisor.list >/dev/null
-          sudo apt-get update
-          sudo apt-get install -y runsc
-          sudo runsc install -- --platform=systrap --fdlimit=4096
-          sudo systemctl restart docker
-          runsc --version
+        run: bash .github/scripts/install-gvisor.sh
       - name: 🏗️ Build the release Dockerfile and native CLI
         run: |
           docker build --platform linux/amd64 --file packages/boxie/sandbox/Dockerfile --tag boxie-sandbox:pr-smoke .
