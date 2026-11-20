@@ -8,5 +8,5 @@ dependencies = ["markdown-it-py>=4,<5", "pydantic>=2.14.3,<3"]
 cli-check = "cli_check.command:main"
 
 [build-system]
-requires = ["uv_build==0.13.8"]
+requires = ["uv_build==0.13.9"]
 build-backend = "uv_build"
