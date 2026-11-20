@@ -48,6 +48,7 @@ from boxie.persistence.models import (
     Sandbox,
     SandboxArtifactRef,
     SupervisorObservationRecord,
+    select_owned_sandbox_for_update,
 )
 
 
@@ -404,17 +405,12 @@ class PostgresLifecycle:
         async with self.sessions() as session, session.begin():
             row = (
                 await session.exec(
-                    select(Sandbox)
-                    .where(
-                        Sandbox.id == sandbox_id,
-                        Sandbox.consumer_id == principal.consumer_id,
-                        Sandbox.installation_id == identity.installation_id,
-                        Sandbox.host_id == identity.host_id,
-                        Sandbox.generation == generation,
+                    select_owned_sandbox_for_update(
+                        sandbox_id, principal, identity, generation
+                    ).where(
                         col(Sandbox.supervisor_boot_id).is_not_distinct_from(expected_boot),
                         col(Sandbox.cleaned_at).is_(None),
                     )
-                    .with_for_update()
                 )
             ).one_or_none()
             if row is None:
@@ -446,16 +442,9 @@ class PostgresLifecycle:
         async with self.sessions() as session, session.begin():
             row = (
                 await session.exec(
-                    select(Sandbox)
-                    .where(
-                        Sandbox.id == item.sandbox_id,
-                        Sandbox.consumer_id == item.principal.consumer_id,
-                        Sandbox.installation_id == item.identity.installation_id,
-                        Sandbox.host_id == item.identity.host_id,
-                        Sandbox.generation == item.generation,
-                        Sandbox.supervisor_boot_id == item.boot_id,
-                    )
-                    .with_for_update()
+                    select_owned_sandbox_for_update(
+                        item.sandbox_id, item.principal, item.identity, item.generation
+                    ).where(Sandbox.supervisor_boot_id == item.boot_id)
                 )
             ).one_or_none()
             if row is None or row.cleaned_at is not None:

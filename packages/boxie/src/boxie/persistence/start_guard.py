@@ -14,7 +14,13 @@ from boxie.contracts.execution import SnapshotWire
 from boxie.domain.lifecycle import EnsureRequest
 from boxie.domain.models import TerminationReason
 from boxie.persistence.database import SessionFactory
-from boxie.persistence.models import Artifact, CapacitySlot, Sandbox, SandboxArtifactRef
+from boxie.persistence.models import (
+    Artifact,
+    CapacitySlot,
+    Sandbox,
+    SandboxArtifactRef,
+    select_owned_sandbox_for_update,
+)
 
 
 def matches(row: Sandbox, request: EnsureRequest) -> bool:
@@ -40,20 +46,15 @@ class PostgresStartGuard:
     async def _allowed(self, session: AsyncSession, request: EnsureRequest, boot_id: UUID) -> bool:
         row = (
             await session.exec(
-                select(Sandbox)
-                .where(
-                    Sandbox.id == request.ref.id,
-                    Sandbox.consumer_id == request.principal.consumer_id,
-                    Sandbox.installation_id == request.identity.installation_id,
-                    Sandbox.host_id == request.identity.host_id,
-                    Sandbox.generation == request.ref.generation,
+                select_owned_sandbox_for_update(
+                    request.ref.id, request.principal, request.identity, request.ref.generation
+                ).where(
                     Sandbox.supervisor_boot_id == boot_id,
                     col(Sandbox.desired_stop).is_(False),
                     col(Sandbox.cleaned_at).is_(None),
                     col(Sandbox.state).in_(["accepted", "provisioning", "ready"]),
                     Sandbox.absolute_deadline > func.clock_timestamp(),
                 )
-                .with_for_update()
             )
         ).one_or_none()
         if row is None or not matches(row, request):

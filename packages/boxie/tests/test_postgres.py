@@ -228,9 +228,17 @@ def test_only_fenced_confirmed_removal_releases_capacity_and_references(
         async with database(postgres_dsn, tmp_path) as (life, artifacts, sessions, config):
             view = await life.submit(OWNER, "fence", await upload(artifacts))
             assert not view.cleanup_pending
-            boot = uuid4()
+            boot, other_boot = uuid4(), uuid4()
+            other_host = replace(config.identity, host_id="another-host")
             assert hasattr(life, "bind_supervisor_boot"), "authenticated boot binding missing"
+            assert not await life.bind_supervisor_boot(OWNER, other_host, view.id, 1, None, boot)
+            assert not await life.bind_supervisor_boot(
+                OWNER, config.identity, view.id, 1, other_boot, boot
+            )
             assert await life.bind_supervisor_boot(OWNER, config.identity, view.id, 1, None, boot)
+            assert not await life.bind_supervisor_boot(
+                OWNER, config.identity, view.id, 1, None, other_boot
+            )
             observation = SupervisorObservation(
                 view.id,
                 OWNER,
@@ -253,6 +261,7 @@ def test_only_fenced_confirmed_removal_releases_capacity_and_references(
                 replace(confirmed, generation=2),
                 replace(confirmed, principal=Principal("other")),
                 replace(confirmed, identity=SupervisorIdentity(uuid4(), config.identity.host_id)),
+                replace(confirmed, identity=other_host),
                 replace(confirmed, event_version=1),
             ):
                 assert not await life.record_observation(bad)
