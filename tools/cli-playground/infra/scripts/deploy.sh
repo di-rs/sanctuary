@@ -6,12 +6,12 @@ config=${SANCTUARY_CONFIG_DIR:-/etc/sanctuary}
 source "$config/settings.env"
 if (( $# )); then
     [[ $# == 1 && $1 =~ ^localhost/sanctuary-cli-playground:[a-f0-9]{40}$ ]]
-    docker exec -i sanctuary-dokku dokku git:load-image cli-playground "$1"
+    bash "$(dirname "$0")/deploy-image.sh" cli-playground "$1" git:load-image
 else
     # Setup has already loaded and verified all four images.
     # shellcheck disable=SC1091
     source "$config/cli-playground-image.env"
-    docker exec sanctuary-dokku dokku git:from-image cli-playground "$CLI_PLAYGROUND_IMAGE"
+    bash "$(dirname "$0")/deploy-image.sh" cli-playground "$CLI_PLAYGROUND_IMAGE" git:from-image
 fi
 for attempt in {1..60}; do
     if docker exec cli-playground.web.1 /app/.venv/bin/python -c '
