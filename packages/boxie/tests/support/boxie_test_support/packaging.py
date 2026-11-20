@@ -1,9 +1,36 @@
 """Build and probe installed artifacts from disposable test directories."""
 
+import json
 import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
+
+
+def resolve_compose(
+    manifest: Path, values: dict[str, str], *, exclude_prefixes: tuple[str, ...]
+) -> dict[str, Any]:
+    environment = {
+        key: value for key, value in os.environ.items() if not key.startswith(exclude_prefixes)
+    }
+    result = subprocess.check_output(
+        [
+            "docker",
+            "compose",
+            "--env-file",
+            os.devnull,
+            "-f",
+            str(manifest),
+            "config",
+            "--format",
+            "json",
+        ],
+        env={**environment, **values},
+        text=True,
+    )
+    config: dict[str, Any] = json.loads(result)
+    return config
 
 
 def export_docker_context(dockerfile: Path, context: Path, output: Path) -> Path:

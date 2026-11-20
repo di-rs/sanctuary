@@ -1,12 +1,13 @@
 """Playground wheel, frontend assets and gateway Compose contracts."""
 
-import json
-import os
-import subprocess
 from pathlib import Path
 
 import pytest
-from boxie_test_support.packaging import check_installed_wheel, export_docker_context
+from boxie_test_support.packaging import (
+    check_installed_wheel,
+    export_docker_context,
+    resolve_compose,
+)
 
 ROOT = Path(__file__).resolve().parents[3]
 PLAYGROUND = ROOT / "tools/cli-playground"
@@ -149,29 +150,11 @@ def test_resolved_compose_isolated_topology(
     }
     if project_override:
         values["CLI_PLAYGROUND_PROJECT_NAME"] = "operator-cli-playground"
-    environment = {
-        key: value
-        for key, value in os.environ.items()
-        if not key.startswith(("COMPOSE_", "CLI_PLAYGROUND_", "BOXIE_"))
-    }
-    result = subprocess.run(
-        [
-            "docker",
-            "compose",
-            "--env-file",
-            os.devnull,
-            "-f",
-            str(PLAYGROUND / "infra" / manifest),
-            "config",
-            "--format",
-            "json",
-        ],
-        env={**environment, **values},
-        stdout=subprocess.PIPE,
-        text=True,
-        check=True,
+    config = resolve_compose(
+        PLAYGROUND / "infra" / manifest,
+        values,
+        exclude_prefixes=("COMPOSE_", "CLI_PLAYGROUND_", "BOXIE_"),
     )
-    config = json.loads(result.stdout)
     production = manifest == "compose.production.yml"
     assert config["name"] == values.get("CLI_PLAYGROUND_PROJECT_NAME", "cli-playground")
     assert set(config["services"]) == ({"backend", "proxy"} if production else {"backend"})

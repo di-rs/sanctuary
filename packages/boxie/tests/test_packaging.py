@@ -1,14 +1,16 @@
 """Boxie package, build context and standalone Compose contracts."""
 
 import json
-import os
 import shutil
-import subprocess
 from pathlib import Path
 from uuid import uuid4
 
 import pytest
-from boxie_test_support.packaging import check_installed_wheel, export_docker_context
+from boxie_test_support.packaging import (
+    check_installed_wheel,
+    export_docker_context,
+    resolve_compose,
+)
 
 ROOT = Path(__file__).resolve().parents[3]
 BOXIE = ROOT / "packages/boxie"
@@ -151,29 +153,9 @@ def test_resolved_compose_isolated_topology(
     }
     if project_override:
         values["BOXIE_PROJECT_NAME"] = "operator-boxie"
-    environment = {
-        key: value
-        for key, value in os.environ.items()
-        if not key.startswith(("COMPOSE_", "BOXIE_"))
-    }
-    result = subprocess.run(
-        [
-            "docker",
-            "compose",
-            "--env-file",
-            os.devnull,
-            "-f",
-            str(BOXIE / "infra" / manifest),
-            "config",
-            "--format",
-            "json",
-        ],
-        env={**environment, **values},
-        stdout=subprocess.PIPE,
-        text=True,
-        check=True,
+    config = resolve_compose(
+        BOXIE / "infra" / manifest, values, exclude_prefixes=("COMPOSE_", "BOXIE_")
     )
-    config = json.loads(result.stdout)
     assert config["name"] == values.get("BOXIE_PROJECT_NAME", "boxie")
     assert set(config["services"]) == {"api", "supervisor"}
     for name, entry in config["services"].items():
