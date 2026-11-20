@@ -2,6 +2,7 @@
 services:
   cli-playground:
     image: ${CLI_PLAYGROUND_IMAGE}
+    command: [uvicorn, cli_playground.app:create_app, --factory, --host, 0.0.0.0, --port, "8000", --no-access-log]
     ports: ["127.0.0.1:${BOXIE_TEST_PRODUCT_PORT}:8000"]
     environment:
       CLI_PLAYGROUND_DATA_DIR: /data

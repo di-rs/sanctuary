@@ -1,21 +1,35 @@
 # Test-only fault boundaries; every resource belongs to a random Compose project.
+x-runtime: &runtime
+  image: ${BOXIE_IMAGE:?Set the test image}
+  user: ${BOXIE_TEST_USER:?Set fixture owner UID:GID}
+  read_only: true
+  tmpfs: [/tmp]
+  security_opt: [no-new-privileges:true]
+  cap_drop: [ALL]
+  restart: "no"
 services:
   api:
-    extends: {file: compose.yml, service: api}
-    user: ${BOXIE_TEST_USER:?Set fixture owner UID:GID}
+    <<: *runtime
+    command: [boxie-api, --config, /etc/boxie/api.json]
     environment:
       PGPASSWORD: ${BOXIE_DB_PASSWORD:?Set fixture database password}
-    restart: "no"
     ports: ["127.0.0.1:${BOXIE_TEST_API_PORT}:8090"]
+    volumes:
+      - ${BOXIE_API_CONFIG}:/etc/boxie/api.json:ro
+      - ${BOXIE_CONSUMER_CREDENTIAL_FILE}:/run/secrets/consumer:ro
+      - ${BOXIE_SUPERVISOR_CREDENTIAL_FILE}:/run/secrets/supervisor:ro
+      - ${BOXIE_POSTGRES_DSN_FILE}:/run/secrets/postgres-dsn:ro
+      - ${BOXIE_TEMPORAL_CA_FILE}:/run/secrets/temporal-ca.pem:ro
+      - ${BOXIE_API_TEMPORAL_CERT_FILE}:/run/secrets/temporal-client.pem:ro
+      - ${BOXIE_API_TEMPORAL_KEY_FILE}:/run/secrets/temporal-client.key:ro
+    networks: [control, consumer]
   supervisor:
+    <<: *runtime
     command: [python, /fixture/supervisor_fixture.py, --config, /etc/boxie/supervisor.json]
-    extends: {file: compose.yml, service: supervisor}
-    user: ${BOXIE_TEST_USER:?Set fixture owner UID:GID}
-    restart: "no"
     environment:
       PGPASSWORD: ${BOXIE_DB_PASSWORD:?Set fixture database password}
       DOCKER_HOST: unix:///faults/docker.sock
-    volumes: !override
+    volumes:
       - ${BOXIE_TEST_ROOT}/faults:/faults
       - ${BOXIE_TEST_SUPERVISOR_SCRIPT}:/fixture/supervisor_fixture.py:ro
       - ${BOXIE_DATA_DIR}:${BOXIE_DATA_DIR}:${BOXIE_TEST_DATA_MODE:-rw}
@@ -27,6 +41,7 @@ services:
       - ${BOXIE_TEMPORAL_CA_FILE}:/run/secrets/temporal-ca.pem:ro
       - ${BOXIE_SUPERVISOR_TEMPORAL_CERT_FILE}:/run/secrets/temporal-client.pem:ro
       - ${BOXIE_SUPERVISOR_TEMPORAL_KEY_FILE}:/run/secrets/temporal-client.key:ro
+    networks: [control]
   faults:
     image: ${BOXIE_IMAGE}
     command: [python, /fixture/faults.py]
