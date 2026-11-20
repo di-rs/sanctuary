@@ -169,7 +169,7 @@ def test_down_executes_remote_drain_only_for_boxie(
     def docker(self: Stack, *args: str, capture: bool = False) -> str:
         if args[0] == "inspect":
             assert args[-1] == "stopped-container"
-            return backend
+            return "exited" if backend else ""
         assert args == (
             "exec",
             "-i",
@@ -196,24 +196,32 @@ def test_down_executes_remote_drain_only_for_boxie(
 
 
 @pytest.mark.parametrize("reachable", [False, True])
-def test_portable_start_drains_existing_boxie_gateway_before_replacement(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, reachable: bool
+@pytest.mark.parametrize("mode", ["portable", "external"])
+@pytest.mark.parametrize("state", ["running", "exited"])
+def test_start_drains_original_gateway_before_changing_connection(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, reachable: bool, mode: str, state: str
 ) -> None:
-    stack = playground(tmp_path, "portable", None)
+    stack = playground(tmp_path, mode, None)
+    credential = "replacement-fixture-credential" if mode == "external" else None
     events = []
 
-    def compose(*args: str, capture: bool = False) -> str:
+    def compose(*args: str, capture: bool = False, data: str | None = None) -> str:
         events.append(args[0])
         if args[0] == "ps":
             return "external-gateway"
-        assert args[0] == "up"
+        if args[0] == "start":
+            assert args == ("start", "--wait", "--wait-timeout", "180", "postgres", "playground")
+        elif args[0] == "run":
+            assert args[-1] == "credential" and data == credential
+        else:
+            assert args[0] == "up"
         return ""
 
     def docker(*args: str, capture: bool = False) -> str:
         events.append(args[0])
         if args[0] == "inspect":
             assert args[-1] == "external-gateway"
-            return "boxie"
+            return state
         assert args == (
             "exec",
             "-i",
@@ -231,13 +239,14 @@ def test_portable_start_drains_existing_boxie_gateway_before_replacement(
     monkeypatch.setattr(stack, "docker", docker)
     monkeypatch.setattr(stack, "url", lambda: "http://127.0.0.1:49123/")
     monkeypatch.setattr("local_dev.stack.wait_for_http", lambda *a, **kw: True)
+    before_replacement = ["ps", "inspect", *(["start"] if state == "exited" else []), "exec"]
     if reachable:
-        stack.start(build=False)
-        assert events == ["ps", "inspect", "exec", "up"]
+        stack.start(build=False, credential=credential)
+        assert events == before_replacement + (["run", "up", "up"] if credential else ["up"])
     else:
         with pytest.raises(DevError, match="cleanup is unconfirmed"):
-            stack.start(build=False)
-        assert events == ["ps", "inspect", "exec"]
+            stack.start(build=False, credential=credential)
+        assert events == before_replacement
 
 
 @pytest.mark.parametrize("backend", ["boxie", "playground"])

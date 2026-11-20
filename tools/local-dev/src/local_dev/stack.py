@@ -117,18 +117,21 @@ class Stack:
     def identify(self) -> None:
         print(f"Worktree: {self.root}\nCompose project: {self.project}", flush=True)
 
-    def drain_playground(self) -> None:
+    def drain_playground(self, *, resume_stopped: bool = False) -> None:
         for container in self.run("ps", "--all", "-q", "playground", capture=True).split():
-            backend = self.docker(
+            boxie_state = self.docker(
                 "inspect",
                 "--format",
-                '{{index .Config.Labels "sanctuary.local.terminal"}}',
+                '{{if eq (index .Config.Labels "sanctuary.local.terminal") "boxie"}}{{.State.Status}}{{end}}',
                 container,
                 capture=True,
             )
-            if backend != "boxie":
+            if not boxie_state:
                 continue
             try:
+                if resume_stopped and boxie_state in {"created", "exited"}:
+                    # Compose start reuses the old container, endpoint and credential mount.
+                    self.run("start", "--wait", "--wait-timeout", "180", "postgres", "playground")
                 self.docker("exec", "-i", container, "python", "-m", "tests.dev_server", "drain")
             except subprocess.CalledProcessError:
                 raise DevError(
@@ -147,6 +150,7 @@ class Stack:
         if build:
             options = ["--build-arg", "CLI_PACKAGES=" + " ".join(packages)] if packages else []
             self.run("--progress", "plain", "build", *options)
+        self.drain_playground(resume_stopped=True)
         if credential is not None:
             self.run(
                 "run", "--rm", "--no-deps", "--pull", "never", "-T", "credential", data=credential
@@ -154,7 +158,6 @@ class Stack:
         try:
             wait = ("up", "-d", "--no-build", "--wait", "--wait-timeout", "180")
             if credential is None:
-                self.drain_playground()
                 self.run(*wait)
             else:
                 self.run(*wait, "postgres")

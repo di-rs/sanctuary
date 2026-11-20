@@ -353,11 +353,33 @@ def test_local_deploy_browser_and_worktree_teardown(tmp_path: Path) -> None:
         )  # Identical PR numbers still refer to separate records.
         gateway_id = external.run("ps", "-q", "playground", capture=True).strip()
         assert gateway_id
+
+        def credential_digest() -> str:
+            return external.run(
+                "exec", "-T", "playground", "sha256sum", "/run/boxie/consumer", capture=True
+            ).split()[0]
+
+        original_digest = credential_digest()
+        other_credential = tmp_path / "other-consumer"
+        other_credential.touch(mode=0o600)
+        other_credential.write_text(secrets.token_hex(24))
         connected.clear()
         try:
             with pytest.raises(subprocess.CalledProcessError):
                 local(first, "start", "portable")
+            with pytest.raises(subprocess.CalledProcessError):
+                local(
+                    first,
+                    "start",
+                    "external",
+                    os.environ
+                    | {
+                        "LOCAL_DEV_BOXIE_URL": "http://127.0.0.1:1",
+                        "LOCAL_DEV_BOXIE_CREDENTIAL_FILE": str(other_credential),
+                    },
+                )
             assert external.run("ps", "-q", "playground", capture=True).strip() == gateway_id
+            assert credential_digest() == original_digest
             with pytest.raises(subprocess.CalledProcessError):
                 local(first, "down", "external")
             assert external.run("ps", "--status", "running", "-q", "postgres", capture=True).strip()
