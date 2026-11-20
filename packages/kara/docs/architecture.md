@@ -56,12 +56,17 @@ a failed save cannot accidentally enable another file type's colors.
 
 ## Persistence and terminal lifecycle
 
-Persistence functions receive text and a path explicitly. Saving streams rope
-chunks into a temporary file inside a private staging directory, restores and
-verifies destination access metadata, then syncs and atomically replaces the
-destination. Results distinguish failure before replacement from a committed
-save whose directory sync failed. Both committed outcomes update identity and
-clear modified state; a durability warning remains visible for the latter.
+The document keeps the last loaded or committed rope snapshot and a descriptor
+for its inode. A save to the current file compares the resolved path, inode, and
+bytes against that snapshot before staging. The descriptor pins the inode and
+supports readback after Save As to a write-only file.
+
+Saving streams rope chunks into a temporary file inside a private staging
+directory, restores and verifies destination access metadata, and syncs the
+file. A final path and metadata check precedes atomic replacement. Creating a
+new file uses a no-clobber operation. Both committed outcomes replace the
+snapshot and clear modified state. A directory-sync failure also displays a
+durability warning.
 
 Terminal initialization rolls back on failure. Teardown attempts every restoration
 step, including raw mode, even if another step fails. Drawing and event-loop

@@ -48,7 +48,7 @@ where you can type a filename and press Enter to save.
 | Enter a command | `:` from navigation, then Enter to run it |
 | Quit | Ctrl-Q; press again consecutively to discard unsaved changes |
 
-Commands include `w` to save, `w filename` to name an unnamed buffer, `q` to
+Commands include `w` to save, `w filename` to save to a chosen file, `q` to
 request quit, and `q!` to discard changes and quit.
 
 ## Search
@@ -106,8 +106,18 @@ no undo/redo, recovery journal, regular-expression search, or selection mode.
 
 ## Files and saving
 
-`w other-file` saves to that destination and makes it the active file only after
-success. Command-bar filenames may contain spaces; everything after the first
+Ctrl-S and `:w` on an unmodified named buffer leave the disk and buffer contents
+alone. Reopen the file to see external changes. With local edits, Kara checks that
+the current path still resolves to the file it opened or last saved and that the
+file still has the same bytes. An external edit, replacement, deletion, or
+symlink retarget completed before the save attempt triggers a conflict if the
+change is still present. Kara keeps your edits in the buffer. Use `:w other-file`
+to save them elsewhere.
+
+Save As makes its destination the active file after the write commits. An alias
+that refers to the current file uses the same conflict check. Choosing a different
+destination can replace an existing writable file there. Command-bar filenames
+may contain spaces; everything after the first
 space following `w` is the literal filename, without shell quoting or expansion.
 Failures before replacement leave the buffer identity and modified state intact.
 If replacement succeeds but syncing its directory fails, Kara switches to the saved
@@ -115,7 +125,10 @@ file, clears the modified state, and warns that the file was saved but directory
 sync failed. The new contents are visible, but may not survive a crash or power loss.
 
 Saving uses a temporary file inside a private staging directory beside the
-destination, followed by an atomic rename.
+destination. Kara rechecks the destination before atomically replacing it.
+The check and replacement are separate operations, so a simultaneous writer
+can still be overwritten if it writes after the check. When the destination was
+absent at inspection, creation fails if another writer claims the name first.
 Existing symlinks with valid targets are resolved. On Linux and macOS, existing
 owner, group, mode bits, and access ACLs are preserved and verified before replacement.
 Kara checks write access to the destination and rejects saves when it cannot preserve

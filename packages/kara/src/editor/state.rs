@@ -273,6 +273,7 @@ impl EditorState {
 
     pub(super) fn report_save(&mut self, outcome: document::SaveOutcome) {
         let message = match outcome {
+            document::SaveOutcome::Unchanged => "No changes to save.".to_owned(),
             document::SaveOutcome::Saved => "File saved successfully.".to_owned(),
             document::SaveOutcome::DurabilityWarning(error) => {
                 let message = format!("WARNING: File saved, but directory sync failed: {error}");
