@@ -27,7 +27,8 @@ flowchart LR
 SQL records accepted ownership and accounting; the supervisor reconciles those
 records with physical resources. Uncertain creation or deletion keeps capacity
 and artifact references reserved. Local deadlines keep enforcing safety during
-dependency outages. [Execution and recovery](execution.md) owns the detailed
+dependency outages. See [the admission boundary decision](admission.md) for
+transaction ownership and [execution and recovery](execution.md) for the
 lifecycle contract, limits, and maintenance behavior.
 
 ## Durability boundary
