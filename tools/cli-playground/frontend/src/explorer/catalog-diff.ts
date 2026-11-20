@@ -72,12 +72,12 @@ function matchEntries<T extends object>(
   publicNames: (entry: T) => string[],
 ) {
   const remaining = new Set(base);
+  const byIdentity = new Map(base.map((entry) => [identity(entry), entry] as const));
   const matches = new Map<T, T>();
 
   // Reserve exact matches before looking for unique shared spellings on both sides.
   for (const entry of head) {
-    const key = identity(entry);
-    const previous = base.find((old) => identity(old) === key);
+    const previous = byIdentity.get(identity(entry));
     if (previous) {
       matches.set(entry, previous);
       remaining.delete(previous);
