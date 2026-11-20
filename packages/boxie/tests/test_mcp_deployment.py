@@ -50,12 +50,12 @@ def test_readiness_failure_is_bounded() -> None:
     assert sleep.call_count == 29
 
 
-def mcp_probe(command: list[str], tool: str, arguments: dict[str, Any]) -> dict[str, Any]:
+def mcp_probe(docker_args: list[str], tool: str, arguments: dict[str, Any]) -> dict[str, Any]:
     """Exercise the stdio handshake, tool discovery and one call with a deadline."""
     name = "sanctuary-mcp-probe-" + uuid4().hex[:12]
-    assert command[:2] == ["docker", "run"]
     # The bind-mounted private credentials belong to the pytest user.
-    command = command[:2] + ["--name", name, "--user", f"{os.getuid()}:{os.getgid()}"] + command[2:]
+    user = f"{os.getuid()}:{os.getgid()}"
+    command = ["docker", "run", "--name", name, "--user", user, *docker_args]
     with tempfile.TemporaryFile() as errors:
         process = subprocess.Popen(
             command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=errors
@@ -257,8 +257,6 @@ def test_real_grafana_provision_and_retry(tmp_path: Path) -> None:
         mcp = yaml.safe_load((INFRA / "mcp/compose.yml").read_text())
         mcp_probe(
             [
-                "docker",
-                "run",
                 "--rm",
                 "-i",
                 "--network",
@@ -296,8 +294,6 @@ def test_temporal_mcp_loads_tls_and_exposes_read_only_tools(tmp_path: Path) -> N
     config = yaml.safe_load((INFRA / "mcp/compose.yml").read_text())
     result = mcp_probe(
         [
-            "docker",
-            "run",
             "--rm",
             "-i",
             "--network",
