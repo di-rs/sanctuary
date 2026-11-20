@@ -150,16 +150,14 @@ fn print_stream(
             };
         }
     };
-    if skip > 0 {
-        match unit {
-            StreamUnit::Bytes => {
-                io::copy(&mut reader.by_ref().take(skip), &mut io::sink())?;
-            }
-            StreamUnit::Lines => {
-                for _ in 0..skip {
-                    if reader.skip_until(b'\n')? == 0 {
-                        return Ok(());
-                    }
+    match unit {
+        StreamUnit::Bytes => {
+            io::copy(&mut reader.by_ref().take(skip), &mut io::sink())?;
+        }
+        StreamUnit::Lines => {
+            for _ in 0..skip {
+                if reader.skip_until(b'\n')? == 0 {
+                    return Ok(());
                 }
             }
         }
