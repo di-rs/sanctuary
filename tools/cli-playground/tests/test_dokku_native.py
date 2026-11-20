@@ -6,17 +6,12 @@ import os
 import shutil
 import ssl
 import subprocess
-import time
-from concurrent.futures import ThreadPoolExecutor, wait
-from contextlib import ExitStack
 from pathlib import Path
 
 import httpx
 import pytest
 import yaml
 from integration.stack import LifecycleStack
-from websockets.sync.client import ClientConnection, connect
-from websockets.typing import Origin
 
 from .helpers import binary_bundle
 
@@ -145,54 +140,10 @@ def feature(pr: int, sha: str, directory: Path) -> str:
     return identifier
 
 
-def terminal(
-    resources: ExitStack, client: httpx.Client, tls: ssl.SSLContext, host: str, identifier: str
-) -> tuple[ClientConnection, int]:
-    origin = f"https://{host}"
-    url = f"{origin}/api/environments/{identifier}"
-    metadata = client.get(url).raise_for_status().json()
-    session = (
-        client.post(
-            f"{url}/sessions", json={"revision": metadata["revision"]}, headers={"Origin": origin}
-        )
-        .raise_for_status()
-        .json()
-    )
-    ws = resources.enter_context(
-        connect(
-            f"wss://{host}/ws/{identifier}?session_id={session['id']}&revision={metadata['revision']}",
-            origin=Origin(origin),
-            ssl=tls,
-            proxy=None,
-        )
-    )
-    ws.send(json.dumps({"type": "auth", "credential": session["credential"]}))
-    assert json.loads(ws.recv(timeout=55))["type"] == "authenticated"
-    ws.send(json.dumps({"type": "attach", "resume_after": 0, "cols": 80, "rows": 24}))
-    while True:
-        message = ws.recv(timeout=10)
-        if isinstance(message, str) and (reply := json.loads(message))["type"] == "attached":
-            return ws, int(reply["epoch"])
-
-
-def echo_on_terminal(connection: tuple[ClientConnection, int], marker: str) -> None:
-    ws, epoch = connection
-    ws.send(
-        json.dumps(
-            {
-                "type": "input",
-                "epoch": epoch,
-                "source": "user",
-                "data": f"echor '{marker}-'\"ok\"\n",
-            }
-        )
-    )
-    deadline = time.monotonic() + 20
-    output = b""
-    while (marker + "-ok").encode() not in output:
-        packet = ws.recv(timeout=max(0, deadline - time.monotonic()))
-        if isinstance(packet, bytes):
-            output += packet[8:]
+def check_terminals(browser: subprocess.Popen[str], milestone: str) -> None:
+    assert browser.stdin is not None and browser.stdout is not None
+    print(milestone, file=browser.stdin, flush=True)
+    assert browser.stdout.readline().strip() == milestone
 
 
 @pytest.mark.integration
@@ -218,10 +169,7 @@ def test_dokku_two_prs_and_production(tmp_path: Path) -> None:
         stream_image(production_tag, remote("deploy.sh", production_tag))
         binary = ROOT / "target/release/echor"
         archive = binary_bundle({"echor": binary.read_bytes()})
-        with (
-            httpx.Client(verify=tls, timeout=60, trust_env=False) as client,
-            ExitStack() as sockets,
-        ):
+        with httpx.Client(verify=tls, timeout=60, trust_env=False) as client:
             production = (
                 client.post(
                     f"https://{DOMAIN}/api/environments?pr=7&sha=" + "c" * 40,
@@ -236,7 +184,6 @@ def test_dokku_two_prs_and_production(tmp_path: Path) -> None:
             )
             feature(11, "a" * 40, tmp_path)
             second = feature(22, "b" * 40, tmp_path)
-            prod = terminal(sockets, client, tls, f"pr-7.{DOMAIN}", production["id"])
             config = json.loads(
                 subprocess.check_output(["docker", "inspect", "playground-pr-22.web.1"])
             )[0]
@@ -249,27 +196,26 @@ def test_dokku_two_prs_and_production(tmp_path: Path) -> None:
                 "playground-apps",
                 "dokku.postgres.playground-pr-22.playground-pr-22",
             }
-            neighbor = terminal(sockets, client, tls, f"app-pr-22.{DOMAIN}", second)
-            # Exercise ordinary browser heartbeats on the same sockets throughout both changes.
-            nonce = 0
-            with ThreadPoolExecutor(max_workers=1) as worker:
-                for operation in ("update", "close"):
-                    if operation == "update":
-                        change = worker.submit(feature, 11, "d" * 40, tmp_path)
-                    else:
-                        change = worker.submit(
-                            subprocess.check_output, remote("feature.sh", "remove", "11"), text=True
-                        )
-                    while not change.done():
-                        nonce += 1
-                        for ws, epoch in (prod, neighbor):
-                            ws.send(
-                                json.dumps({"type": "heartbeat", "epoch": epoch, "nonce": nonce})
-                            )
-                        wait([change], timeout=5)
-                    change.result()
-                    echo_on_terminal(prod, operation + "-prod")
-                    echo_on_terminal(neighbor, operation + "-b")
+            with subprocess.Popen(
+                [
+                    "node",
+                    "e2e-native/dokku.mjs",
+                    production["url"],
+                    f"https://app-pr-22.{DOMAIN}/p/{second}",
+                ],
+                cwd=ROOT / "tools/cli-playground/frontend",
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                text=True,
+            ) as browser:
+                check_terminals(browser, "open")
+                feature(11, "d" * 40, tmp_path)
+                check_terminals(browser, "updated")
+                subprocess.run(remote("feature.sh", "remove", "11"), check=True)
+                check_terminals(browser, "closed")
+                assert browser.stdin
+                browser.stdin.close()
+                assert browser.wait(timeout=15) == 0
             assert client.get(f"https://app-pr-11.{DOMAIN}/healthz").status_code in (400, 404)
             for check in ("apps:exists", "postgres:exists"):
                 assert subprocess.run([*DOKKU, check, "playground-pr-11"]).returncode != 0

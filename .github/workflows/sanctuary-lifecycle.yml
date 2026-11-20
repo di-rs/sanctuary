@@ -23,6 +23,7 @@ jobs:
     timeout-minutes: 65
     env:
       PYTHONUNBUFFERED: '1'
+      PLAYWRIGHT_BROWSERS_PATH: '0'
     steps:
       - name: 📥 Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -59,7 +60,6 @@ jobs:
         run: |
           docker build -f tools/cli-playground/infra/docker/CliPlayground.Dockerfile -t cli-playground:lifecycle .
       - name: 🟢 Set up Node.js and frontend tooling
-        if: inputs.suite != 'dokku'
         uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76 # v1.22.0
         with:
           working-directory: tools/cli-playground/frontend
@@ -71,7 +71,6 @@ jobs:
         run: |
           uv sync --all-packages
       - name: 🌐 Install frontend and Chromium dependencies
-        if: inputs.suite != 'dokku'
         run: |
           pnpm --dir tools/cli-playground/frontend install
           pnpm --dir tools/cli-playground/frontend exec playwright install --with-deps chromium
@@ -93,6 +92,6 @@ jobs:
           sudo /usr/sbin/sshd -f /dev/null -h /etc/ssh/ssh_host_ed25519_key -p 22222 -o ListenAddress=127.0.0.1 \
             -o PidFile=/run/dokku-acceptance-sshd.pid -o AuthorizedKeysFile=/run/dokku-acceptance-key.pub \
             -o UsePAM=yes -o PermitRootLogin=prohibit-password -o PasswordAuthentication=no -o KbdInteractiveAuthentication=no
-          sudo env PATH="$PATH" RUNNER_ENVIRONMENT="$RUNNER_ENVIRONMENT" SANCTUARY_DISPOSABLE_DOKKU_HOST=1 \
+          sudo env PATH="$PATH" PLAYWRIGHT_BROWSERS_PATH=0 RUNNER_ENVIRONMENT="$RUNNER_ENVIRONMENT" SANCTUARY_DISPOSABLE_DOKKU_HOST=1 \
             DOKKU_TEST_SSH_CONFIG="$private/config" .venv/bin/python -m pytest -m integration \
             tools/cli-playground/tests/test_dokku_native.py -s -v --tb=short
