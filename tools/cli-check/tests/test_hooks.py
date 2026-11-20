@@ -95,6 +95,25 @@ def test_python_source_checks_consumers_without_unrelated_package(workspace: Pat
     ]
 
 
+def test_nested_package_shares_check_scope_and_keeps_import_path(workspace: Path) -> None:
+    from cli_check.hooks import mypy_environment
+
+    with (workspace / "uv.lock").open("a") as lock:
+        lock.write(
+            '[[package]]\nname = "api-extension"\nsource = { editable = "apps/api/extension" }\n'
+            'dependencies = [{name = "other"}]\n'
+        )
+    write(workspace, "apps/api/extension/src/extension.py", "")
+    assert plan(workspace, "python-tests", "apps/api/extension/src/extension.py") == [
+        ["uv", "run", "pytest", "apps/api/tests", "apps/client/tests"]
+    ]
+    assert plan(workspace, "mypy", "apps/other/src/other.py") == [
+        ["uv", "run", "mypy", "apps/api", "apps/client", "apps/other"]
+    ]
+    search = mypy_environment(workspace)["MYPYPATH"].split(os.pathsep)
+    assert str(workspace / "apps/api/extension/src") in search
+
+
 def test_shared_configs_select_only_their_language(workspace: Path) -> None:
     assert plan(workspace, "cargo-nexttest", "pyproject.toml") == []
     assert plan(workspace, "python-tests", "Cargo.toml") == []

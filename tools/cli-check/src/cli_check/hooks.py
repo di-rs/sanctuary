@@ -4,6 +4,7 @@ import argparse
 import os
 import subprocess
 import sys
+from collections.abc import Iterator
 from pathlib import Path
 
 from cli_check.affected import lock_closures, production_change
@@ -62,38 +63,52 @@ def rust_packages(root: Path, paths: list[str], *, dependents: bool) -> list[str
     return sorted(selected)
 
 
-def python_packages(root: Path, paths: list[str], *, dependents: bool) -> list[str]:
+def python_workspace(root: Path) -> tuple[list[str], list[dict[str, object]]]:
     config = table(table(load_toml(root / "pyproject.toml")["tool"])["pytest"])
     testpaths = strings(config["testpaths"], "tool.pytest.testpaths")
-    directories = {Path(path).parent.as_posix() for path in testpaths}
-    records = tables(load_toml(root / "uv.lock")["package"])
-    local: dict[str, str] = {}
+    return testpaths, tables(load_toml(root / "uv.lock")["package"])
+
+
+def local_python_sources(
+    records: list[dict[str, object]],
+) -> Iterator[tuple[dict[str, object], str]]:
     for record in records:
         source = table(record["source"])
         directory = source.get("editable", source.get("virtual"))
         if isinstance(directory, str) and directory != ".":
-            local[str(record["name"])] = directory
-            if owner(directory, directories) is None:
-                directories.add(directory)
+            yield record, directory
+
+
+def python_packages(root: Path, paths: list[str], *, dependents: bool) -> list[str]:
+    testpaths, records = python_workspace(root)
+    directories = {Path(path).parent.as_posix() for path in testpaths}
+    local: dict[str, str] = {}
+    for record, source in local_python_sources(records):
+        local[str(record["name"])] = source
+        if owner(source, directories) is None:
+            directories.add(source)
     if PYTHON_CONFIG.intersection(paths):
         return sorted(directories)
-    selected = {directory for path in paths if (directory := owner(path, directories)) is not None}
+    file_owners = {
+        path: directory for path in paths if (directory := owner(path, directories)) is not None
+    }
+    selected = set(file_owners.values())
     if "tools/github_publication.py" in paths:
         selected.update({"tools/cli-bench", "tools/cli-playground"} & directories)
     if not dependents or not selected:
         return sorted(selected)
+    package_owners: dict[object, str | None] = {
+        name: owner(path, directories) for name, path in local.items()
+    }
     dependencies: dict[str, set[str]] = {directory: set() for directory in directories}
     for record in records:
-        if record["name"] not in local:
+        package_scope = package_owners.get(record["name"])
+        if package_scope is None:
             continue
-        directory = owner(local[str(record["name"])], directories)
-        assert directory is not None
         for dep in tables(record.get("dependencies", [])):
-            if dep["name"] in local:
-                target = owner(local[str(dep["name"])], directories)
-                assert target is not None
-                if target != directory:
-                    dependencies[directory].add(target)
+            target = package_owners.get(dep["name"])
+            if target is not None and target != package_scope:
+                dependencies[package_scope].add(target)
     # These tooling, test and composition imports are outside runtime metadata.
     extra = {
         "tools/cli-bench": {"tools/cli-check"},
@@ -107,9 +122,8 @@ def python_packages(root: Path, paths: list[str], *, dependents: bool) -> list[s
         return sorted(directories)
     changed = {
         directory
-        for path in paths
-        if (directory := owner(path, directories)) is not None
-        and (
+        for path, directory in file_owners.items()
+        if (
             not Path(path).is_relative_to(f"{directory}/tests")
             or path.startswith("packages/boxie/tests/support/")
             or path == "infra/host/tests/host_mocks.py"
@@ -198,14 +212,11 @@ def commands(root: Path, hook: str, paths: list[str]) -> list[list[str]]:
 
 
 def mypy_environment(root: Path) -> dict[str, str]:
-    config = table(table(load_toml(root / "pyproject.toml")["tool"])["pytest"])
-    paths = [root / path for path in strings(config["testpaths"], "tool.pytest.testpaths")]
-    for record in tables(load_toml(root / "uv.lock")["package"]):
-        source = table(record["source"])
-        directory = source.get("editable", source.get("virtual"))
-        if isinstance(directory, str) and directory != ".":
-            package = root / directory
-            paths.append(package / "src" if (package / "src").is_dir() else package)
+    testpaths, records = python_workspace(root)
+    paths = [root / path for path in testpaths]
+    for _, directory in local_python_sources(records):
+        package = root / directory
+        paths.append(package / "src" if (package / "src").is_dir() else package)
     # Resolve local imports without treating installed, unmarked packages as Any.
     search = [*map(str, paths), *filter(None, os.environ.get("MYPYPATH", "").split(os.pathsep))]
     return dict(os.environ, MYPYPATH=os.pathsep.join(dict.fromkeys(search)))
