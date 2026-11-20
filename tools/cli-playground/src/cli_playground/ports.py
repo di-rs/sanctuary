@@ -62,7 +62,9 @@ class EnvironmentStore(Protocol):
 
 
 class SessionStore(Protocol):
-    async def recover_creation(self, intent: CreateIntent, sandbox: SandboxView) -> None: ...
+    async def recover_creation(
+        self, intent: CreateIntent, sandbox: SandboxView, *, scope: str
+    ) -> None: ...
 
     async def save(self, binding: SessionBinding) -> None: ...
 

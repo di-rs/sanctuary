@@ -78,6 +78,8 @@ class Binding(Table, table=True):
     sandbox: dict[str, Any] = Field(sa_column=Column(JSONB, nullable=False))
     pending_stop: bool = Field(default=False, index=True)
     stop_request_id: UUID | None = None
+    sandbox_scope: str | None = None
+    stop_absent: bool = False
     attachment_deadline: float | None = None
     attached: bool = False
     attachment_claim: int = Field(default=0, sa_type=BigInteger)

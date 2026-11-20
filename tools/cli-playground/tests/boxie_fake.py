@@ -62,6 +62,9 @@ class FakeBoxie:
         self.stops: list[UUID] = []
         self.termination_state: SandboxState = "terminated"
 
+    def sandbox_scope(self, identifier: UUID) -> str:
+        return f"test-boxie:{identifier}"
+
     async def upload(self, identifier: UUID, digest: str, archive: Path) -> None:
         import hashlib
 

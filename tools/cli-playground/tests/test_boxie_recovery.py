@@ -24,6 +24,88 @@ from .catalog_fixtures import catalog
 from .helpers import AUTH, binary_bundle, elf_binary
 
 
+@pytest.mark.parametrize("legacy_binding", [False, True])
+def test_stop_reconciliation_after_boxie_forgets_sandbox(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, legacy_binding: bool
+) -> None:
+    async def exercise() -> None:
+        root = tmp_path / "product"
+        async with boxie_network(tmp_path / "supervisor") as network:
+            api_url = str(network.api.base_url)
+            async with product_server(root, api_url) as product:
+                preview = (await publish(product, "a" * 40)).json()["id"]
+                admitted = await admit(product, preview, "a" * 40)
+                identifier = UUID(admitted["id"])
+                binding = await product.service.sessions.get(identifier)
+                assert binding is not None and binding.sandbox_scope
+                path = f"/v1/sandboxes/{binding.sandbox.id}"
+                read = client_module.bounded_response
+
+                async def lose_stop_reply(response: aiohttp.ClientResponse) -> bytes:
+                    data = await read(response)
+                    if response.method == "DELETE" and response.url.path == path:
+                        assert response.status == 200
+                        raise TimeoutError("lost stop acknowledgement")
+                    return data
+
+                with monkeypatch.context() as fault:
+                    fault.setattr(client_module, "bounded_response", lose_stop_reply)
+                    response = await product.http.delete(
+                        f"/api/environments/{preview}/sessions/{identifier}",
+                        headers={
+                            "Origin": str(product.http.base_url).rstrip("/"),
+                            "Authorization": "Bearer " + admitted["credential"],
+                        },
+                    )
+                    assert response.status_code == 200
+                request_id = response.headers["x-request-id"]
+                pending = await product.service.sessions.get(identifier)
+                assert pending is not None and pending.pending_stop
+                assert pending.stop_request_id == UUID(request_id)
+                if legacy_binding:
+                    pending.sandbox_scope = None
+                    await product.service.sessions.save(pending)
+                await product.service.store.close_pull_request(123)
+
+            async with product_server(root, api_url, credential="consumer-two-secret") as foreign:
+                assert await foreign.service.sessions.get(identifier) == pending
+                assert await foreign.service.store.inactive_identifiers() == {preview}
+
+            remote = (await network.api.get(path)).json()
+            assert remote["state"] == "terminated" and not remote["cleanup_pending"]
+            # The admission fixture has no retention worker. Drop only the settled test record.
+            del network.supervisor.records[binding.sandbox.id]
+            assert (await network.api.get(path)).status_code == 404
+            attempts: list[str] = []
+
+            async def record_stop_attempt(response: aiohttp.ClientResponse) -> bytes:
+                if response.method == "DELETE" and response.url.path == path:
+                    assert response.status == 404
+                    attempts.append(response.request_info.headers["X-Request-ID"])
+                return await read(response)
+
+            monkeypatch.setattr(client_module, "bounded_response", record_stop_attempt)
+            async with product_server(root, api_url) as restarted:
+                saved = await restarted.service.sessions.get(identifier)
+                assert saved is not None
+                assert saved.sandbox == binding.sandbox
+                assert saved.stop_request_id == UUID(request_id)
+                assert saved.pending_stop == legacy_binding
+                assert saved.stop_absent != legacy_binding
+                assert attempts == [request_id]
+                if not legacy_binding:
+                    assert await restarted.service.store.inactive_identifiers() == set()
+                    await restarted.service.cleanup_inactive()
+                    await restarted.service.stop_session(saved)
+                    assert await restarted.service.sessions.get(identifier) == saved
+
+            async with product_server(root, api_url) as restarted_again:
+                assert await restarted_again.service.sessions.get(identifier) == saved
+                assert attempts == ([request_id, request_id] if legacy_binding else [request_id])
+
+    asyncio.run(exercise())
+
+
 @pytest.mark.parametrize("failure", ["reply", "commit"])
 def test_failed_publication_preserves_ready_revision_and_recovers_exact_upload(
     tmp_path: Path,

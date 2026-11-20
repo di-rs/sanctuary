@@ -8,8 +8,14 @@ from uuid import uuid4
 
 import pytest
 from cli_playground.boxie_client import HttpBoxieClient
-from cli_playground.sandbox import BoxieUnavailable, SandboxRequest
+from cli_playground.sandbox import (
+    BoxieCredentialRejected,
+    BoxieUnavailable,
+    SandboxNotFound,
+    SandboxRequest,
+)
 from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
 from .boxie_network import serve
@@ -300,3 +306,54 @@ def test_only_definitive_create_rejections_are_distinguished(status: int) -> Non
                 await client.close()
 
     asyncio.run(exercise())
+
+
+@pytest.mark.parametrize(
+    ("status", "detail", "expected"),
+    [
+        (404, "sandbox not found", SandboxNotFound),
+        (404, "Not Found", BoxieUnavailable),
+        (401, "invalid consumer credential", BoxieCredentialRejected),
+        (403, "forbidden", BoxieCredentialRejected),
+        (429, "sandbox not found", BoxieUnavailable),
+        (503, "sandbox not found", BoxieUnavailable),
+    ],
+)
+def test_stop_distinguishes_boxie_absence_from_other_failures(
+    status: int, detail: str, expected: type[BoxieUnavailable]
+) -> None:
+    async def exercise() -> None:
+        peer = FastAPI()
+
+        @peer.api_route("/v1/sandboxes/{resource}", methods=["DELETE", "GET"])
+        async def reject(resource: str) -> JSONResponse:
+            return JSONResponse({"detail": detail}, status_code=status)
+
+        async with serve(peer) as url:
+            client = HttpBoxieClient(url, "private-consumer-secret")
+            try:
+                with pytest.raises(BoxieUnavailable) as stop:
+                    await client.terminate(uuid4())
+                assert type(stop.value) is expected
+                with pytest.raises(BoxieUnavailable) as lookup:
+                    await client.get(uuid4())
+                assert type(lookup.value) is BoxieUnavailable
+            finally:
+                await client.close()
+
+    asyncio.run(exercise())
+
+
+def test_sandbox_scope_binds_origin_credential_and_sandbox() -> None:
+    identifier = uuid4()
+    scope = HttpBoxieClient("http://boxie.local", "first-consumer-secret")
+    assert scope.sandbox_scope(identifier) == HttpBoxieClient(
+        "http://boxie.local/", "first-consumer-secret"
+    ).sandbox_scope(identifier)
+    assert scope.sandbox_scope(identifier) != scope.sandbox_scope(uuid4())
+    assert scope.sandbox_scope(identifier) != HttpBoxieClient(
+        "http://other-boxie.local", "first-consumer-secret"
+    ).sandbox_scope(identifier)
+    assert scope.sandbox_scope(identifier) != HttpBoxieClient(
+        "http://boxie.local", "second-consumer-secret"
+    ).sandbox_scope(identifier)

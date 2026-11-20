@@ -32,6 +32,10 @@ Advisory secret scans must not publish credential values and run without credent
 - **Playground to Boxie:** The [private API](../packages/boxie/README.md) derives
   consumer identity from credentials and enforces resource ownership. Keep
   consumer and supervisor credentials separate and out of browser responses.
+  Keep each credential assigned to its original consumer. Give a replacement
+  Boxie installation new credentials. Playground uses the Boxie origin and
+  credential from a confirmed sandbox response to interpret a later 404 for
+  that sandbox.
   Operators grant job profiles to individual consumer IDs. Job consumers
   select an owned artifact and an exact command from a granted profile. Treat
   captured stdout and stderr as private consumer data in PostgreSQL and backups.
