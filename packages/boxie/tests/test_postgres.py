@@ -892,3 +892,40 @@ def test_command_recovery_is_scoped_to_the_physical_owner(
             assert not await PostgresOutbox(sessions, config.identity).pending(second.id)
 
     asyncio.run(exercise())
+
+
+def test_shared_preview_quota_and_reserved_production_slots(
+    tmp_path: Path, postgres_dsn: str
+) -> None:
+    from boxie.application.admission import JobPolicy
+    from database_support import database, upload
+
+    async def exercise() -> None:
+        async with database(postgres_dsn, tmp_path) as (lifecycle, artifacts, _, _):
+            lifecycle.job_policy = JobPolicy(
+                priority_consumers=frozenset({"playground"}), reserved_slots=2, per_consumer_slots=1
+            )
+            first = Principal("pr-1")
+            spec = await upload(artifacts, first)
+            results = await asyncio.gather(
+                lifecycle.submit(first, "a", spec),
+                lifecycle.submit(first, "b", spec),
+                return_exceptions=True,
+            )
+            assert (
+                sum(isinstance(result, BoxieError) and result.status == 429 for result in results)
+                == 1
+            )
+            for number in range(2, 7):
+                owner = Principal(f"pr-{number}")
+                await lifecycle.submit(owner, "first", await upload(artifacts, owner))
+            owner = Principal("pr-7")
+            with pytest.raises(BoxieError) as full:
+                await lifecycle.submit(owner, "first", await upload(artifacts, owner))
+            assert full.value.status == 429
+            production = Principal("playground")
+            prod = await upload(artifacts, production)
+            await lifecycle.submit(production, "a", prod)
+            await lifecycle.submit(production, "b", prod)
+
+    asyncio.run(exercise())

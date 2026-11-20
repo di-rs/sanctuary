@@ -154,7 +154,12 @@ def build_catalog(root: Path, base: str, head: str, names: list[str], output: Pa
                 comparison="unavailable",
             )
         )
-    compare_baseline(root, ancestor, entries)
+    if ancestor == head:
+        for entry in entries:
+            entry.base = entry.head
+            entry.comparison = "available"
+    else:
+        compare_baseline(root, ancestor, entries)
     catalog = Catalog(schema_version=1, head_sha=head, base_sha=ancestor, clis=entries)
     payload = catalog.canonical()
     if len(payload) > MAX_CATALOG:

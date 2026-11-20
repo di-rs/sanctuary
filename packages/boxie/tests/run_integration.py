@@ -76,9 +76,9 @@ class ProductionStack:
 
     def compose(self, package: str, *args: str) -> str:
         directory = (
-            ROOT / "packages/boxie/infra/temporal"
+            ROOT / "packages/boxie/native-test/temporal"
             if package == "temporal"
-            else ROOT / "packages/boxie/infra/postgres"
+            else ROOT / "packages/boxie/native-test/postgres"
         )
         return self.command(
             [

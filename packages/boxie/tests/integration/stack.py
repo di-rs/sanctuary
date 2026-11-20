@@ -66,7 +66,7 @@ class LifecycleStack(ProductionStack):
                 "--project-name",
                 self.runtime,
                 "--file",
-                str(ROOT / "packages/boxie/infra/compose.test.yml"),
+                str(ROOT / "packages/boxie/native-test/compose.test.yml"),
                 *(
                     ["--file", str(self.runtime_overlay)]
                     if self.runtime_overlay is not None
@@ -101,7 +101,9 @@ class LifecycleStack(ProductionStack):
         # Compose's nested profiles bind must not create a root-owned directory.
         (self.root / "data/profiles").mkdir(parents=True, mode=0o700)
         (self.root / "faults").mkdir()
-        profiles = json.loads((ROOT / "packages/boxie/infra/profiles/default.json").read_text())
+        profiles = json.loads(
+            (ROOT / "packages/boxie/native-test/profiles/default.json").read_text()
+        )
         image = self.command(
             [
                 "docker",
@@ -121,7 +123,7 @@ class LifecycleStack(ProductionStack):
                 "run",
                 "python",
                 "-m",
-                "boxie_infra.config",
+                "boxie_test_support.native_config",
                 "--output",
                 str(self.root),
                 "--data-dir",

@@ -108,7 +108,7 @@ def test_native_published_endpoint_survives_process_restart(
 ) -> None:
     # Exercise the actual native fixture's publish specification against Docker.
     config = yaml.safe_load(
-        (ROOT / "packages/boxie/infra/compose.test.yml").read_text().replace("!override", "")
+        (ROOT / "packages/boxie/native-test/compose.test.yml").read_text().replace("!override", "")
     )
     with socket.socket() as reservation:
         reservation.bind(("127.0.0.1", 0))

@@ -105,8 +105,7 @@ covers the goal of durable shell execution. Maintainers can pick up the next
 task from the [cleanup plan](docs/cleanup-plan.md). The [threat model](docs/thread-model.md)
 describes security boundaries.
 
-To inspect production dashboards and workflows from local Codex Desktop or CLI,
-see [Debug production with Codex and MCP](docs/production-mcp.md).
+Use the [operator dashboards](infra/docs/observability.md) to inspect production requests and workflows.
 
 | Directory   | Contents                                              |
 | ----------- | ----------------------------------------------------- |

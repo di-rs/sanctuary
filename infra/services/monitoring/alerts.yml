@@ -1,0 +1,31 @@
+groups:
+  - name: sanctuary
+    rules:
+      - alert: ServiceUnavailable
+        expr: up == 0
+        for: 3m
+        annotations: {summary: "Prometheus cannot reach {{ $labels.job }}"}
+      - alert: ServerErrors
+        expr: |
+          (
+            sum by (job) (increase({__name__=~"boxie_http_requests_total|cli_playground_http_requests_total",status_class="5xx"}[10m])) >= 5
+          ) and (
+            sum by (job) (increase({__name__=~"boxie_http_requests_total|cli_playground_http_requests_total",status_class="5xx"}[10m]))
+            / sum by (job) (increase({__name__=~"boxie_http_requests_total|cli_playground_http_requests_total"}[10m])) > 0.05
+          )
+        annotations: {summary: "Elevated server errors in {{ $labels.job }}"}
+      - alert: SandboxProvisioningFailures
+        expr: sum(increase(boxie_provisioning_total{outcome="failed"}[10m])) >= 3
+        annotations: {summary: "Boxie failed to provision at least three sandboxes"}
+      - alert: BoxieQueued
+        expr: boxie_outbox_oldest_age_seconds{kind="start"} > 60
+        for: 5m
+        annotations: {summary: "Boxie starts are waiting for delivery to Temporal"}
+      - alert: DataDiskLow
+        expr: sanctuary_data_free_ratio < 0.15
+        for: 15m
+        annotations: {summary: "Less than 15 percent of Sanctuary data storage is free"}
+      - alert: BackupOverdue
+        expr: time() - sanctuary_backup_timestamp_seconds > 93600 or absent(sanctuary_backup_timestamp_seconds)
+        for: 5m
+        annotations: {summary: "A successful off-host Postgres backup is overdue"}

@@ -1,6 +1,7 @@
 """Construct an unprivileged private API from injected application ports."""
 
 from collections.abc import Awaitable, Callable, Mapping
+from pathlib import Path
 from types import MappingProxyType
 from typing import Self
 from uuid import UUID
@@ -26,7 +27,8 @@ class ApiConfig(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid", hide_input_in_errors=True)
 
     release: str = Field(min_length=1)
-    consumers: Mapping[str, bytes] = Field(min_length=1, repr=False)
+    consumers: Mapping[str, bytes] = Field(repr=False)
+    consumer_key_directory: Path | None = None
     job_policy: JobPolicy = Field(default_factory=JobPolicy)
 
     @field_validator("consumers")
@@ -36,6 +38,8 @@ class ApiConfig(BaseModel):
 
     @model_validator(mode="after")
     def validate_grants(self) -> Self:
+        if not self.consumers and self.consumer_key_directory is None:
+            raise ValueError("at least one credential source is required")
         if self.job_policy.profile_grants.keys() - self.consumers.keys():
             raise ValueError("job profile grants require a configured consumer")
         return self
@@ -52,7 +56,7 @@ def create_app(
     request_completed: Callable[[str, str, str, float], None] | None = None,
 ) -> FastAPI:
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
-    auth = ConsumerAuth(config.consumers)
+    auth = ConsumerAuth(config.consumers, config.consumer_key_directory)
 
     @app.exception_handler(Exception)
     async def unhandled_error(request: Request, _error: Exception) -> PlainTextResponse:

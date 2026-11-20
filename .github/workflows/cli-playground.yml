@@ -1,77 +1,11 @@
-name: 🏗️ cli-playground PR binary builds
-
-# Keep this condition aligned with the first job: downstream workflows skip without a runner.
-run-name: >-
-  ${{
-    (github.event.action != 'labeled' || github.event.label.name == 'run-ci') &&
-    (!github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'run-ci')) &&
-    format('🏗️ cli-playground CLI builds for PR #{0}', github.event.pull_request.number) || '⏭️ CI skipped'
-  }}
-
+name: Playground PR event
 on:
   pull_request:
-    branches: [master]
-    types: [opened, synchronize, reopened, ready_for_review, labeled]
-    paths:
-      - '**/src/**'
-      - '**/build.rs'
-      - '**/Cargo.toml'
-      - 'Cargo.lock'
-      - 'rust-toolchain.toml'
-      - '.cargo/**'
-      - '!**/*.md'
-      - '!**/*.py'
-      - '!**/*.pyi'
-      - '!tools/cli-playground/**'
-
-permissions:
-  contents: read
-
-concurrency:
-  group: cli-playground-build-${{ github.event.pull_request.number }}-${{ github.event.action == 'labeled' && github.event.label.name != 'run-ci' && github.run_id || 'checks' }}
-  cancel-in-progress: true
-
+    types: [opened, reopened, synchronize, edited, ready_for_review, converted_to_draft, closed]
+permissions: {}
 jobs:
-  build:
-    name: 🏗️ Build affected CLI preview binaries
-    if: >-
-      ${{
-        (github.event.action != 'labeled' || github.event.label.name == 'run-ci') &&
-        (!github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'run-ci'))
-      }}
+  notify:
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
     steps:
-      - name: 📥 Check out the PR source revision
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          fetch-depth: 0
-          persist-credentials: false
-      - name: 🐍 Set up uv and Python
-        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
-        with:
-          version: '0.13.0'
-          enable-cache: true
-          cache-dependency-glob: uv.lock
-          cache-suffix: ${{ github.job }}
-      - name: ♻️ Cache Rust dependencies and build artifacts
-        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          cache-bin: false
-      - name: 🏗️ Build affected Linux CLI executables
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          # Enable only after the catalog migration and compatible publisher/backend land.
-          CLI_PLAYGROUND_CATALOG: ${{ vars.CLI_PLAYGROUND_CATALOG }}
-        run: |
-          uv run --no-dev python tools/cli-playground/preview_ci.py build \
-            --base "$BASE_SHA" --head "$HEAD_SHA" --output "$RUNNER_TEMP/cli-playground-artifact"
-      - name: 📤 Upload cli-playground CLI binaries
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: cli-playground-binaries
-          path: ${{ runner.temp }}/cli-playground-artifact/
-          if-no-files-found: ignore
-          retention-days: 7
+      - run: echo "The default-branch controller will check preview eligibility."

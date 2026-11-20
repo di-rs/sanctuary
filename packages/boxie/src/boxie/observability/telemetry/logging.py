@@ -129,6 +129,11 @@ class LogDispatcher(QueueListener):
                 and len(value) <= 128
             },
         }
+        self._export = None
+        if os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT"):
+            from opentelemetry._logs import get_logger
+
+            self._export = get_logger("boxie.events")
         self._routes = dict(routes)
         self._sink = sink
         self._limit = limit
@@ -191,6 +196,13 @@ class LogDispatcher(QueueListener):
             **current_context(),
             **validated(fields),
         }
+        if self._export is not None and event != "foreign_log":
+            attributes = {"event.name": event}
+            if request_id := record.get("request_id"):
+                attributes["request_id"] = str(request_id)
+            self._export.emit(
+                body=self._events[event], severity_text=record["level"], attributes=attributes
+            )
         if error is not None:
             record.update(_exception(error))
         line = (json.dumps(record, ensure_ascii=False, separators=(",", ":")) + "\n").encode()

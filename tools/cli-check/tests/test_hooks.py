@@ -111,10 +111,8 @@ def test_shared_configs_select_only_their_language(workspace: Path) -> None:
 
 
 def test_real_repository_reset_test_is_isolated() -> None:
-    path = "infra/environments/single-host/tests/test_reset.py"
-    assert plan(ROOT, "python-tests", path) == [
-        ["uv", "run", "pytest", "infra/environments/single-host/tests"]
-    ]
+    path = "infra/tests/test_reset.py"
+    assert plan(ROOT, "python-tests", path) == [["uv", "run", "pytest", "infra/tests"]]
     assert plan(ROOT, "cargo-nexttest", path) == []
     assert plan(ROOT, "cargo-clippy", path) == []
 
@@ -147,9 +145,8 @@ def test_repository_tooling_and_shared_test_support_include_consumers() -> None:
     assert "packages/boxie/tests" in command
     assert "tools/cli-playground/tests" in command
     assert "tools/cli-bench/tests" not in command
-    command = plan(ROOT, "python-tests", "infra/host/tests/host_mocks.py")[0]
-    assert "infra/host/tests" in command
-    assert "infra/environments/single-host/tests" in command
+    command = plan(ROOT, "python-tests", "infra/control/host.py")[0]
+    assert "infra/tests" in command
 
 
 def test_no_tests_directory_does_not_fall_back_to_bare_pytest(workspace: Path) -> None:
@@ -176,7 +173,7 @@ def test_hook_config_passes_paths_and_serializes_package_checks() -> None:
                 assert hook.get("pass_filenames", True)
                 assert hook["require_serial"]
     rust = next(h for r in config["repos"] for h in r["hooks"] if h["id"] == "cargo-clippy")
-    assert not re.search(rust["files"], "infra/environments/single-host/tests/test_reset.py")
+    assert not re.search(rust["files"], "infra/tests/test_reset.py")
 
 
 def test_runner_preserves_failure_and_no_selection_runs_nothing(workspace: Path) -> None:

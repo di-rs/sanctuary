@@ -1,0 +1,22 @@
+services:
+  proxy:
+    image: caddy:2.10.2-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d
+    restart: unless-stopped
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${STATE}/routes:/routes:ro
+    networks:
+      web: {}
+      ingress: {aliases: [playground-proxy]}
+  tunnel:
+    image: cloudflare/cloudflared:2026.11.1@sha256:e613aadbc2d9511785d2e67a86b0c8ac18dd63a3f9af0d06faf04cbfdcb35f2d
+    restart: unless-stopped
+    command: [tunnel, --no-autoupdate, run, --token-file, /run/tunnel-token]
+    volumes:
+      - ${TUNNEL_TOKEN_FILE}:/run/tunnel-token:ro
+    networks: [ingress, admin, outbound]
+networks:
+  web: {external: true, name: "${SITE}-web"}
+  ingress: {internal: true}
+  admin: {external: true, name: "${SITE}-admin"}
+  outbound: {}

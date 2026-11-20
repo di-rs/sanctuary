@@ -40,14 +40,7 @@ minutes disconnected, whichever limit applies first. Sandboxes have no network.
 
 ## How a preview reaches the browser
 
-The [PR build workflow](../../.github/workflows/cli-playground.yml) compiles the
-affected CLIs. A separate [trusted publisher](../../.github/workflows/cli-playground-preview.yml)
-uploads the binaries and updates the PR link. Neither step creates a browser
-sandbox; Boxie starts one when a visitor opens a terminal.
-
-Build selection includes changes to a CLI's source or resolved dependencies.
-Global build settings can select all CLIs. This differs from benchmark selection,
-which requires changes to the CLI's own implementation.
+The protected publisher selects open, ready PRs with CLI changes, builds their executables inside a disposable container and stages each bundle in private R2. The host deploys the PR gateway against the shared Boxie instance. Open the **Sanctuary / Playground** commit status to visit that revision. Boxie starts a sandbox when a visitor opens a terminal. [Preview operations](../../infra/docs/releases.md#pr-previews)
 
 ## Run locally
 

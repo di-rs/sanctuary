@@ -5,28 +5,10 @@ from pathlib import Path
 import pytest
 from boxie_test_support.packaging import (
     check_installed_wheel,
-    export_docker_context,
-    resolve_compose,
 )
 
 ROOT = Path(__file__).resolve().parents[3]
 PLAYGROUND = ROOT / "tools/cli-playground"
-
-
-@pytest.mark.integration
-def test_docker_context_excludes_generated_frontend_assets(tmp_path: Path) -> None:
-    context = tmp_path / "context"
-    source = Path("tools/cli-playground/src/cli_playground")
-    assets = context / source / "static"
-    assets.mkdir(parents=True)
-    (assets / "stale.js").write_text("stale local frontend")
-    (context / source / "__init__.py").write_text("# backend source\n")
-
-    output = export_docker_context(
-        PLAYGROUND / "infra/docker/CliPlayground.Dockerfile", context, tmp_path / "output"
-    )
-    assert (output / source / "__init__.py").read_text() == "# backend source\n"
-    assert not (output / source / "static").exists()
 
 
 @pytest.mark.integration
@@ -125,52 +107,3 @@ async def run():
 asyncio.run(run())
 """,
     )
-
-
-@pytest.mark.integration
-@pytest.mark.parametrize("manifest", ["compose.yml", "compose.production.yml"])
-@pytest.mark.parametrize("project_override", [False, True])
-def test_resolved_compose_isolated_topology(
-    tmp_path: Path, manifest: str, project_override: bool
-) -> None:
-    values = {
-        "CLI_PLAYGROUND_IMAGE": "cli-playground:test",
-        "CLI_PLAYGROUND_DATABASE_URL_FILE": str(tmp_path / "playground-dsn.secret"),
-        "CLI_PLAYGROUND_DATABASE_NETWORK": "test-database",
-        "CLI_PLAYGROUND_BOXIE_URL": "http://independent-boxie:8090",
-        "CLI_PLAYGROUND_BOXIE_CREDENTIAL_FILE": str(tmp_path / "consumer.secret"),
-        "CLI_PLAYGROUND_CONSUMER_NETWORK": "test-consumers",
-        "CLI_PLAYGROUND_PROXY_NETWORK": "test-proxy",
-        "CLI_PLAYGROUND_DATA_VOLUME": "test-product-data",
-        "CLI_PLAYGROUND_CERTIFICATES_VOLUME": "test-certificates",
-        "CLI_PLAYGROUND_DEPLOY_TOKEN": "test-token",
-        "CLI_PLAYGROUND_DOMAIN": "play.example.com",
-        "ACME_EMAIL": "test@example.com",
-        "CLOUDFLARE_DNS_API_TOKEN": "test-dns-token",
-    }
-    if project_override:
-        values["CLI_PLAYGROUND_PROJECT_NAME"] = "operator-cli-playground"
-    config = resolve_compose(
-        PLAYGROUND / "infra" / manifest,
-        values,
-        exclude_prefixes=("COMPOSE_", "CLI_PLAYGROUND_", "BOXIE_"),
-    )
-    production = manifest == "compose.production.yml"
-    assert config["name"] == values.get("CLI_PLAYGROUND_PROJECT_NAME", "cli-playground")
-    assert set(config["services"]) == ({"backend", "proxy"} if production else {"backend"})
-    for service in config["services"].values():
-        assert all(v["target"] != "/var/run/docker.sock" for v in service.get("volumes", []))
-    backend = config["services"]["backend"]
-    assert set(backend["networks"]) == (
-        {"consumer", "database", "proxy"} if production else {"consumer", "database"}
-    )
-    assert config["networks"]["database"]["name"] == "test-database"
-    assert not backend.get("depends_on")
-    assert backend["environment"]["CLI_PLAYGROUND_BOXIE_URL"] == values["CLI_PLAYGROUND_BOXIE_URL"]
-    assert {v["target"] for v in backend["volumes"]} == {
-        "/run/secrets/CLI_PLAYGROUND_DATABASE_URL",
-        "/run/secrets/consumer",
-        "/var/lib/cli-playground",
-    }
-    assert all(net["external"] for net in config["networks"].values())
-    assert all(volume["external"] for volume in config["volumes"].values())

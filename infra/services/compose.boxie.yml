@@ -1,0 +1,73 @@
+x-runtime: &runtime
+  image: ${BOXIE_IMAGE:?load Boxie first}
+  pull_policy: never
+  user: "10001:10001"
+  read_only: true
+  tmpfs: [/tmp]
+  security_opt: [no-new-privileges:true]
+  cap_drop: [ALL]
+  env_file: ${STATE}/secrets/boxie/endpoints.env
+  environment: &telemetry
+    OTEL_SERVICE_NAME: boxie-api
+    OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+    OTEL_METRICS_EXPORTER: none
+    OTEL_LOGS_EXPORTER: otlp
+    BOXIE_METRICS_HOST: 0.0.0.0
+services:
+  migrate:
+    <<: *runtime
+    command: [python, -m, boxie.persistence.migrate, --dsn-file, /config/dsn]
+    networks: [database]
+    volumes:
+      - ${STATE}/secrets/boxie/api:/config:ro
+  namespace:
+    <<: *runtime
+    command: [python, -m, boxie.bootstrap.temporal, --address, "${TEMPORAL_ADDRESS}", --namespace, "${TEMPORAL_NAMESPACE}", --server-name, "${TEMPORAL_SERVER_NAME}", --ca-file, /tls/ca.pem, --cert-file, /tls/cert.pem, --key-file, /tls/key.pem]
+    volumes:
+      - ${STATE}/tls/operator:/tls:ro
+    networks: [temporal]
+  api:
+    <<: *runtime
+    restart: unless-stopped
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      namespace: {condition: service_completed_successfully}
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8090/healthz', timeout=3).close()"]
+      interval: 5s
+      timeout: 4s
+      retries: 24
+    command: [opentelemetry-instrument, boxie-api, --config, /config/process.json]
+    volumes:
+      - ${STATE}/secrets/boxie/api:/config:ro
+      - ${STATE}/keys:/consumer-keys:ro
+      - ${STATE}/tls/api:/tls:ro
+    networks:
+      clients: {aliases: [boxie-api]}
+      supervisor: {}
+      database: {}
+      temporal: {}
+      telemetry: {aliases: [boxie-api]}
+  supervisor:
+    <<: *runtime
+    restart: unless-stopped
+    group_add: ["${DOCKER_GID}"]
+    environment:
+      <<: *telemetry
+      OTEL_SERVICE_NAME: boxie-supervisor
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      namespace: {condition: service_completed_successfully}
+    command: [opentelemetry-instrument, boxie-supervisor, --config, /config/process.json]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${STATE}/secrets/boxie/worker:/config:ro
+      - ${STATE}/tls/worker:/tls:ro
+      - ${STATE}/boxie:${STATE}/boxie
+    networks: [supervisor, database, temporal, telemetry]
+networks:
+  supervisor: {internal: true}
+  database: {external: true, name: "${SITE}-database"}
+  temporal: {external: true, name: "${SITE}-temporal"}
+  clients: {external: true, name: "${SITE}-clients"}
+  telemetry: {external: true, name: "${SITE}-telemetry"}

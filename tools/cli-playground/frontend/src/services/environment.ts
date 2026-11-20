@@ -13,7 +13,7 @@ const environmentSchema = z
         state: z.enum(["building", "ready", "failed", "empty", "cancelled"]),
       })
       .nullable(),
-    pr: z.int().positive(),
+    pr: z.int().nonnegative(),
     expires_at: z.iso.datetime({ offset: true }),
   })
   .transform(({ expires_at, ...environment }) => ({

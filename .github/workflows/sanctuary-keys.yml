@@ -1,0 +1,36 @@
+name: Manage Playground service keys
+on:
+  workflow_dispatch:
+    inputs:
+      consumer: {description: 'playground or pr-N', type: string, required: true}
+      action: {type: choice, options: [issue, rotate, revoke], required: true}
+permissions: {contents: read}
+jobs:
+  request:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-24.04
+    environment: sanctuary-delivery
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: {persist-credentials: false}
+      - env:
+          CONSUMER: ${{ inputs.consumer }}
+          KEY_ACTION: ${{ inputs.action }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          SANCTUARY_R2_BUCKET: ${{ vars.SANCTUARY_R2_BUCKET }}
+          AWS_ACCESS_KEY_ID: ${{ vars.R2_PUBLISH_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_PUBLISH_SECRET }}
+        run: |
+          python3 - <<'PY'
+          import json, os, tempfile
+          from pathlib import Path
+          from infra.control.bucket import Bucket
+          from infra.control.release import preview_number
+          name = os.environ["CONSUMER"]
+          if name != "playground":
+              preview_number(name)
+          with tempfile.TemporaryDirectory() as tmp:
+              message = Path(tmp) / "request"
+              message.write_text(json.dumps({"action": os.environ["KEY_ACTION"], "id": os.environ["GITHUB_RUN_ID"] + "-" + os.environ["GITHUB_RUN_ATTEMPT"]}))
+              Bucket().put(f"key-requests/{name}.json", message)
+          PY

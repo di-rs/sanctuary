@@ -79,10 +79,10 @@ class RequestContext:
             return
         selected = str(uuid4())
         scope.setdefault("state", {})["request_id"] = selected
-        failed, accepted = False, False
+        failed, accepted, started = False, False, False
 
         async def respond(message: Message) -> None:
-            nonlocal failed, accepted
+            nonlocal failed, accepted, started
             if message["type"] == "websocket.close" and not accepted:
                 failed = True
                 if "websocket.http.response" in scope.get("extensions", {}):
@@ -94,7 +94,12 @@ class RequestContext:
             elif message["type"] == "websocket.accept":
                 accepted = True
             if message["type"] in {"http.response.start", "websocket.http.response.start"}:
+                started = True
                 failed = message["status"] >= 400
+                if message["type"] == "http.response.start" and scope.get("path") != "/healthz":
+                    from cli_playground.metrics import requests
+
+                    requests.labels(f"{message['status'] // 100}xx").inc()
             if message["type"] in {
                 "http.response.start",
                 "websocket.accept",
@@ -109,7 +114,11 @@ class RequestContext:
         with request_context(selected):
             try:
                 await self.app(scope, receive, respond)
-            except BaseException:
+            except Exception:
+                if scope["type"] == "http" and scope.get("path") != "/healthz" and not started:
+                    from cli_playground.metrics import requests
+
+                    requests.labels("5xx").inc()
                 failed = True
                 raise
             finally:
@@ -128,6 +137,11 @@ async def unhandled_error(request: Request, _error: Exception) -> PlainTextRespo
 class _Handler(logging.Handler):
     def __init__(self) -> None:
         super().__init__()
+        self._export = None
+        if os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT"):
+            from opentelemetry._logs import get_logger
+
+            self._export = get_logger("playground.events")
         self.records: queue.Queue[bytes] = queue.Queue(maxsize=2047)
         self.instance_id = str(uuid4())
         self.closed = False
@@ -167,6 +181,11 @@ class _Handler(logging.Handler):
             data["request_id"] = identity
         if sandbox := _sandbox.get():
             data["sandbox_id"] = sandbox
+        if self._export is not None and event != "foreign_log":
+            attributes = {"event.name": event}
+            if identity:
+                attributes["request_id"] = identity
+            self._export.emit(body=message, severity_text=str(data["level"]), attributes=attributes)
         line = (json.dumps(data, separators=(",", ":")) + "\n").encode()
         if len(line) <= 8192:
             try:

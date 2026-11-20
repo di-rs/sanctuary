@@ -127,8 +127,6 @@ jobs:
         run: prek run ruff --all-files --show-diff-on-failure
       - name: 🎨 Check Python formatting
         run: prek run ruff-format --all-files --show-diff-on-failure
-      - name: 🐘 Verify shared-host database topology
-        run: uv run --locked pytest -m integration infra/environments/single-host/tests/test_database_topology.py
       - name: ♻️ Cache incremental Python type analysis
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -140,9 +138,6 @@ jobs:
         run: prek run mypy --all-files --show-diff-on-failure
       - name: 🧪 Run Python regression tests
         run: uv run pytest
-      - name: 🔭 Verify shared-host observability
-        timeout-minutes: 5
-        run: uv run --locked pytest -m integration infra/environments/single-host/tests/test_observability.py
       - name: 📏 Verify the binary-size collector on real builds
         timeout-minutes: 5
         run: |
@@ -196,7 +191,7 @@ jobs:
         run: pnpm build
       - name: 🐳 Build the cli-playground deployment image
         working-directory: .
-        run: docker build --file tools/cli-playground/infra/docker/CliPlayground.Dockerfile .
+        run: docker build --file infra/images/App.Dockerfile --target playground --build-arg PACKAGE=cli-playground .
       - name: 📦 Verify the Playground wheel, assets and Compose topology
         working-directory: .
         run: |

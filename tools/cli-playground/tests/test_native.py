@@ -95,7 +95,7 @@ def test_native_application_and_browser(tmp_path: Path) -> None:
     origin = f"http://127.0.0.1:{port}"
     stack = LifecycleStack(
         tmp_path,
-        runtime_overlay=ROOT / "tools/cli-playground/infra/compose.test.yml",
+        runtime_overlay=ROOT / "tools/cli-playground/native-test/compose.test.yml",
         runtime_services=("faults", "supervisor", "api"),
     )
     stack.env.update(
@@ -151,7 +151,7 @@ def test_native_application_and_browser(tmp_path: Path) -> None:
                 "run",
                 "python",
                 "-m",
-                "cli_playground_infra.smoke",
+                "boxie_test_support.playground_smoke",
                 "--boxie-url",
                 stack.api_url,
                 "--credential-file",

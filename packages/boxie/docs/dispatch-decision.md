@@ -143,7 +143,7 @@ requirement survives tuning and load tests inside the supervisor.
    or a wake-up against the baseline under concurrent acceptance and restart.
    Verify dropped wake-ups still drain, a paused scan fails new admission, and
    a lost acknowledgement preserves one workflow and one physical start.
-   [Observability](observability.md) · [Alert rules](../infra/observability/rules/boxie.yml)
+   [Observability](observability.md) · [Alert rules](../../../infra/services/monitoring/alerts.yml)
 3. In a disposable deployment, switch off the API callback with both paths
    available for rollback. Exercise terminal create, attach, stop and job
    submission under native Linux/gVisor. Include Temporal outages, supervisor

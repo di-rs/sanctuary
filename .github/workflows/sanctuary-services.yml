@@ -1,0 +1,20 @@
+name: Deploy Sanctuary services
+on:
+  workflow_dispatch:
+    inputs:
+      component:
+        description: Independently managed service
+        type: choice
+        options: [postgres, temporal, observability, edge]
+        required: true
+      rollback:
+        type: string
+        description: Previously published commit to restore (empty uses the default branch)
+permissions: {contents: read}
+jobs:
+  deploy:
+    # A local reusable workflow is resolved at the caller commit. The pinned actionlint accepts this spelling.
+    uses: ./.github/workflows/sanctuary-release-component.yml # zizmor: ignore[self-repository]
+    with:
+      component: ${{ inputs.component }}
+      rollback: ${{ inputs.rollback }}

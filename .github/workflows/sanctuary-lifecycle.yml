@@ -48,10 +48,10 @@ jobs:
           cargo build --release --package echor
       - name: 🐳 Build Boxie image
         run: |
-          docker build -f packages/boxie/infra/Boxie.Dockerfile -t boxie:lifecycle .
+          docker build -f infra/images/App.Dockerfile --target boxie --build-arg PACKAGE=boxie -t boxie:lifecycle .
       - name: 🐳 Build cli-playground image (Frontend and Backend)
         run: |
-          docker build -f tools/cli-playground/infra/docker/CliPlayground.Dockerfile -t cli-playground:lifecycle .
+          docker build -f infra/images/App.Dockerfile --target playground --build-arg PACKAGE=cli-playground -t cli-playground:lifecycle .
       - name: 🟢 Set up Node.js and frontend tooling
         uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76 # v1.22.0
         with:

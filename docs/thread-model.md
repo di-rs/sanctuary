@@ -9,15 +9,7 @@ Advisory secret scans must not publish credential values and run without credent
 
 ## Trust boundaries
 
-- **Assistants to production observability:** The [MCP adapters](../packages/boxie/docs/mcp.md)
-  run over stdio on private Docker networks without public listeners. SSH operators
-  or an explicitly associated OpenAI tunnel control access. Grafana uses a dedicated
-  Viewer credential and disables write tools; only its bootstrap job receives the
-  admin password. Temporal's pinned adapter exposes read-only tools and omits payload
-  data, but its shared operator certificate has broader backend authority because
-  the server has no per-operation authorizer. Keep the certificate and Grafana token
-  on the host. Tool output is production data and may contain untrusted text; it is
-  not an instruction source. OpenAI tunnel membership grants access to this data.
+- **Operator to dashboards:** Cloudflare Access checks the operator's exact email. Each administration hostname has its own audience enforced by the tunnel connector. Grafana verifies the signed assertion against its configured issuer, audience and email. Temporal UI has broad workflow visibility. Treat dashboard contents as private and untrusted. [Administration](../infra/docs/setup.md#configure-ingress-and-your-admin-identity)
 - **Local CLIs:** Arguments, stdin, files, and filenames are untrusted. Commands
   run with the invoking user's permissions; parsing must not cause unintended
   reads, writes, or execution.
@@ -114,11 +106,9 @@ Source badge generation runs with read-only access; its write-capable publisher 
 
 ## Deployment assumptions
 
-The shared-host PostgreSQL installer accepts an operator-owned volume selection
-under `/etc/sanctuary/boxie`. It checks the active container's data mount and
-reads the selected cluster's major version through a read-only volume mount
-before Compose can replace the database. Operators coordinate major-version
-cutovers and verify recovery as described in [PostgreSQL data preservation](../packages/boxie/docs/database.md#preserve-data).
+The single Hetzner host pulls desired releases from a private R2 bucket with a read-only credential. Protected release workflows alone select deployable images and service configuration. The preview build container mounts only PR source and disposable storage. The staging URL permits one object and stays outside the container. A fresh runner compares the staged bytes to the build digest and checks live eligibility before publishing. The host verifies every digest. A preview manifest selects an untrusted binary bundle and a bounded lease. The protected production gateway remains responsible for validating archive contents.
+
+PostgreSQL, Temporal, Boxie and observability use private networks. Each gateway has a distinct database login and bearer key; Boxie reads live key hashes from an operator-owned directory. Deployment and drain routes stay private. On preview removal the controller revokes the existing key, withdraws the route, drains outstanding operations and drops that preview's data. The daily database backup leaves the host encrypted with the operator's public key. [Service boundaries](../infra/docs/architecture.md)
 
 The opt-in [playground development Compose stack](../tools/cli-playground/compose.dev.yml)
 uses real CLI binaries and PTYs inside one non-root container, backed by the
@@ -147,6 +137,3 @@ application-level model; paths for untrusted inputs to gain that access are in s
 Update this model when boundaries or deployment assumptions change. This file
 informs repository reviews; it does not configure Codex Security Cloud monitoring.
 Its structure follows [OpenAI's threat-model guidance](https://learn.chatgpt.com/docs/security/threat-model).
-
-Production setup and releases stream locally built Sanctuary images from the runner
-to the pinned SSH host. The host verifies the archive checksum before activation.

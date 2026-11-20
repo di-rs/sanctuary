@@ -1,89 +1,47 @@
-name: 🌐 cli-playground PR previews
-
-# Only the default-branch script runs with credentials. PR artifacts remain opaque data.
+name: Playground PR previews
+# A completion supplies a PR number only. The default branch rechecks eligibility.
+# Only the disposable builder interprets candidate source and it receives no credentials.
 on: # zizmor: ignore[dangerous-triggers]
   workflow_run:
-    workflows: [🏗️ cli-playground PR binary builds]
-    types: [in_progress, completed]
-  pull_request_target:
-    branches: [master]
-    types: [closed, reopened]
-
+    workflows: [Playground PR event]
+    types: [completed]
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      pr:
+        type: string
+        description: PR number (empty reconciles all eligible PRs)
 permissions: {}
-
 jobs:
-  publish:
-    environment:
-      name: cli-playground-preview
-      deployment: false
-    name: 🌐 Publish cli-playground previews and PR links
-    if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.display_title != '⏭️ CI skipped' }}
-    concurrency:
-      group: cli-playground-controller-${{ github.event.workflow_run.head_repository.full_name }}-${{ github.event.workflow_run.head_branch }}
-      queue: max
-      cancel-in-progress: false
+  list:
+    if: github.ref == 'refs/heads/master' && (github.event_name != 'workflow_run' || github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    permissions:
-      contents: read
-      actions: read
-      pull-requests: write
-      deployments: write
+    environment: sanctuary-delivery
+    permissions: {contents: read, pull-requests: read}
+    outputs:
+      numbers: ${{ steps.select.outputs.numbers }}
     steps:
-      - name: 📥 Check out trusted preview controller
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.event.repository.default_branch }}
-          persist-credentials: false
-      - name: 🐍 Set up uv and Python
-        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
-        with:
-          version: '0.13.0'
-          enable-cache: false
-      - name: 🌐 Publish cli-playground previews and PR links
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: {persist-credentials: false}
+      - id: select
         env:
           GH_TOKEN: ${{ github.token }}
-          REPOSITORY: ${{ github.repository }}
-          RUN_ID: ${{ github.event.workflow_run.id }}
-          CLI_PLAYGROUND_URL: ${{ vars.CLI_PLAYGROUND_URL }}
-          CLI_PLAYGROUND_DEPLOY_TOKEN: ${{ secrets.CLI_PLAYGROUND_DEPLOY_TOKEN }}
-        run: uv run --no-dev python tools/cli-playground/preview_ci.py publish --repo "$REPOSITORY" --run-id "$RUN_ID"
-  lifecycle:
-    environment:
-      name: cli-playground-preview
-      deployment: false
-    name: 🧹 Reconcile cli-playground preview lifecycle
-    if: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.base.repo.full_name == github.repository && github.event.pull_request.base.ref == 'master' && (github.event.action == 'closed' || !github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'run-ci')) }}
-    concurrency:
-      group: cli-playground-controller-${{ github.event.pull_request.head.repo.full_name }}-${{ github.event.pull_request.head.ref }}
-      queue: max
-      cancel-in-progress: false
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    permissions:
-      contents: read
-      actions: read
-      pull-requests: write
-      deployments: write
-    steps:
-      - name: 📥 Check out trusted preview controller
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.event.repository.default_branch }}
-          persist-credentials: false
-      - name: 🐍 Set up uv and Python
-        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
-        with:
-          version: '0.13.0'
-          enable-cache: false
-      - name: 🧹 Reconcile closed and reopened PR previews
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPOSITORY: ${{ github.repository }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          PR_ACTION: ${{ github.event.action }}
-          CLI_PLAYGROUND_URL: ${{ vars.CLI_PLAYGROUND_URL }}
-          CLI_PLAYGROUND_DEPLOY_TOKEN: ${{ secrets.CLI_PLAYGROUND_DEPLOY_TOKEN }}
-        run: |
-          uv run --no-dev python tools/cli-playground/preview_ci.py lifecycle \
-            --repo "$REPOSITORY" --pr "$PR_NUMBER" --action "$PR_ACTION"
+          PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number || inputs.pr }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          SANCTUARY_R2_BUCKET: ${{ vars.SANCTUARY_R2_BUCKET }}
+          AWS_ACCESS_KEY_ID: ${{ vars.R2_PUBLISH_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_PUBLISH_SECRET }}
+        run: python3 -m infra.control.publish list
+  preview:
+    needs: list
+    if: needs.list.outputs.numbers != '[]'
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        pr: ${{ fromJSON(needs.list.outputs.numbers) }}
+    # A local reusable workflow is resolved at the caller commit. The pinned actionlint accepts this spelling.
+    uses: ./.github/workflows/sanctuary-preview-one.yml # zizmor: ignore[self-repository]
+    with: {pr: "${{ matrix.pr }}"}
+    permissions: {contents: read, pull-requests: read, statuses: write}

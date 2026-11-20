@@ -31,8 +31,8 @@ python:
   - 'tools/{cli-bench,cli-check}/**/!(*.md|*.markdown)'
   # Tests read deployment scripts, Compose manifests, and workflow definitions.
   - 'infra/**/!(*.md|*.markdown)'
-  - 'packages/boxie/infra/**/!(*.md|*.markdown)'
-  - 'tools/cli-playground/infra/**/!(*.md|*.markdown)'
+  - 'packages/boxie/native-test/**/!(*.md|*.markdown)'
+  - 'tools/cli-playground/native-test/**/!(*.md|*.markdown)'
   - '.github/workflows/**'
   - 'packages/boxie/tests/**'
   - 'tools/cli-playground/tests/**'
@@ -40,7 +40,7 @@ python:
 frontend:
   - 'tools/cli-playground/frontend/**/!(*.md|*.markdown)'
   # This job also owns packaging, database lifecycle, and browser integration tests.
-  - 'tools/cli-playground/{src,tests,infra}/**/!(*.md|*.markdown)'
+  - 'tools/cli-playground/{src,tests,native-test}/**/!(*.md|*.markdown)'
   - 'packages/boxie/src/**/!(*.md|*.markdown)'
   - 'packages/boxie/tests/support/**/!(*.md|*.markdown)'
   - '**/pyproject.toml'

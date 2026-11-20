@@ -57,11 +57,7 @@ The installed wheel includes Alembic scripts; the container includes `alembic.in
 and runs the standard `alembic upgrade head` command. Startup checks the schema version
 and fails if it is missing or incompatible. It does not create or upgrade tables.
 
-Catalog rollout requires the migration and compatible gateway before enabling
-the PR build variable; follow the [publication sequence](previews.md#enable-generated-command-catalogs).
-The startup schema check expects `0003_cli_catalog`. An older application may
-reject the newer schema on restart, so retain the compatible application when
-disabling catalog production.
+The gateway checks for `0004_production` on startup. This migration reserves environment number zero for the production release and preserves existing positive PR identifiers. Apply it before starting the production gateway. A downgrade requires retiring environment zero first.
 
 ### Author a migration
 
@@ -91,44 +87,8 @@ from Boxie's control network; the proxy does not join it.
 
 ### Shared-host provisioning
 
-Shared-host setup generates a separate password and database URL under
-`/etc/sanctuary/cli-playground/`. Its `provision.sh` adds the database using the
-existing PostgreSQL administrator inside the database container. This works with
-already-initialized PostgreSQL volumes; it does not depend on first-boot scripts.
-The application receives only its own database URL, never the administrator password.
-
-`install.sh` reconciles the PostgreSQL Compose service to attach its internal
-`playground` network, which may restart PostgreSQL on an existing host. Schedule
-this first installation during the cutover window. It then provisions the database
-and runs Alembic before startup. `deploy.sh`
-runs the migration command from the new image before replacing the backend. A
-failed upgrade stops the deployment. Neither path enables multiple workers.
-For an existing host receiving this change, install the updated owner scripts and
-rendered settings before its first database-backed release.
-
-### Replace file-based metadata
-
-There is no importer for old metadata files. For the initial cutover:
-
-1. Pause preview publication and new browser sessions at the ingress.
-2. Let the old backend finish pending uploads and stops. Drain its sessions or
-   wait for their bounded sandbox lifetimes before stopping it.
-3. Keep the old data volume for rollback. Provision the new database, apply its
-   schema and select a fresh data volume for ZIP staging.
-4. Start the new backend, verify readiness, then re-enable traffic and rerun the
-   PR builds to republish previews. Old session bindings are not carried over.
+Sanctuary creates one PostgreSQL database and login for production and one per eligible PR. Each release runs the application's Alembic migration. Environment number zero identifies the production bundle, while positive numbers identify pull requests. Removing a preview drains its sessions and artifacts before dropping its database. [Release operations](../../../infra/docs/releases.md)
 
 ## Back up and restore
 
-Back up the database and staging volume together while the gateway is stopped.
-Restore both from the same backup before starting recovery. Boxie's artifact
-storage and database retain their separate backup requirements. Database backups
-alone cannot recover bytes for an upload Boxie has not acknowledged.
-
-## Roll back the initial cutover
-
-Rollback is a coordinated state restore, not an Alembic downgrade: drain any new
-sessions and pending operations, stop the new backend, then restore the prior
-application/configuration and its matching old data volume. Old metadata files
-cannot describe sessions or previews created after cutover. A schema downgrade
-on a disposable test database is only a migration check.
+The daily encrypted database backup includes gateway roles and databases. Restoring artifact references also requires the matching Boxie files. [Backups and recovery](../../../infra/docs/releases.md#backups-and-recovery)

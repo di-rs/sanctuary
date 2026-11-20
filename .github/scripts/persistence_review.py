@@ -10,7 +10,7 @@ import yaml
 from markdown_it import MarkdownIt
 
 FIELDS = ("Production impact", "Existing-data validation", "Recovery")
-POSTGRES = "packages/boxie/infra/postgres/compose.yml"
+POSTGRES = "infra/services/compose.postgres.yml"
 
 
 def missing_evidence(body: str, upgrade: tuple[str, str] | None = None) -> list[str]:
@@ -51,7 +51,7 @@ def postgres_major(revision: str) -> str | None:
     )
     if result.returncode:
         return None
-    image = yaml.safe_load(result.stdout)["services"]["postgres"]["image"]
+    image = yaml.safe_load(result.stdout)["services"]["db"]["image"]
     tag = re.search(r":(\d+)\b", image)
     return tag[1] if tag else None
 

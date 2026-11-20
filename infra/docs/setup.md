@@ -1,114 +1,55 @@
-# Set up the shared host
+# First deployment
 
-## Prepare the Sanctuary environment
+Use an existing x86-64 Hetzner server running Ubuntu 24.04. You need access to its browser console, the existing host administration identity, repository settings, and a Cloudflare zone. Enrollment installs Docker Compose and gVisor if needed. Existing applications must release any hostnames you assign to this installation at cutover. Routine releases use GitHub Actions.
 
-Create GitHub environments `sanctuary`, `boxie`, `cli-playground` and
-`cli-playground-preview`. Restrict deployment to `master`. The Sanctuary environment
-holds the following provisioning inputs:
+## Prepare private storage
 
-| Setting | Purpose |
-| --- | --- |
-| Variable `PULUMI_BACKEND_URL` | Existing R2 S3 backend URL, including its endpoint |
-| Secrets `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | Read/write access to the dedicated state bucket |
-| Secret `PULUMI_CONFIG_PASSPHRASE` | Encrypt state secrets; retain it with the state backup |
-| Secret `HCLOUD_TOKEN` | Read/write access to the dedicated Hetzner project |
-| Secret `CLOUDFLARE_API_TOKEN` | Provision DNS, tunnel and Access applications |
-| Secret `CLOUDFLARE_DNS_API_TOKEN` | Zone-scoped DNS edit/read access for ACME |
-| Variable `SINGLE_HOST_CONFIG` | Nonsecret JSON configuration below |
+1. In Cloudflare R2 create two private buckets, one for delivery and one for encrypted database backups. Keep public development URLs and custom domains disabled on both.
+2. Scope an Object Read & Write credential to the delivery bucket for GitHub. Give the host a separate Object Read Only credential for that bucket. Scope a third credential to the backup bucket for the backup job. Existing keys with those scopes can be reused. Set a lifecycle rule on `incoming/` to expire abandoned uploads after one day. Keep `blobs/`, `desired/` and `history/` available for releases and rollbacks.
+3. In the repository create the GitHub Environment **sanctuary-delivery**. Restrict deployment branches to the protected `master` branch. Add environment variables `CLOUDFLARE_ACCOUNT_ID`, `SANCTUARY_R2_BUCKET` and `R2_PUBLISH_KEY_ID`. Add the matching secret as `R2_PUBLISH_SECRET`. Set the **repository** variable `PREVIEW_ZONE` to your preview DNS suffix so the PR link job can read it.
 
-The state bucket must exist before setup. Keep its passphrase and backups outside
-the VM. Use a dedicated Cloudflare zone where possible because the ACME token can
-edit records in its zone. Do not create a new Pulumi state for an existing host.
+Each artifact stays in a private bucket. The preview builder receives a read-only source mount and a disposable work volume. Its trusted runner uses a two-hour PUT URL for exactly one staging object. A fresh runner verifies the current PR and checksum before publishing. [Cloudflare R2 presigned URLs](https://developers.cloudflare.com/r2/api/s3/presigned-urls/)
 
-Example `SINGLE_HOST_CONFIG` (replace the placeholders):
+## Configure ingress and your admin identity
 
-```json
-{
-  "domain": "play.example.com",
-  "cloudflareZoneId": "00000000000000000000000000000000",
-  "cloudflareAccountId": "00000000000000000000000000000000",
-  "grafanaHostname": "grafana.example.com",
-  "temporalHostname": "temporal.example.com",
-  "operatorTeamName": "example-team",
-  "operatorEmails": ["operator@example.com"],
-  "sshCidrs": ["0.0.0.0/0"],
-  "acmeEmail": "operator@example.com"
-}
+1. In Cloudflare Zero Trust, enable **One-time PIN** as a login method. Create two self-hosted Access applications covering the entire Grafana and Temporal UI hostnames. Add an **Allow** policy with **Emails** set to your exact address. Select One-time PIN for each application. Save the team hostname and the Grafana application audience tag.
+2. Create or reuse a remotely managed Cloudflare Tunnel. Add these public hostname routes in order. Enable **Protect with Access** on both administration routes and select the corresponding application audience. The connector must validate the appropriate assertion before forwarding either request.
+
+   | Public hostname example | Tunnel origin |
+   | --- | --- |
+   | `grafana.example.net` | `http://grafana:3000` |
+   | `temporal.example.net` | `http://temporal-ui:8080` |
+   | `play.example.net` | `http://playground-proxy:80` |
+   | `*.example.net` | `http://playground-proxy:80` |
+
+   Use the tunnel's proxied DNS records, including a wildcard CNAME for previews. Choose a suffix covered by your edge certificate. The example produces `pr-42.example.net`. Nested preview subdomains require matching certificate coverage. Keep the original HTTP Host header for the Playground proxy. Caddy returns 404 for unconfigured hosts. A remotely managed tunnel uses the token supplied by Cloudflare. [Tunnel routing](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/routing-to-tunnel/) · [Access email PIN](https://developers.cloudflare.com/cloudflare-one/integrations/identity-providers/one-time-pin/)
+
+3. Configure the Hetzner firewall for outbound tunnel and registry traffic. Administration through the provider console permits closing public inbound traffic to this stack. Preserve any existing access you need for other workloads.
+4. Set up the Alertmanager integration and external check in the [monitoring guide](observability.md). Save the Alertmanager receiver URL for enrollment.
+
+## Enroll once in the Hetzner browser console
+
+Use the host's root console. Keep credentials in the server's private configuration and GitHub's secret controls. Choose the public recipient of an existing backup decryption key you control. The corresponding private key stays off the host.
+
+```sh
+install -d -m 700 /etc/sanctuary
+git clone --branch master https://github.com/di-rs/sanctuary.git /opt/sanctuary
+cd /opt/sanctuary
+install -m 600 infra/host.env.example /etc/sanctuary/host.env
+install -m 600 infra/backup.env.example /etc/sanctuary/backup.env
 ```
 
-Optional settings are `sshPublicKey`, `location` (`nbg1` or `fsn1`), `serverType`
-(default `cx33`), `diskSize` (default 80 GiB) and `protect` (default true). The
-host accepts public-key SSH and exposes only SSH, HTTP, HTTPS and ICMP. Boxie and
-Temporal stay on private Docker networks. Narrow `sshCidrs` only if both operators
-and Actions runners can reach the host.
+Use an editor in that console to fill the two files and put the raw tunnel token and raw alert webhook URL in `/etc/sanctuary/tunnel-token` and `/etc/sanctuary/alert-webhook`. Use your actual account ID, hostnames, Access email and audience. The examples list every required setting. For an existing controller checkout, verify that it is clean and on the intended protected commit before enrollment. [Host settings](../host.env.example) · [Backup settings](../backup.env.example)
 
-## Run setup
-
-Run
-[Single-host Sanctuary setup](../../.github/workflows/sanctuary-setup.yml)
-from `master`. This manual workflow builds Boxie, the cli-playground backend and
-sandbox, and the collector from current `master`; it does not ask for image
-digests. It then runs Pulumi, waits for cloud-init, loads the images directly into
-the server’s Docker engine over pinned SSH, copies the committed files
-and private settings over SSH, and starts the Compose projects. It can create
-paid cloud resources.
-
-Setup generates internal credentials and certificates, initializes PostgreSQL and
-Temporal, starts Boxie and its monitoring and tunnel, then starts cli-playground and
-its proxy. A rerun keeps existing credentials and data. Partial credentials cause
-setup to fail for inspection. PostgreSQL and Temporal server/schema upgrades stay
-separate from application releases. Cloud-init handles first boot; later edits to
-host bootstrap code do not reinstall an existing server. On a new host,
-`sshPublicKey` is added to root's authorized keys during cloud-init. Changing it
-later does not change an existing server; rotate that key on the host. The
-generated deployment and host keys are protected with the server. Replacing either
-key resource alone would make Pulumi's SSH outputs disagree with the live host.
-Rotate them as part of a planned host replacement, then repeat the GitHub SSH
-credential handoff below.
-
-A successful setup run does not establish production readiness by itself. Verify
-DNS, ACME, Access rules, native runsc lifecycle, host capacity and an off-host
-backup restore before enabling release gates.
-
-## Give application workflows their SSH credentials
-
-Run the following locally from the repository root with your own authenticated
-Pulumi and `gh` sessions. Select the existing `sanctuary` production stack first.
-The application environments receive host-level root SSH authority, not
-per-application host isolation. They receive no R2 or provider credentials.
-
-```bash
-set -euo pipefail
-set +x
-umask 077
-repository=di-rs/sanctuary
-private=$(mktemp -d)
-trap 'rm -rf "$private"' EXIT
-pulumi -C infra/environments/single-host stack select production --non-interactive
-host=$(pulumi -C infra/environments/single-host stack output ipv4)
-url=$(pulumi -C infra/environments/single-host stack output publicUrl)
-pulumi -C infra/environments/single-host stack output sshPrivateKey --show-secrets > "$private/key"
-public_key=$(pulumi -C infra/environments/single-host stack output sshHostPublicKey)
-python3 -c 'import ipaddress,sys; ipaddress.IPv4Address(sys.argv[1])' "$host"
-[[ $url =~ ^https://[a-z0-9.-]+$ ]]
-printf '%s %s\n' "$host" "$public_key" > "$private/known_hosts"
-ssh-keygen -y -f "$private/key" >/dev/null
-ssh-keygen -l -f "$private/known_hosts" >/dev/null
-ssh -o BatchMode=yes -o StrictHostKeyChecking=yes \
-  -o "UserKnownHostsFile=$private/known_hosts" -i "$private/key" \
-  "root@$host" 'cat /etc/sanctuary/cli-playground/preview-token' > "$private/token"
-[[ $(cat "$private/token") =~ ^[a-f0-9]{64}$ ]]
-for environment in boxie cli-playground; do
-  gh variable set DEPLOY_HOST --repo "$repository" --env "$environment" --body "$host"
-  gh secret set DEPLOY_SSH_KEY --repo "$repository" --env "$environment" < "$private/key"
-  gh secret set DEPLOY_KNOWN_HOSTS --repo "$repository" --env "$environment" < "$private/known_hosts"
-done
-gh variable set CLI_PLAYGROUND_URL --repo "$repository" --env cli-playground-preview --body "$url"
-gh secret set CLI_PLAYGROUND_DEPLOY_TOKEN --repo "$repository" --env cli-playground-preview < "$private/token"
+```sh
+cd /opt/sanctuary
+bash infra/enroll.sh
 ```
 
-All retrieved values are checked before the first GitHub write. If a GitHub write
-fails, rerun the handoff after correcting permissions; overwriting the same
-settings is safe. Setup never receives your GitHub administration credential.
-Registry authentication uses the workflow's temporary package token, stored in
-temporary files under `/run`; it expires with the token's lifetime.
+Enrollment registers the host updater and daily backup timer. It generates service credentials, a local CA and separate client certificates. Allow existing operator-owned data to remain at its original path during cutover. This installation owns its own `/var/lib/sanctuary` tree. Confirm that destination is available before starting.
+
+## Start the services
+
+From the GitHub Actions tab on `master`, use **Deploy Sanctuary services** for `postgres`, `temporal` and `observability`. Next run **Deploy Boxie**, **Deploy Playground**, then **Deploy Sanctuary services** for `edge`. A successful release workflow means the desired revision is in R2. The host polls it every 90 seconds and retries dependencies that are still starting.
+
+Open the production Playground, start a terminal and run `echor hello`. Verify that both dashboard origins prompt for your email in a private browser and that your approved account can view them. Check an unrecognized hostname for a 404. Verify the external monitor and an off-host backup before relying on the deployment for persistent work. [Rollbacks and recovery](releases.md)

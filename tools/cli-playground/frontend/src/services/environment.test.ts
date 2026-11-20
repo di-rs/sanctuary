@@ -90,7 +90,7 @@ describe("environment metadata", () => {
       { ...metadata, clis: "catr" },
       { ...metadata, clis: [42] },
       { ...metadata, sha: 42 },
-      { ...metadata, pr: 0 },
+      { ...metadata, pr: -1 },
       { ...metadata, pr: 1.5 },
       { ...metadata, pr: Number.MAX_SAFE_INTEGER + 1 },
       { ...metadata, expires_at: null },

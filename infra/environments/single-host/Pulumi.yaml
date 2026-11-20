@@ -1,7 +1,0 @@
-name: sanctuary
-runtime:
-  name: python
-  options:
-    toolchain: uv
-    virtualenv: ../../../.venv
-description: Shared host with Boxie and cli-playground

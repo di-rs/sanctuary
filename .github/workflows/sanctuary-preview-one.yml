@@ -1,0 +1,76 @@
+name: Reconcile one Playground preview
+on:
+  workflow_call:
+    inputs:
+      pr: {required: true, type: number}
+permissions: {}
+concurrency:
+  group: sanctuary-preview-${{ inputs.pr }}
+  cancel-in-progress: false
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 110
+    permissions: {contents: read, pull-requests: read}
+    environment: sanctuary-delivery
+    outputs:
+      build: ${{ steps.plan.outputs.build }}
+      head: ${{ steps.plan.outputs.head }}
+      digest: ${{ steps.store.outputs.digest }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: {fetch-depth: 0, persist-credentials: false}
+      - run: python3 -m pip install --disable-pip-version-check --target "$RUNNER_TEMP/s3" boto3==1.40.0
+      - id: plan
+        env: &delivery
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ inputs.pr }}
+          PREVIEW_ZONE: ${{ vars.PREVIEW_ZONE }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          SANCTUARY_R2_BUCKET: ${{ vars.SANCTUARY_R2_BUCKET }}
+          AWS_ACCESS_KEY_ID: ${{ vars.R2_PUBLISH_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_PUBLISH_SECRET }}
+        run: PYTHONPATH="$RUNNER_TEMP/s3" python3 -m infra.control.publish plan "pr-$PR"
+      - if: steps.plan.outputs.build == 'true'
+        name: Build the selected commit in a disposable container
+        env: {BASE: "${{ steps.plan.outputs.base }}", HEAD_SHA: "${{ steps.plan.outputs.head }}"}
+        run: |
+          git clone --no-local --no-checkout "$PWD" "$RUNNER_TEMP/candidate"
+          git -C "$RUNNER_TEMP/candidate" fetch --no-tags "$PWD" "$BASE" "$HEAD_SHA"
+          git -C "$RUNNER_TEMP/candidate" checkout --detach "$HEAD_SHA"
+          bash infra/control/build.sh "$PWD" "$RUNNER_TEMP/candidate" "$BASE" "$HEAD_SHA" "$RUNNER_TEMP/bundle.zip"
+      - if: steps.plan.outputs.build == 'true'
+        id: store
+        run: |
+          curl --config "$RUNNER_TEMP/put.conf" --fail --silent --show-error --retry 3 --upload-file "$RUNNER_TEMP/bundle.zip" > /dev/null
+          echo "digest=$(sha256sum "$RUNNER_TEMP/bundle.zip" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+  activate:
+    needs: prepare
+    if: needs.prepare.outputs.build == 'true'
+    env:
+      BUILT_HEAD: ${{ needs.prepare.outputs.head }}
+      BUILT_DIGEST: ${{ needs.prepare.outputs.digest }}
+    runs-on: ubuntu-24.04
+    permissions: {contents: read, pull-requests: read}
+    environment: sanctuary-delivery
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: {fetch-depth: 0, persist-credentials: false}
+      - name: Verify and publish the current PR revision
+        env: *delivery
+        run: python3 -m infra.control.publish finish "pr-$PR"
+  link:
+    needs: [prepare, activate]
+    if: ${{ !cancelled() && needs.prepare.result == 'success' && needs.prepare.outputs.head != '' && (needs.activate.result == 'success' || needs.activate.result == 'skipped') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    permissions: {contents: read, pull-requests: read, statuses: write}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: {persist-credentials: false, fetch-depth: 0}
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ inputs.pr }}
+          PREVIEW_ZONE: ${{ vars.PREVIEW_ZONE }}
+          BUILT_HEAD: ${{ needs.prepare.outputs.head }}
+        run: python3 -m infra.control.preview_status "pr-$PR"

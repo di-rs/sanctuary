@@ -1,0 +1,10 @@
+[Unit]
+Description=Check for private Sanctuary releases
+
+[Timer]
+OnBootSec=30s
+OnUnitInactiveSec=90s
+AccuracySec=10s
+
+[Install]
+WantedBy=timers.target

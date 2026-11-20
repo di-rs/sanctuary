@@ -19,10 +19,6 @@ pr-review = ["markdown-it-py>=4,<5", "pyyaml>=6.0.3"]
 dev = [
     "boxie-test-support",
     "mypy",
-    "pulumi==3.276.0",
-    "pulumi-cloudflare==6.24.0",
-    "pulumi-hcloud==1.43.4",
-    "pulumi-tls==5.6.3",
     "pytest>=9.2.0",
     { include-group = "pr-review" },
     "ruff",
@@ -34,11 +30,14 @@ package = false
 required-version = ">=0.13.0"
 
 [tool.uv.workspace]
-members = ["infra/host", "packages/boxie", "packages/boxie/tests/support", "tools/cli-playground", "packages/boxie/infra", "tools/cli-playground/infra", "tools/cli-bench", "tools/cli-check", "tools/local-dev", "tools/cli-record", "tools/sanctuary-dev"]
+members = ["packages/boxie", "packages/boxie/tests/support", "tools/cli-playground", "tools/cli-bench", "tools/cli-check", "tools/local-dev", "tools/cli-record", "tools/sanctuary-dev"]
 
 [tool.ruff]
 target-version = "py315"
 line-length = 100
+
+[tool.ruff.per-file-target-version]
+"infra/control/*.py" = "py312"
 
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F", "I", "UP", "B", "PGH003", "PGH004"]
@@ -47,14 +46,12 @@ select = ["E4", "E7", "E9", "F", "I", "UP", "B", "PGH003", "PGH004"]
 python_version = "3.15"
 plugins = ["pydantic.mypy"]
 files = ["packages", "tools", "infra"]
-mypy_path = ["tools", "infra/host/tests"]
+mypy_path = ["tools"]
 strict = true
-# Pulumi entry points share this filename; their implementation modules are checked.
-exclude = ["infra/environments/single-host/__main__.py"]
 
 [tool.pytest]
-testpaths = ["infra/host/tests", "infra/environments/single-host/tests", "packages/boxie/tests", "tools/cli-bench/tests", "tools/cli-playground/tests", "tools/cli-check/tests", "tools/local-dev/tests", "tools/cli-record/tests", "tools/repository_policy/tests", "tools/sanctuary-dev/tests"]
-pythonpath = ["tools", "tools/cli-bench", "infra/host/tests", "packages/boxie/tests"]
+testpaths = ["infra/tests", "packages/boxie/tests", "tools/cli-bench/tests", "tools/cli-playground/tests", "tools/cli-check/tests", "tools/local-dev/tests", "tools/cli-record/tests", "tools/repository_policy/tests", "tools/sanctuary-dev/tests"]
+pythonpath = ["tools", "tools/cli-bench", "packages/boxie/tests"]
 addopts = ["--strict-config", "--strict-markers", "-p", "boxie_test_support.dependencies", "-m", "not integration"]
 markers = ["integration: real isolated builds/installations and external-tool checks; prerequisites required"]
 
@@ -67,5 +64,3 @@ cli-check = { workspace = true }
 boxie = { workspace = true }
 boxie-test-support = { workspace = true }
 cli-playground = { workspace = true }
-boxie-infra = { workspace = true }
-host-infra = { workspace = true }
