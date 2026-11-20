@@ -15,7 +15,9 @@ if TYPE_CHECKING:
     from boxie.persistence.artifacts import ArtifactLimits
 
 
-async def extract_archive(staged: Path, limits: ArtifactLimits) -> None:
+async def extract_archive(
+    staged: Path, limits: ArtifactLimits, *, staging_bytes: int | None = None
+) -> int:
     target = staged / "files"
     target.mkdir(mode=0o755)
     names: set[str] = set()
@@ -60,6 +62,8 @@ async def extract_archive(staged: Path, limits: ArtifactLimits) -> None:
                     expanded += len(chunk)
                     if member_bytes > limits.member_bytes or expanded > limits.expanded_bytes:
                         raise BoxieError(413, "expanded artifact limit exceeded")
+                    if staging_bytes is not None and expanded > staging_bytes:
+                        raise BoxieError(429, "artifact storage quota reached")
                     output.write(chunk)
                     await asyncio.sleep(0)
                 output.flush()
@@ -69,3 +73,4 @@ async def extract_archive(staged: Path, limits: ArtifactLimits) -> None:
     if files == 0:
         raise BoxieError(422, "artifact contains no regular files")
     sync_directory(target)
+    return expanded

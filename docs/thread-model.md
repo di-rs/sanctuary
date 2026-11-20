@@ -43,6 +43,10 @@ Advisory secret scans must not publish credential values and run without credent
   admission. Preserve path/type validation and expanded-byte limits in
   [Boxie extraction](../packages/boxie/src/boxie/persistence/artifact_files.py)
   and [playground validation](../tools/cli-playground/src/cli_playground/artifacts.py).
+  Enforce consumer and installation artifact budgets on the owning supervisor.
+  Keep staging and retired bytes charged until publication or physical cleanup
+  settles the reservation. A lost acknowledgement can leave bytes on disk.
+  Resolve it against PostgreSQL before collecting or releasing capacity.
   Valid executable headers do not establish trust. The optional command catalog
   is untrusted data with bounded bytes, tree size, strings, names and collections.
   Bind it to the expected head revision and exact executable digests. Persist its

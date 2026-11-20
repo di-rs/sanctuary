@@ -105,7 +105,10 @@ class SupervisorClient:
             async with asyncio.timeout(self._timeout):
                 async with self._http.stream(method, path, headers=headers, **kwargs) as response:
                     if response.status_code in ERRORS:
-                        raise BoxieError(response.status_code, ERRORS[response.status_code])
+                        detail = ERRORS[response.status_code]
+                        if response.status_code == 429 and path.startswith("/v1/artifacts/"):
+                            detail = "artifact storage quota reached"
+                        raise BoxieError(response.status_code, detail)
                     if response.status_code not in (200, 201, 204):
                         raise dependency_error()
                     body = bytearray()

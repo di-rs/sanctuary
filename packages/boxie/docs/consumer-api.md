@@ -37,6 +37,11 @@ identifiers.
 4. Retire the artifact when it is no longer needed for new sandboxes. Boxie
    keeps its files until existing sandbox references have been released.
 
+Uploads return HTTP 429 when the consumer or installation artifact budget cannot
+cover staging. A valid exact retry of an active artifact still returns 200.
+Retire unused artifacts and wait for collection before retrying a new upload.
+[Artifact storage budgets](configuration.md#artifact-storage-budgets)
+
 Sandbox status includes `id`, `state`, `created_at`, `absolute_deadline`,
 `reason`, and `cleanup_pending`. A stop can leave cleanup pending: capacity is
 released only after container deletion is confirmed.

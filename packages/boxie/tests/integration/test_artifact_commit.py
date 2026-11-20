@@ -1,20 +1,37 @@
-"""Real PostgreSQL COMMIT acknowledgment loss through the owned wire proxy."""
+"""Artifact quota and publication recovery against real PostgreSQL."""
 
 import asyncio
 import hashlib
 import os
+import shutil
 import time
+from collections.abc import AsyncIterator
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
-from uuid import uuid4
+from uuid import UUID, uuid4
 
+import httpx
 import psycopg
 import pytest
+from alembic import command
+from boxie.api.app import ApiConfig, create_app
+from boxie.bootstrap.supervisor import create_supervisor_app
+from boxie.domain.errors import BoxieError
+from boxie.persistence.artifacts import ArtifactLimits, ArtifactQuota
 from boxie.persistence.database import database as session_database
-from boxie.persistence.models import Artifact
+from boxie.persistence.migrate import migration_config
+from boxie.persistence.models import Artifact, ArtifactUpload
 from boxie.persistence.postgres_artifacts import PostgresArtifactStore
-from boxie_test_support.supervisor import bundle
-from database_support import OWNER, database
+from boxie.persistence.start_guard import PostgresStartGuard
+from boxie.sandbox.execution.supervisor import Supervisor
+from boxie.sandbox.transport.client import SupervisorClient
+from boxie_test_support.api import CONSUMER_AUTH, FOREIGN_AUTH, serve
+from boxie_test_support.archive import chunks as archive_chunks
+from boxie_test_support.execution import Daemon
+from boxie_test_support.supervisor import Clock, bundle
+from database_support import OWNER, database, upload
+from sqlalchemy import func, update
 from sqlalchemy.exc import DBAPIError
 from sqlmodel import select
 
@@ -59,7 +76,8 @@ def test_committed_metadata_survives_lost_ack_and_competing_collection(
                             await asyncio.sleep(0.01)
                     async with direct_sessions() as session:
                         row = await session.get(Artifact, identifier)
-                    assert row is not None
+                        assert not (await session.exec(select(ArtifactUpload))).all()
+                    assert row is not None and row.expanded_bytes == len(b"committed")
                     path = store.root / str(row.storage_id)
                     assert (path / "files/proof").read_bytes() == b"committed"
                     os.utime(path, (time.time() - 7200,) * 2)
@@ -71,8 +89,6 @@ def test_committed_metadata_survives_lost_ack_and_competing_collection(
                         with pytest.raises(DBAPIError):
                             await asyncio.wait_for(upload, 10)
                     else:
-                        from boxie.domain.errors import BoxieError
-
                         with pytest.raises(BoxieError) as expired:
                             await asyncio.wait_for(upload, 10)
                         assert expired.value.status == 503
@@ -136,15 +152,6 @@ def test_native_fixture_compose_resolves_owned_fault_boundaries(tmp_path: Path) 
 def test_disconnected_upload_waiter_and_collector_have_one_total_deadline(
     postgres_dsn: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from boxie.bootstrap.supervisor import create_supervisor_app
-    from boxie.domain.errors import BoxieError
-    from boxie.persistence.start_guard import PostgresStartGuard
-    from boxie.sandbox.execution.supervisor import Supervisor
-    from boxie.sandbox.transport.client import SupervisorClient
-    from boxie_test_support.api import serve
-    from boxie_test_support.execution import Daemon
-    from boxie_test_support.supervisor import Clock
-
     async def exercise() -> None:
         async with database(postgres_dsn, tmp_path) as (_, store, sessions, config):
             monkeypatch.setattr(
@@ -189,9 +196,6 @@ def test_disconnected_upload_waiter_and_collector_have_one_total_deadline(
 def test_cancelled_invalid_and_oversized_uploads_never_publish(
     postgres_dsn: str, tmp_path: Path
 ) -> None:
-    from boxie.domain.errors import BoxieError
-    from boxie.persistence.artifacts import ArtifactLimits
-
     async def exercise() -> None:
         async with database(postgres_dsn, tmp_path) as (_, store, sessions, _):
 
@@ -215,8 +219,251 @@ def test_cancelled_invalid_and_oversized_uploads_never_publish(
             with pytest.raises(BoxieError) as oversized:
                 await limited.put(OWNER, uuid4(), hashlib.sha256(data).hexdigest(), chunks())
             assert oversized.value.status == 413
+            quota = ArtifactQuota(total_bytes=len(data) - 1)
+            limited = PostgresArtifactStore(sessions, store.root, quota=quota)
+            with pytest.raises(BoxieError) as staging_full:
+                await limited.put(OWNER, uuid4(), hashlib.sha256(data).hexdigest(), chunks())
+            assert staging_full.value.status == 429
             assert not list(store.root.iterdir())
             async with sessions() as session:
                 assert (await session.exec(select(Artifact))).all() == []
+                assert (await session.exec(select(ArtifactUpload))).all() == []
+
+    asyncio.run(exercise())
+
+
+@pytest.mark.parametrize("budget", ["bytes", "objects"])
+def test_quota_scopes_and_exact_retry_through_api(
+    postgres_dsn: str, tmp_path: Path, budget: str
+) -> None:
+    async def exercise() -> None:
+        async with database(postgres_dsn, tmp_path) as (life, store, sessions, config):
+            data = bundle({"small": b"a" * 64})
+            store.quota = (
+                ArtifactQuota(consumer_bytes=len(data) + 64, total_bytes=len(data) + 128)
+                if budget == "bytes"
+                else ArtifactQuota(consumer_objects=1, total_objects=2)
+            )
+            clock = Clock()
+            supervisor = Supervisor(
+                config, Daemon(), store.path, PostgresStartGuard(sessions), clock, clock.monotonic
+            )
+            async with (
+                serve(
+                    create_supervisor_app(supervisor, store, credential=b"supervisor-test-secret")
+                ) as origin,
+                SupervisorClient(origin, b"supervisor-test-secret") as upstream,
+            ):
+                app = create_app(
+                    ApiConfig(
+                        release="test",
+                        consumers={
+                            "one": b"consumer-one-secret",
+                            "two": b"consumer-two-secret",
+                            "three": b"consumer-three-secret",
+                        },
+                    ),
+                    life,
+                    upstream,
+                    upstream,
+                )
+                async with serve(app) as url, httpx.AsyncClient(base_url=url) as client:
+
+                    async def put(
+                        identifier: UUID, auth: dict[str, str], content: bytes = data
+                    ) -> httpx.Response:
+                        return await client.put(
+                            f"/v1/artifacts/{identifier}",
+                            headers={**auth, "X-Content-SHA256": hashlib.sha256(data).hexdigest()},
+                            content=content,
+                        )
+
+                    contenders = (uuid4(), uuid4(), uuid4())
+                    responses = await asyncio.gather(
+                        *(put(item, CONSUMER_AUTH) for item in contenders)
+                    )
+                    assert sorted(response.status_code for response in responses) == [201, 429, 429]
+                    winner = contenders[
+                        next(
+                            i for i, response in enumerate(responses) if response.status_code == 201
+                        )
+                    ]
+                    assert (await put(winner, CONSUMER_AUTH)).status_code == 200
+                    assert (await put(winner, CONSUMER_AUTH, data + b"x")).status_code == 422
+                    assert (await put(winner, FOREIGN_AUTH)).status_code == 404
+                    assert (await put(uuid4(), FOREIGN_AUTH)).status_code == 201
+                    full = await put(uuid4(), {"Authorization": "Bearer consumer-three-secret"})
+                    assert full.status_code == 429
+                    assert full.json() == {"detail": "artifact storage quota reached"}
+                    async with sessions() as session:
+                        assert (await session.exec(select(Artifact.expanded_bytes))).all() == [
+                            64,
+                            64,
+                        ]
+                        assert not (await session.exec(select(ArtifactUpload))).all()
+
+    asyncio.run(exercise())
+
+
+def test_interrupted_upload_and_retirement_keep_capacity_until_collection(
+    postgres_dsn: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def exercise() -> None:
+        async with database(postgres_dsn, tmp_path) as (_, original, sessions, _):
+            quota = ArtifactQuota(consumer_objects=1)
+            store = PostgresArtifactStore(sessions, original.root, quota=quota)
+            entered = asyncio.Event()
+
+            async def interrupted() -> AsyncIterator[bytes]:
+                yield b"first chunk"
+                entered.set()
+                await asyncio.Future[None]()
+
+            operation = asyncio.create_task(store.put(OWNER, uuid4(), "0" * 64, interrupted()))
+            async with asyncio.timeout(5):
+                await entered.wait()
+            (staged,) = store.root.iterdir()
+            async with sessions() as session:
+                (reservation,) = (await session.exec(select(ArtifactUpload))).all()
+                assert reservation.consumer_id == OWNER.consumer_id
+                assert reservation.reserved_bytes >= (staged / "archive.zip").stat().st_size
+
+            def unavailable(*args: object, **kwargs: object) -> None:
+                raise OSError("disposable filesystem deletion failure")
+
+            with monkeypatch.context() as patch:
+                patch.setattr(shutil, "rmtree", unavailable)
+                operation.cancel()
+                with pytest.raises(asyncio.CancelledError):
+                    await operation
+                assert (staged / "archive.zip").read_bytes() == b"first chunk"
+                async with sessions.begin() as session:
+                    await session.exec(
+                        update(ArtifactUpload).values(
+                            created_at=func.clock_timestamp() - timedelta(hours=2)
+                        )
+                    )
+                restarted = PostgresArtifactStore(sessions, store.root, quota=quota)
+                assert await restarted.collect_orphans() == 0
+                with pytest.raises(BoxieError) as still_staged:
+                    await upload(restarted)
+                assert still_staged.value.status == 429
+                assert staged.is_dir()
+
+            async with sessions.begin() as session:
+                await session.exec(
+                    update(ArtifactUpload).values(retry_after=func.clock_timestamp())
+                )
+            assert await restarted.collect_orphans() == 1
+            assert not staged.exists()
+            artifact = (await upload(restarted)).artifact_id
+            path = await restarted.path(OWNER, artifact)
+            with monkeypatch.context() as patch:
+                patch.setattr(shutil, "rmtree", unavailable)
+                await restarted.retire(OWNER, artifact)
+                restarted = PostgresArtifactStore(sessions, store.root, quota=quota)
+                with pytest.raises(BoxieError) as still_retained:
+                    await upload(restarted)
+                assert still_retained.value.status == 429
+                assert path.is_dir()
+
+            assert await restarted.collect() == 1
+            assert not path.exists()
+            await upload(restarted)
+
+    asyncio.run(exercise())
+
+
+def test_failed_orphan_yields_to_younger_reservation_and_legacy_files(
+    postgres_dsn: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def exercise() -> None:
+        async with database(postgres_dsn, tmp_path) as (_, store, sessions, _):
+            blocked, removable = uuid4(), uuid4()
+            async with sessions.begin() as session:
+                for hours, identifier in ((3, blocked), (2, removable)):
+                    session.add(
+                        ArtifactUpload(
+                            storage_id=identifier,
+                            consumer_id=OWNER.consumer_id,
+                            reserved_bytes=10,
+                            created_at=datetime.now(UTC) - timedelta(hours=hours),
+                        )
+                    )
+                    (store.root / f".upload-{identifier}").mkdir()
+            blocked_path = store.root / f".upload-{blocked}"
+            remove = shutil.rmtree
+
+            def remove_unless_blocked(path: Path) -> None:
+                if path == blocked_path:
+                    raise PermissionError("blocked reservation")
+                remove(path)
+
+            with monkeypatch.context() as patch:
+                patch.setattr(shutil, "rmtree", remove_unless_blocked)
+                assert await store.collect_orphans(limit=1) == 0
+                restarted = PostgresArtifactStore(sessions, store.root)
+                assert await restarted.collect_orphans(limit=1) == 1
+                assert not (store.root / f".upload-{removable}").exists()
+                legacy = store.root / ".upload-legacy"
+                legacy.mkdir()
+                os.utime(legacy, (time.time() - 7200,) * 2)
+                # Each later sweep can retry the blocked row and still advance the legacy scan.
+                for _ in range(2):
+                    async with sessions.begin() as session:
+                        await session.exec(
+                            update(ArtifactUpload).values(retry_after=func.clock_timestamp())
+                        )
+                    await restarted.collect_orphans(limit=1)
+                assert not legacy.exists()
+                assert blocked_path.is_dir()
+                async with sessions() as session:
+                    (reservation,) = (await session.exec(select(ArtifactUpload))).all()
+                    assert reservation.storage_id == blocked
+                    assert reservation.reserved_bytes == 10
+                    assert reservation.retry_after is not None
+            async with sessions.begin() as session:
+                await session.exec(
+                    update(ArtifactUpload).values(retry_after=func.clock_timestamp())
+                )
+            assert await restarted.collect_orphans(limit=1) == 1
+            assert not blocked_path.exists()
+
+    asyncio.run(exercise())
+
+
+def test_quota_upgrade_accounts_for_existing_files_and_legacy_staging(
+    postgres_dsn: str, tmp_path: Path
+) -> None:
+    async def exercise() -> None:
+        async with database(postgres_dsn, tmp_path) as (_, store, sessions, _):
+            identifier = (await upload(store)).artifact_id
+            path = await store.path(OWNER, identifier)
+            legacy = store.root / ".upload-previous"
+            legacy.mkdir()
+            (legacy / "archive.zip").write_bytes(b"legacy stage")
+            os.utime(legacy, (time.time() - 7200,) * 2)
+            config = migration_config(postgres_dsn)
+            await asyncio.to_thread(command.downgrade, config, "0008_job_output_budget")
+            await asyncio.to_thread(command.upgrade, config, "head")
+
+            restarted = PostgresArtifactStore(
+                sessions, store.root, quota=ArtifactQuota(total_objects=2)
+            )
+            await restarted.prepare()
+            data = bundle()
+            retry = await restarted.put(
+                OWNER, identifier, hashlib.sha256(data).hexdigest(), archive_chunks(data)
+            )
+            assert not retry.created
+            async with sessions() as session:
+                row = await session.get_one(Artifact, identifier)
+                assert row.expanded_bytes == (path / "nested/hello.txt").stat().st_size
+                assert row.consumer_id == OWNER.consumer_id
+            with pytest.raises(BoxieError) as full:
+                await upload(restarted)
+            assert full.value.status == 429
+            assert await restarted.collect_orphans() == 1
+            await upload(restarted)
 
     asyncio.run(exercise())

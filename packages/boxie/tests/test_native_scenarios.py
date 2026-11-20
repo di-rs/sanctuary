@@ -35,7 +35,7 @@ def test_collection_observer_reaches_actual_supervisor_bootstrap(
 
     observed: list[str] = []
 
-    def inspect_store(self: Any, *args: object) -> None:
+    def inspect_store(self: Any, *args: object, **kwargs: object) -> None:
         observed.append(type(self).__name__)
         raise ReachedStore
 
@@ -44,7 +44,9 @@ def test_collection_observer_reaches_actual_supervisor_bootstrap(
         config.SupervisorConfig,
         "from_file",
         lambda _: SimpleNamespace(
-            lifecycle=SimpleNamespace(postgres_dsn_file="unused"), data_dir=tmp_path
+            lifecycle=SimpleNamespace(postgres_dsn_file="unused"),
+            data_dir=tmp_path,
+            artifact_quota=None,
         ),
     )
     monkeypatch.setattr(supervisor, "database_for", pool)

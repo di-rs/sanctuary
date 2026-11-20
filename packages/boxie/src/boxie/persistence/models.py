@@ -26,12 +26,20 @@ class Artifact(SQLModel, table=True):
     __tablename__ = "artifacts"
     __table_args__ = (
         CheckConstraint(column("digest").regexp_match("^[a-f0-9]{64}$"), name="artifact_digest"),
+        CheckConstraint(column("expanded_bytes") >= 0, name="artifact_expanded_bytes"),
+        Index(
+            "artifact_retained_usage",
+            "consumer_id",
+            "expanded_bytes",
+            postgresql_where=column("collected_at").is_(None),
+        ),
     )
 
     id: UUID = Field(primary_key=True)
     consumer_id: str
     digest: str
     storage_id: UUID = Field(unique=True)
+    expanded_bytes: int | None = Field(default=None, sa_type=BigInteger)
     retired: bool = Field(default=False, sa_column_kwargs={"server_default": false()})
     collection_pending: bool = Field(default=False, sa_column_kwargs={"server_default": false()})
     collected_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
@@ -41,6 +49,24 @@ class Artifact(SQLModel, table=True):
         sa_type=DateTime(timezone=True),
         sa_column_kwargs={"server_default": func.clock_timestamp()},
     )
+
+
+class ArtifactUpload(SQLModel, table=True):
+    __tablename__ = "artifact_uploads"
+    __table_args__ = (
+        CheckConstraint(column("reserved_bytes") > 0, name="artifact_upload_reserved_bytes"),
+    )
+
+    storage_id: UUID = Field(primary_key=True)
+    consumer_id: str
+    reserved_bytes: int = Field(sa_type=BigInteger)
+    created_at: datetime = Field(
+        default=None,
+        nullable=False,
+        sa_type=DateTime(timezone=True),
+        sa_column_kwargs={"server_default": func.clock_timestamp()},
+    )
+    retry_after: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
 
 
 class Sandbox(SQLModel, table=True):

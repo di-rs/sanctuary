@@ -119,13 +119,32 @@ before enabling the job API. The migration accounts for already admitted jobs
 at their pinned output limit and for committed results at their stored byte
 count. A lower budget blocks new jobs until enough bytes are available.
 
-The supervisor owns artifact bytes. `PostgresArtifactStore` publishes complete fsynced
-files under unique storage UUIDs before SQL publication, and never writes local
-JSON metadata. Retirement/collection uses the same row lock as admission.
-`collect()` retries retired unreferenced file deletion; `collect_orphans()` checks
-SQL before removing abandoned uploads/publications after a one-hour grace period
-(default), processing at most 100 directory entries per call. Run both on the
-sole owning supervisor. An unavailable database authorizes no orphan deletion.
+## Artifact storage and collection
+
+Apply migrations through `0010_artifact_orphan_retry` with the old supervisor stopped,
+then start the upgraded supervisor with the same artifact root. On startup it
+records expanded file sizes for indexed objects from before the migration. A
+missing legacy object retains a conservative 512 MiB charge until collection
+or until startup can measure its restored files.
+Abandoned directories from before the migration count against installation
+capacity until collected. Their consumer identity is unavailable.
+
+The supervisor reserves capacity in PostgreSQL before staging the ZIP. It syncs
+complete files under the storage UUID before the transaction that replaces the
+staging reservation with the retained object. If publication is interrupted,
+PostgreSQL still records either the retained object or its staging reservation.
+After the one-hour grace period, `collect_orphans()` can remove abandoned upload
+bytes and release the reservation. If deletion fails, the reservation stays
+charged. The collector can process other uploads and retry the failed one
+after one minute, including after a supervisor restart. The retired artifact
+collector waits for sandbox references and releases capacity after deletion
+and directory sync.
+Run collection on the sole owning supervisor with PostgreSQL available.
+
+To roll back, stop the supervisor and keep the migrated database and artifact
+root together. The old supervisor can read the existing artifact metadata and
+files. It serves uploads without enforcing quotas. Restarting the upgraded
+supervisor inventories retained files and old staging directories again.
 
 ## Recovery prerequisite for production activation
 

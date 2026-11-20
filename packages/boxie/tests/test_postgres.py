@@ -26,6 +26,7 @@ from boxie.persistence.database import database as session_database
 from boxie.persistence.migrate import migrate
 from boxie.persistence.models import (
     Artifact,
+    ArtifactUpload,
     Outbox,
     Sandbox,
     SandboxArtifactRef,
@@ -400,6 +401,12 @@ def test_published_orphan_and_retirement_deletion_retry(
                 and (orphans[0] / "files/nested/hello.txt").read_bytes() == b"ordinary text\n"
             )
             os.utime(orphans[0], (time.time() - 7200, time.time() - 7200))
+            async with sessions.begin() as session:
+                await session.exec(
+                    update(ArtifactUpload).values(
+                        created_at=func.clock_timestamp() - timedelta(hours=2)
+                    )
+                )
             assert await artifacts.collect_orphans() == 1
             assert not orphans[0].exists()
             assert real_remove is shutil.rmtree
