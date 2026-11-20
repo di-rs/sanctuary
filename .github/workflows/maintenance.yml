@@ -62,7 +62,7 @@ jobs:
         # Allow transient upstream failures to recover without ignoring broken links.
         run: |
           git ls-files -z -- '*.md' | xargs -0 lychee \
-            --include-fragments=anchor-only --max-concurrency 8 \
+            -vv --no-progress --include-fragments=anchor-only --max-concurrency 8 \
             --max-retries 4 --retry-wait-time 2 --timeout 30 --
 
   coverage:

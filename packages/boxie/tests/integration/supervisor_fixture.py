@@ -3,28 +3,23 @@
 The wrapper changes no collection timing, locking, deadline or deletion logic.
 """
 
-import time
 from pathlib import Path
 
 import boxie.bootstrap.supervisor
 from boxie.persistence.postgres_artifacts import PostgresArtifactStore
-
-
-def mark(root: Path, name: str, value: str) -> None:
-    temporary = root / (name + ".tmp")
-    temporary.write_text(value)
-    temporary.replace(root / name)
+from temporalio import activity
 
 
 class ObservedArtifacts(PostgresArtifactStore):
     async def collect(self, limit: int = 100) -> int:
-        marker = str(time.time_ns())
-        root = Path("/faults")
-        mark(root, "collection_entered", marker)
+        if not activity.in_activity():
+            return await super().collect(limit)
+        marker = Path("/faults") / f"collection-{activity.info().workflow_run_id}"
+        marker.with_suffix(".entered").touch()
         try:
             return await super().collect(limit)
         finally:
-            mark(root, "collection_completed", marker)
+            marker.with_suffix(".completed").touch()
 
 
 if __name__ == "__main__":

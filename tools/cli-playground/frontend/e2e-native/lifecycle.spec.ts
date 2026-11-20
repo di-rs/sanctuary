@@ -35,6 +35,8 @@ test("native shell and same-page reconnect preserve the admitted session", async
     const before = await page.evaluate(
       () => (window as unknown as { nativeSockets: WebSocket[] }).nativeSockets[0]!.url,
     );
+    const sessionId = new URL(before).searchParams.get("session_id");
+    expect(sessionId).toBeTruthy();
     await page
       .locator(".xterm-helper-textarea")
       .pressSequentially("echor 'native-'\"browser-ok\"\n");
@@ -55,9 +57,7 @@ test("native shell and same-page reconnect preserve the admitted session", async
     const after = await page.evaluate(
       () => (window as unknown as { nativeSockets: WebSocket[] }).nativeSockets.at(-1)!.url,
     );
-    expect(new URL(after).searchParams.get("session_id")).toBe(
-      new URL(before).searchParams.get("session_id"),
-    );
+    expect(new URL(after).searchParams.get("session_id")).toBe(sessionId);
     await resizeTerminalViewport(page, { width: 900, height: 700 });
     await page.locator(".xterm-helper-textarea").pressSequentially("echor 'after-'\"reconnect\"\n");
     await expect(page.locator(".xterm-rows")).toContainText("after-reconnect");
