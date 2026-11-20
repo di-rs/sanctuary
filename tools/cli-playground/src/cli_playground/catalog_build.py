@@ -89,12 +89,15 @@ def compare_baseline(root: Path, ancestor: str, entries: list[CliCatalog]) -> No
             print("Merge-base discovery unavailable; publishing without comparison markers.")
             return
 
-        candidates = sorted(entry.name for entry in entries if entry.name in existing)
+        candidates = []
         for entry in entries:
-            if entry.name not in existing:
+            if entry.name in existing:
+                candidates.append(entry)
+            else:
                 entry.comparison = "added"
         if not candidates or not (source / "utils/cli-schema/Cargo.toml").is_file():
             return
+        names = sorted(entry.name for entry in candidates)
         try:
             subprocess.run(
                 [
@@ -105,7 +108,7 @@ def compare_baseline(root: Path, ancestor: str, entries: list[CliCatalog]) -> No
                     "--bins",
                     "--target-dir",
                     str(temporary / "target"),
-                    *(arg for name in candidates for arg in ("--package", name)),
+                    *(arg for name in names for arg in ("--package", name)),
                 ],
                 cwd=source,
                 check=True,
@@ -115,9 +118,7 @@ def compare_baseline(root: Path, ancestor: str, entries: list[CliCatalog]) -> No
             print("Merge-base compilation unavailable; publishing without comparison markers.")
             return
 
-        for entry in entries:
-            if entry.name not in existing:
-                continue
+        for entry in candidates:
             try:
                 baseline = capture_schema(temporary / "target/release" / entry.name)
                 if baseline.command.name == entry.name:
