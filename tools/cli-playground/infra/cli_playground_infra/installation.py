@@ -43,7 +43,8 @@ def render(root: Path) -> None:
     token = product / "preview-token"
     token_error = "Preview credential must be a private nonempty regular file"
     _ensure_private_credential(token, token_error)
-    if not token.read_text().strip():
+    token_value = token.read_text().strip()
+    if not token_value:
         raise ValueError(token_error)
 
     password_file = product / "postgres-password"
@@ -66,7 +67,7 @@ def render(root: Path) -> None:
             "CLI_PLAYGROUND_DATABASE_NETWORK": "boxie-postgres_playground",
             "CLI_PLAYGROUND_IMAGE": os.environ["CLI_PLAYGROUND_IMAGE"],
             "CLI_PLAYGROUND_DOMAIN": os.environ["CLI_PLAYGROUND_DOMAIN"],
-            "CLI_PLAYGROUND_DEPLOY_TOKEN": token.read_text().strip(),
+            "CLI_PLAYGROUND_DEPLOY_TOKEN": token_value,
             "CLI_PLAYGROUND_BOXIE_URL": "http://boxie-api:8090",
             "CLI_PLAYGROUND_BOXIE_CREDENTIAL_FILE": str(credentials / "consumer.secret"),
             "CLI_PLAYGROUND_CONSUMER_NETWORK": "boxie-consumers",
