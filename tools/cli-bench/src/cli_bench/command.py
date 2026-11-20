@@ -7,7 +7,6 @@ import json
 import math
 import os
 import platform
-import re
 import shlex
 import shutil
 import signal
@@ -119,7 +118,7 @@ def version(path: str, timeout: float) -> str | None:
 
 
 def require_hyperfine_2(installed: str | None) -> None:
-    require(installed and re.match(r"hyperfine 2\.", installed), "hyperfine 2.x is required")
+    require(installed and installed.startswith("hyperfine 2."), "hyperfine 2.x is required")
 
 
 def preflight(
