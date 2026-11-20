@@ -39,3 +39,48 @@ def test_json_doctor_and_argument_errors(bench: Bench) -> None:
     assert result.returncode == 1
     assert json.loads(result.stdout)["ok"] is False
     assert not bench.output.exists()
+
+
+def test_suite_doctor_reports_run_executables(bench: Bench) -> None:
+    release = bench.root / "target/release"
+    release.mkdir(parents=True)
+    (release / "fixture").symlink_to(bench.candidate)
+    (release / "biggie").symlink_to(bench.biggie)
+    bench.write_suite(
+        top=f'reference = {json.dumps(str(bench.baseline))}\ngenerate = [["input.txt", "payload"]]'
+    )
+    command = [
+        sys.executable,
+        str(RUNNER),
+        str(bench.suite),
+        "--root",
+        str(bench.root),
+        "--hyperfine",
+        str(bench.hyperfine),
+        "--output",
+        str(bench.output),
+        "--runs",
+        "1",
+        "--json",
+    ]
+    tools = {
+        "hyperfine": str(bench.hyperfine),
+        "candidate": str(bench.candidate),
+        "biggie": str(bench.biggie),
+        "comparison": str(bench.baseline),
+    }
+    doctor = subprocess.run(
+        [*command, "--doctor"], env=bench.env, capture_output=True, text=True, timeout=10
+    )
+    assert doctor.returncode == 0, doctor.stderr
+    assert json.loads(doctor.stdout)["data"]["checks"] == [
+        {"name": name, "ok": True, "path": path} for name, path in tools.items()
+    ]
+    assert not bench.events()
+    assert not bench.output.exists()
+
+    run = subprocess.run(command, env=bench.env, capture_output=True, text=True, timeout=10)
+    assert run.returncode == 0, run.stderr
+    metadata = json.loads((bench.output / "metadata.json").read_text())
+    tools["baseline"] = tools.pop("comparison")
+    assert metadata["executables"] == tools

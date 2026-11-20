@@ -7,7 +7,6 @@ import json
 import math
 import os
 import platform
-import re
 import shlex
 import shutil
 import signal
@@ -118,6 +117,10 @@ def version(path: str, timeout: float) -> str | None:
         return output.read(4096).decode("utf-8", "replace").strip() if returncode == 0 else None
 
 
+def require_hyperfine_2(installed: str | None) -> None:
+    require(installed and installed.startswith("hyperfine 2."), "hyperfine 2.x is required")
+
+
 def preflight(
     case: Case,
     commands: list[list[str]],
@@ -206,15 +209,28 @@ def workspace_root(args: Arguments) -> Path:
         return Path.cwd()
 
 
+def requested_executables(
+    args: Arguments, root: Path, suite: Suite | None
+) -> dict[str, str | Path]:
+    requested: dict[str, str | Path] = {"hyperfine": args.hyperfine}
+    if suite is None:
+        return requested
+    release = root / "target/release"
+    requested["candidate"] = args.candidate or release / suite["binary"]
+    if suite.get("generate"):
+        requested["biggie"] = args.biggie or release / "biggie"
+    if comparison := args.baseline or args.reference or suite.get("reference"):
+        requested["comparison"] = comparison
+    return requested
+
+
 def run(args: Arguments, suite: Suite, cases: list[Case]) -> Path:
     root = workspace_root(args)
-    candidate = executable(args.candidate or root / "target/release" / suite["binary"])
-    other = args.baseline or args.reference or suite.get("reference")
-    baseline = executable(other) if other else None
-    biggie = (
-        executable(args.biggie or root / "target/release/biggie") if suite.get("generate") else None
-    )
-    hyperfine = executable(args.hyperfine)
+    requested = requested_executables(args, root, suite)
+    candidate = executable(requested["candidate"])
+    baseline = executable(requested["comparison"]) if "comparison" in requested else None
+    biggie = executable(requested["biggie"]) if "biggie" in requested else None
+    hyperfine = executable(requested["hyperfine"])
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S.%fZ")
     output = (args.output or root / "target/benchmarks" / f"{suite['binary']}-{stamp}").resolve()
     output.mkdir(parents=True, exist_ok=False)
@@ -254,10 +270,7 @@ def run(args: Arguments, suite: Suite, cases: list[Case]) -> Path:
         shutil.copyfile(args.suite, output / "suite.toml")
         hyperfine_version = version(hyperfine, args.timeout)
         metadata["hyperfine_version"] = hyperfine_version
-        require(
-            hyperfine_version and re.match(r"hyperfine 2\.", hyperfine_version),
-            "hyperfine 2.x is required",
-        )
+        require_hyperfine_2(hyperfine_version)
         env = os.environ | metadata["env"]
         with tempfile.TemporaryDirectory(prefix="cli-bench-") as temporary_name:
             temporary = Path(temporary_name).resolve()
@@ -352,23 +365,12 @@ def run(args: Arguments, suite: Suite, cases: list[Case]) -> Path:
 
 def doctor(args: Arguments, suite: Suite | None) -> int:
     root = workspace_root(args)
-    requested: dict[str, str | Path] = {"hyperfine": args.hyperfine}
-    if suite:
-        requested["candidate"] = args.candidate or root / "target/release" / suite["binary"]
-        if suite.get("generate"):
-            requested["biggie"] = args.biggie or root / "target/release/biggie"
-        other = args.baseline or args.reference or suite.get("reference")
-        if other:
-            requested["comparison"] = other
     checks: list[dict[str, object]] = []
-    for name, value in requested.items():
+    for name, value in requested_executables(args, root, suite).items():
         try:
             path = executable(value)
             if name == "hyperfine":
-                installed = version(path, args.timeout)
-                require(
-                    installed and re.match(r"hyperfine 2\.", installed), "hyperfine 2.x is required"
-                )
+                require_hyperfine_2(version(path, args.timeout))
             checks.append({"name": name, "ok": True, "path": path})
         except (OSError, ValueError, subprocess.SubprocessError) as error:
             checks.append({"name": name, "ok": False, "message": str(error)})
