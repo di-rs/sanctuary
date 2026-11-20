@@ -7,7 +7,7 @@ import threading
 import zipfile
 from collections.abc import AsyncIterator
 from pathlib import Path
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import httpx
 import pytest
@@ -24,7 +24,7 @@ from cli_playground.session_store import SessionStore
 from cli_playground.storage import EnvironmentStore
 from cli_playground.tables import Binding
 from sqlalchemy import event
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -276,6 +276,67 @@ def make_service(
 def boxie(service: CliPlaygroundService) -> FakeBoxie:
     assert isinstance(service.boxie, FakeBoxie)
     return service.boxie
+
+
+def test_retirement_batch_reads_once_and_retries_with_original_request(
+    docker_settings: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from cli_playground.sandbox import BoxieUnavailable
+
+    async def exercise() -> None:
+        service = make_service(docker_settings)
+        store = service.sessions
+        assert isinstance(store, SessionStore)
+        engine = store.sessions.kw["bind"]
+        assert isinstance(engine, AsyncEngine)
+        remote = boxie(service)
+        failed, acknowledged = uuid4(), uuid4()
+        failed_request, acknowledged_request = uuid4(), uuid4()
+        attempts: list[tuple[UUID, str | None]] = []
+        reads: list[str] = []
+        retire = remote.retire
+        retrying = False
+
+        def record_read(_conn: object, _cursor: object, statement: str, *_: object) -> None:
+            if statement.lstrip().upper().startswith("SELECT"):
+                reads.append(statement)
+
+        async def retire_with_failure(artifact_id: UUID) -> None:
+            attempts.append((artifact_id, current_request_id()))
+            if artifact_id == failed and not retrying:
+                raise BoxieUnavailable("retirement unavailable")
+            await retire(artifact_id)
+
+        await store.retire(failed, request_id=failed_request)
+        await store.retire(acknowledged, request_id=acknowledged_request)
+        monkeypatch.setattr(remote, "retire", retire_with_failure)
+        event.listen(engine.sync_engine, "before_cursor_execute", record_read)
+        try:
+            await service.retry_retirements()
+            assert len(reads) == 1
+            assert len(attempts) == 2
+            assert dict(attempts) == {
+                failed: str(failed_request),
+                acknowledged: str(acknowledged_request),
+            }
+            assert remote.retired == {acknowledged}
+
+            reads.clear()
+            attempts.clear()
+            retrying = True
+            retry_request = str(uuid4())
+            with request_context(retry_request):
+                await service.retry_retirements()
+                assert current_request_id() == retry_request
+            assert len(reads) == 1
+            assert attempts == [(failed, str(failed_request))]
+            assert remote.retired == {failed, acknowledged}
+            assert await store.retirements() == []
+        finally:
+            event.remove(engine.sync_engine, "before_cursor_execute", record_read)
+            await engine.dispose()
+
+    asyncio.run(exercise())
 
 
 def test_failed_remote_upload_preserves_ready_and_retries_the_same_artifact(

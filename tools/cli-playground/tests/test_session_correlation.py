@@ -52,17 +52,14 @@ def test_retirement_marker_preserves_first_origin(postgres_dsn: str) -> None:
             await store.retire(artifact, request_id=uuid4())
         async with database(postgres_dsn) as sessions:
             store = SessionStore(sessions)
-            assert await store.retirement_request_id(artifact) == first
-            assert await store.retirements() == [artifact]
+            assert await store.retirements() == [(artifact, first)]
             async with sessions.begin() as session:
                 row = await session.get(Retirement, artifact)
                 assert row is not None
                 row.request_id = None
-            assert await store.retirements() == [artifact]
-            assert await store.retirement_request_id(artifact) is None
+            assert await store.retirements() == [(artifact, None)]
             await store.retired(artifact)
             await store.retire(artifact, request_id=uuid4())
             assert await store.retirements() == []
-            assert await store.retirement_request_id(artifact) is None
 
     asyncio.run(exercise())

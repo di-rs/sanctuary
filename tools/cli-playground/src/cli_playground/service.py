@@ -86,8 +86,7 @@ class CliPlaygroundService:
         await self.store.collect_artifacts()
 
     async def retry_retirements(self) -> None:
-        for identifier in await self.sessions.retirements():
-            origin = await self.sessions.retirement_request_id(identifier)
+        for identifier, origin in await self.sessions.retirements():
             with request_context(str(origin) if origin else None):
                 try:
                     await self.boxie.retire(identifier)

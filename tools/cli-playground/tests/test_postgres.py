@@ -83,7 +83,7 @@ def test_cancelled_upload_stays_cancelled_after_reopen(postgres_dsn: str) -> Non
                 await store.finish_upload(artifact, None)
             assert await store.get(EnvironmentStore.identifier(123)) is None
             assert await operations.uploads() == []
-            assert await operations.retirements() == [artifact.artifact_id]
+            assert await operations.retirements() == [(artifact.artifact_id, None)]
 
     asyncio.run(exercise())
 
@@ -193,6 +193,7 @@ def test_correlation_upgrade_preserves_pending_legacy_retirements(postgres_dsn: 
 
 def test_cleanup_skips_tombstones_and_collects_without_locking_previews(postgres_dsn: str) -> None:
     from cli_playground.domain import UploadIntent
+    from cli_playground.observability import request_context
     from cli_playground.session_store import SessionStore
     from cli_playground.storage import EnvironmentStore
     from cli_playground.tables import Preview
@@ -234,13 +235,15 @@ def test_cleanup_skips_tombstones_and_collects_without_locking_previews(postgres
             assert await store.remove(inactive) == 3
             assert await store.inactive_identifiers() == set()
             assert await store.is_closed(1)
+            origin = uuid4()
             # Collection must not wait for an unrelated preview mutation.
             async with sessions.begin() as session:
                 await session.exec(select(Preview).where(Preview.pr == 4).with_for_update())
-                await asyncio.wait_for(store.collect_artifacts(), timeout=1)
-            assert await operations.retirements() == [artifacts[0].artifact_id]
+                with request_context(str(origin)):
+                    await asyncio.wait_for(store.collect_artifacts(), timeout=1)
+            assert await operations.retirements() == [(artifacts[0].artifact_id, origin)]
             await store.collect_artifacts()
-            assert await operations.retirements() == [artifacts[0].artifact_id]
+            assert await operations.retirements() == [(artifacts[0].artifact_id, origin)]
 
     asyncio.run(exercise())
 
