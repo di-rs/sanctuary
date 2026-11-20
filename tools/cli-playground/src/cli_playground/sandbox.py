@@ -23,6 +23,7 @@ class TerminalWriteClosed(BoxieUnavailable):
 
 
 SandboxState = Literal["accepted", "provisioning", "ready", "terminating", "terminated", "failed"]
+TERMINAL_STATES: tuple[SandboxState, ...] = ("terminated", "failed")
 TerminationReason = Literal[
     "requested",
     "expired",
@@ -45,6 +46,10 @@ class SandboxView(BaseModel):
     absolute_deadline: AwareDatetime
     reason: TerminationReason | None
     cleanup_pending: bool
+
+    @property
+    def cleanup_complete(self) -> bool:
+        return self.state in TERMINAL_STATES and not self.cleanup_pending
 
 
 class ArtifactReply(BaseModel):
