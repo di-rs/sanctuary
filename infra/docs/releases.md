@@ -13,20 +13,18 @@ Run either release manually from Actions on `master`:
 A failed stage stops the remaining deployments in its workflow; completed stages
 are not rolled back automatically. Boxie stages use the `boxie` environment;
 the cli-playground release uses `cli-playground`.
-Each stage calls the shared [release transport](../environments/single-host/release.sh) for SSH, image settings
-and temporary registry credentials; service scripts own migration and readiness checks.
+Each stage calls the shared [release transport](../environments/single-host/release.sh) to stream the runner’s local image into Docker over pinned SSH and verify its image ID before updating the service. Service scripts own migration and readiness checks.
 
 ## What a release changes
 
-The Boxie stage pulls its image, stops API and supervisor, runs Alembic migration,
+The Boxie stage checks its local image, stops API and supervisor, runs Alembic migration,
 and starts both services with the metrics overlay. PostgreSQL and Temporal stay
 up. Authenticated readiness must pass before the next stage. Pending requests may
 resume after the restart; an empty capacity table is not a release condition.
 The separate native host acceptance run covers terminal allocation and cleanup.
 
 The sandbox stage changes Boxie's default profile digest and recreates
-Boxie's supervisor, preserving other profile fields. The backend stage pulls
-and recreates only `backend`; its proxy stays up.
+Boxie's supervisor, preserving other profile fields. The backend stage recreates only `backend`; its proxy stays up.
 
 ## Queue and retry behavior
 
@@ -36,7 +34,7 @@ If a run fails, choose **Re-run all jobs** or start a new workflow run. Re-runni
 only failed jobs keeps the earlier source selection and is rejected before
 deployment or provisioning starts.
 
-Builds can run before production activation; deployments still require
+Release builds and deployments require
 `DEPLOYMENT_ACCEPTANCE_PASSED`. Pushes do not
 trigger releases.
 

@@ -147,3 +147,6 @@ application-level model; paths for untrusted inputs to gain that access are in s
 Update this model when boundaries or deployment assumptions change. This file
 informs repository reviews; it does not configure Codex Security Cloud monitoring.
 Its structure follows [OpenAI's threat-model guidance](https://learn.chatgpt.com/docs/security/threat-model).
+
+Production setup and releases stream locally built Sanctuary images from the runner
+to the pinned SSH host. The runner verifies the loaded Docker image ID before activation.

@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[4]
-IMAGE = "ghcr.io/test/new@sha256:" + "a" * 64
+IMAGE_ID = "sha256:" + "a" * 64
 RETAINED = {
     "BOXIE_IMAGE": "ghcr.io/test/boxie@sha256:" + "b" * 64,
     "BOXIE_SANDBOX_IMAGE": "ghcr.io/test/sandbox@sha256:" + "c" * 64,
@@ -30,13 +30,10 @@ def release_env(tmp_path: Path) -> dict[str, str]:
     ).strip()
     env.update(
         SOURCE_SHA=sha,
-        BUILT_SHA=sha,
-        IMAGE=IMAGE,
+        IMAGE_ID=IMAGE_ID,
         DEPLOY_HOST="example.com",
         DEPLOY_SSH_KEY="private-key",
         DEPLOY_KNOWN_HOSTS="host-key",
-        GHCR_TOKEN="private-token",
-        GITHUB_ACTOR="test",
         GITHUB_RUN_ID="123",
         GITHUB_RUN_ATTEMPT="1",
         CALLS=str(tmp_path / "calls"),
@@ -49,6 +46,10 @@ def release_env(tmp_path: Path) -> dict[str, str]:
         + """import json, os, pathlib, sys
 name = pathlib.Path(sys.argv[0]).name
 args = sys.argv[1:]
+if name == "docker":
+    if args[:2] == ["image", "inspect"]:
+        print(os.environ["IMAGE_ID"])
+    sys.exit(0)
 config = pathlib.Path(args[1])
 record = {"name": name, "args": args, "private": str(config.parent)}
 assert "StrictHostKeyChecking yes" in config.read_text()
@@ -57,16 +58,18 @@ if name == "scp" and args[-1].endswith("/image.env"):
     record["image_env"] = pathlib.Path(args[-2]).read_text()
 with open(os.environ["CALLS"], "a") as log:
     log.write(json.dumps(record) + "\\n")
+if name == "ssh" and "docker image inspect" in args[-1]:
+    print("mismatch" if os.environ["FAIL"] == "image" else os.environ["IMAGE_ID"])
 if name == "ssh" and "sed -n" in args[-1]:
     key = args[-1].split("s/^")[1].split("=")[0]
     print(json.loads(os.environ["RETAINED"])[key])
 if os.environ["FAIL"] == "copy" and name == "scp":
     sys.exit(23)
-if os.environ["FAIL"] == "deploy" and name == "ssh" and "DOCKER_CONFIG=" in args[-1]:
+if os.environ["FAIL"] == "deploy" and name == "ssh" and "install -m 0600" in args[-1]:
     sys.exit(24)
 """
     )
-    for name in ("ssh", "scp"):
+    for name in ("ssh", "scp", "docker"):
         path = tmp_path / name
         path.write_text(boundary)
         path.chmod(0o755)
@@ -121,16 +124,21 @@ def test_release_preserves_other_image_and_cleans_credentials(
     assert result.returncode == 0, result.stderr
     calls = [json.loads(line) for line in Path(release_env["CALLS"]).read_text().splitlines()]
     image_env = next(call["image_env"] for call in calls if "image_env" in call)
+    image = (
+        IMAGE_ID
+        if component == "boxie-sandbox"
+        else f"localhost/sanctuary-{component}:{IMAGE_ID[7:]}"
+    )
     assert set(image_env.splitlines()) == {
-        f"{key}={IMAGE}",
+        f"{key}={image}",
         *(f"{name}={RETAINED[name]}" for name in retained_keys),
     }
-    deployment = next(call["args"][-1] for call in calls if "DOCKER_CONFIG=" in call["args"][-1])
+    deployment = next(call["args"][-1] for call in calls if "install -m 0600" in call["args"][-1])
     assert f"/opt/sanctuary/{owner}/{command}" in deployment
     assert f"/etc/sanctuary/{owner}-image.env" in deployment
     assert "install -m 0600" in deployment
     assert (
-        IMAGE
+        image
         if component == "boxie-sandbox"
         else release_env["SOURCE_SHA"]
         if component == "boxie"
@@ -142,7 +150,7 @@ def test_release_preserves_other_image_and_cleans_credentials(
     assert "private-token" not in result.stdout + result.stderr
 
 
-@pytest.mark.parametrize("failure,code", [("copy", 23), ("deploy", 24)])
+@pytest.mark.parametrize("failure,code", [("copy", 23), ("deploy", 24), ("image", 1)])
 def test_release_failure_cleans_credentials_and_preserves_exit_status(
     release_env: dict[str, str], failure: str, code: int
 ) -> None:
@@ -157,8 +165,6 @@ def test_release_failure_cleans_credentials_and_preserves_exit_status(
 @pytest.mark.parametrize(
     "field,value",
     [
-        ("IMAGE", "image:latest"),
-        ("BUILT_SHA", "0" * 40),
         ("SOURCE_SHA", "0" * 40),
         ("DEPLOY_HOST", "host;touch /tmp/bad"),
         ("GITHUB_RUN_ID", "1;false"),

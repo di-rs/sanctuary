@@ -7,7 +7,7 @@ all-features = true
 allow = ["MIT", "Apache-2.0", "Unicode-3.0"]
 confidence-threshold = 0.93
 
-# Required by published Brush 0.5.0; retain notices in packages/shish/THIRD-PARTY-NOTICES.md.
+# Required by published Brush 0.5.0..
 [[licenses.exceptions]]
 name = "check_elevation"
 version = "=0.2.7"
