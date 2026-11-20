@@ -27,27 +27,19 @@ fn execute<SE: ShellExtensions>(
             writeln!(context.stderr(), "history: invalid option: {option}")?;
             return Ok(brush_core::ExecutionExitCode::InvalidUsage.into());
         }
-        if let [_, CommandArg::String(option), rest @ ..] = args.as_slice()
-            && option == "-r"
-            && rest.len() <= 1
-            && rest
-                .first()
-                .is_none_or(|arg| !arg.to_string().starts_with('-'))
+        if let [_, CommandArg::String(option), operands @ ..] = args.as_slice()
+            && matches!(option.as_str(), "-r" | "-w" | "-a")
+            && operands.len() <= 1
+            && let filename = operands.first().map(ToString::to_string)
+            && filename
+                .as_deref()
+                .is_none_or(|path| !path.starts_with('-'))
         {
-            return read_history(&mut context, rest.first().map(ToString::to_string));
-        }
-        if let [_, CommandArg::String(option), rest @ ..] = args.as_slice()
-            && matches!(option.as_str(), "-w" | "-a")
-            && rest.len() <= 1
-            && rest
-                .first()
-                .is_none_or(|arg| !arg.to_string().starts_with('-'))
-        {
-            return write_history(
-                &mut context,
-                rest.first().map(ToString::to_string),
-                option == "-a",
-            );
+            return if option == "-r" {
+                read_history(&mut context, filename)
+            } else {
+                write_history(&mut context, filename, option == "-a")
+            };
         }
         // Brush 0.2.0 subtracts the requested count without saturating. Clamp
         // only display operands; numeric filenames and delete offsets retain
@@ -81,6 +73,16 @@ fn execute<SE: ShellExtensions>(
     })
 }
 
+fn history_path<SE: ShellExtensions>(
+    context: &ExecutionContext<'_, SE>,
+    filename: Option<String>,
+) -> Option<PathBuf> {
+    filename
+        .map(PathBuf::from)
+        .or_else(|| context.shell.history_file_path())
+        .map(|path| context.shell.working_dir().join(path))
+}
+
 fn read_history<SE: ShellExtensions>(
     context: &mut ExecutionContext<'_, SE>,
     filename: Option<String>,
@@ -88,13 +90,10 @@ fn read_history<SE: ShellExtensions>(
     if context.shell.history().is_none() {
         return Err(brush_core::ErrorKind::HistoryNotEnabled.into());
     }
-    let path = filename
-        .map(PathBuf::from)
-        .or_else(|| context.shell.history_file_path());
-    let Some(path) = path else {
+    let Some(path) = history_path(context, filename) else {
         return Ok(ExecutionResult::success());
     };
-    let file = File::open(context.shell.working_dir().join(path))?;
+    let file = File::open(path)?;
     // Match Brush's startup import size policy. Parse before changing the
     // current history so an I/O failure cannot partially append entries.
     if file.metadata()?.len() > 1024 * 1024 * 1024 {
@@ -116,10 +115,7 @@ fn write_history<SE: ShellExtensions>(
     filename: Option<String>,
     append: bool,
 ) -> Result<ExecutionResult, Error> {
-    let path = filename
-        .map(PathBuf::from)
-        .or_else(|| context.shell.history_file_path());
-    let path = path.map(|path| context.shell.working_dir().join(path));
+    let path = history_path(context, filename);
     let timestamps = context.shell.history_time_format().is_some();
     let history = context
         .shell

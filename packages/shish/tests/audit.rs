@@ -1477,14 +1477,14 @@ fn task_64_read_history_file() -> anyhow::Result<()> {
     for default_file in [false, true] {
         let home = assert_fs::TempDir::new()?;
         home.child("sub").create_dir_all()?;
-        home.child("sub/incoming")
+        home.child("sub/-incoming history")
             .write_str("echo restored\ntouch must-not-execute\n")?;
         let mut terminal = support::pty::Pty::new(home.path(), &["--bash", "-i"], &[])?;
         terminal.expect("shish-test> ")?;
         let read = if default_file {
-            "HISTFILE=incoming; history -r"
+            "HISTFILE='-incoming history'; history -r"
         } else {
-            "history -r incoming"
+            "history -r './-incoming history'"
         };
         terminal.send(&format!(
             "history -c; cd sub; {read}; history > listing 2> errors; unset HISTFILE; exit $?\n"
