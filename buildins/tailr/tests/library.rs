@@ -1,5 +1,5 @@
 use std::io::{self, BufReader, Cursor, Read, Seek, SeekFrom, Write};
-use tailr::{TakeValue, print_bytes, print_stream_bytes};
+use tailr::{TakeValue, print_bytes, print_stream_bytes, print_stream_lines};
 
 #[test]
 fn stream_and_seek_bytes_agree() {
@@ -33,6 +33,23 @@ fn stream_and_seek_bytes_agree() {
             assert_eq!(seek, wanted, "seek {count:?}");
         }
     }
+}
+
+#[test]
+fn zero_count_drains_both_stream_modes() {
+    let input = b"first\nlast";
+    let mut bytes = Cursor::new(input);
+    let mut lines = Cursor::new(input);
+    let mut output = Vec::new();
+    let zero = TakeValue::TakeNum(0);
+
+    print_stream_bytes(&mut bytes, &mut output, zero).unwrap();
+    print_stream_lines(&mut lines, &mut output, zero).unwrap();
+
+    let end = u64::try_from(input.len()).unwrap();
+    assert_eq!(bytes.position(), end);
+    assert_eq!(lines.position(), end);
+    assert_eq!(output.as_slice(), b"");
 }
 
 struct BrokenReader;
