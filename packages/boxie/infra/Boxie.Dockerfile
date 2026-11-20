@@ -11,5 +11,10 @@ RUN uv sync --frozen --package boxie --no-dev --no-editable --no-python-download
 FROM python:3.15-slim
 WORKDIR /app
 COPY --from=build /app/.venv /app/.venv
+ARG NATIVE_NOTICE_POLICY=report
+RUN --network=none --mount=type=bind,source=infra/distribution,target=/tmp/distribution \
+    --mount=type=bind,source=LICENSE,target=/tmp/Sanctuary.LICENSE \
+    /app/.venv/bin/python -IS /tmp/distribution/python_notices.py boxie /tmp/Sanctuary.LICENSE /usr/share/sanctuary/notices \
+    --native-policy "$NATIVE_NOTICE_POLICY"
 ENV PATH="/app/.venv/bin:$PATH"
 CMD ["boxie-api", "--config", "/etc/boxie/api.json"]

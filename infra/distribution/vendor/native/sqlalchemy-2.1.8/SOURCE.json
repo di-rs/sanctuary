@@ -1,0 +1,32 @@
+{
+  "Embedded Cython 3.3.1 utility code": {
+    "complete": true,
+    "notices": {
+      "Cython.COPYING.txt": "e1eb1c49a8508e8173dac30157e4a6439a44ad8846194746c424fbc3fc2b95d7",
+      "Cython.LICENSE.txt": "9568a2b155e66ac3e0ba1fd80b52b827b9460e6cf6f233125e7cbca8e206ddc3"
+    },
+    "objects": {
+      "sqlalchemy/engine/_processors_cy.cpython-315-x86_64-linux-gnu.so": "9c4caaad8ec740474bf3a379203d398792bfbee1df701115361e84a5095c704a",
+      "sqlalchemy/engine/_result_cy.cpython-315-x86_64-linux-gnu.so": "e990d21fcca6245ac2b8053dc23fe48b9ecc00ace50c39c72ae1df7e753a29b4",
+      "sqlalchemy/engine/_row_cy.cpython-315-x86_64-linux-gnu.so": "a03f5f97c9bc9a8d2998c9391f3805d8213a04d7a383bde994a674c8eb7a25c2",
+      "sqlalchemy/engine/_util_cy.cpython-315-x86_64-linux-gnu.so": "293bc430935963978ea0cd5cd963305dfd76fb9b2baf544e26bc88294328c028",
+      "sqlalchemy/sql/_cache_key_cy.cpython-315-x86_64-linux-gnu.so": "4b1a44bd3c5034a6a50d2fd935205717f1f94ee41e9e362f5dde5c271dcb3846",
+      "sqlalchemy/sql/_util_cy.cpython-315-x86_64-linux-gnu.so": "40e6ea213a98cda240776a3e295359fe28583add12cc4306b65fe17bd817867c",
+      "sqlalchemy/util/_collections_cy.cpython-315-x86_64-linux-gnu.so": "de5a261a763512ff508cbee17da70c031e9aa1f22fa48da271a950f44686c602",
+      "sqlalchemy/util/_immutabledict_cy.cpython-315-x86_64-linux-gnu.so": "9d67d8db2e26428be250111ee05b05ffe7f9f7beffa98f45fab780e84f02a279"
+    },
+    "sources": [
+      "https://github.com/sqlalchemy/sqlalchemy/tree/a1843e6cb9fe29708fcba1d58ab35ea278ba0400",
+      "https://github.com/sqlalchemy/sqlalchemy/actions/runs/41753005779",
+      "https://pypi.org/integrity/sqlalchemy/2.1.8/sqlalchemy-2.1.8-cp315-cp315-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl/provenance",
+      "https://github.com/cython/cython/tree/3.3.1",
+      "https://github.com/sqlalchemy/sqlalchemy/actions/runs/41753005779/job/126322879004"
+    ],
+    "upstream_archive_sha256": "8bc4081dd7c17c073f2384ad0f5ee968e63b43507b2e024a3523c000a06d70da",
+    "wheel_notices": {
+      "sqlalchemy-2.1.8.dist-info/licenses/AUTHORS": "dc1db0b5d17455adc37b693ff8e409c9a80f603e441695825518c36f786c963e",
+      "sqlalchemy-2.1.8.dist-info/licenses/LICENSE": "e862bb5b904fb5513c3e14288d7a25a12eb0ecc7847a0a965d310e9a955e7cb9"
+    },
+    "wheel_sha256": "08634599ccbeee6528b645f08516d1781a009422b22723a27b3331e26955d95f"
+  }
+}

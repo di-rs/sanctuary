@@ -1,0 +1,140 @@
+{
+  "MIT Kerberos 1.22.2": {
+    "notices": {
+      "Kerberos-1.22.2.NOTICE": "d37fcb886de2ad1c602f61c99c6893bcbd9a1949f54d9a6bb40d191204eb605e"
+    },
+    "objects": {
+      "psycopg_binary.libs/libcom_err-55c5739a.so.3.0": "c4455194ec84307401ae1dc0049e53703d383c1f1094e613e4a54b19f90094e3",
+      "psycopg_binary.libs/libgssapi_krb5-923083ce.so.2.2": "7355c441d02abe41d34959c6f51caa5fac17014799935673ad3cb987b03226e4",
+      "psycopg_binary.libs/libk5crypto-459efceb.so.3.1": "f4901987c99506969fb156c455d3774fad5aad7bff950fd572dfab8a59a901a6",
+      "psycopg_binary.libs/libkrb5-f18b4d11.so.3.3": "066e6f8c94967fa3f91f0c723834bde429a18a387e8ec791d34ac56c05bf975b",
+      "psycopg_binary.libs/libkrb5support-93fbab13.so.0.1": "3404c3db9216ffbbe10f13e5b65b122e1ac6744082c639891f69f0ef28711a2f"
+    },
+    "sources": [
+      "https://github.com/krb5/krb5/blob/krb5-1.22.2-final/NOTICE",
+      "https://github.com/psycopg/psycopg/blob/bced8a8993064a378d5ca852215d99f73f4c6cae/tools/ci/build_libpq.sh",
+      "https://github.com/psycopg/psycopg/blob/bced8a8993064a378d5ca852215d99f73f4c6cae/.github/workflows/packages-bin.yml",
+      "https://github.com/krb5/krb5/blob/krb5-1.22.2-final/src/util/et/Makefile.in"
+    ]
+  },
+  "OpenLDAP 2.6.16": {
+    "notices": {
+      "OpenLDAP-2.6.16.LICENSE": "310fe25c858a9515fc8c8d7d1f24a67c9496f84a91e0a0e41ea9975b1371e569"
+    },
+    "objects": {
+      "psycopg_binary.libs/liblber-7b3e3cc5.so.2.0.200": "42e1b323980f325b3fc45b888d026a8fd8cb669997b54885f863f50e48f8f6ef",
+      "psycopg_binary.libs/libldap-fb847fea.so.2.0.200": "841d1b8a667ab165835b08203fb10cf18904e161d5c3a8b1e4b2c623b04ad505"
+    },
+    "sources": [
+      "https://github.com/openldap/openldap/blob/OPENLDAP_REL_ENG_2_6_16/LICENSE",
+      "https://github.com/psycopg/psycopg/blob/bced8a8993064a378d5ca852215d99f73f4c6cae/tools/ci/build_libpq.sh",
+      "https://github.com/psycopg/psycopg/blob/bced8a8993064a378d5ca852215d99f73f4c6cae/.github/workflows/packages-bin.yml"
+    ]
+  },
+  "OpenSSL 3.5.9": {
+    "notices": {
+      "OpenSSL-3.5.9.LICENSE": "7d5450cb2d142651b8afa315b5f238efc805dad827d91ba367d8516bc9d49e7a"
+    },
+    "objects": {
+      "psycopg_binary.libs/libcrypto-3a0647ea.so.3": "e1a48391f48cb5f8392140b43ef9f2fa52f58321f8eadd8a83dc20f7fe398b9e",
+      "psycopg_binary.libs/libssl-6a9b88ec.so.3": "5b9d9f1923a0ffd4fd2666819846d61c5bad31f1bf3a16c65bf1fccf5aa37d17"
+    },
+    "sources": [
+      "https://github.com/openssl/openssl/blob/openssl-3.5.9/LICENSE.txt",
+      "https://github.com/psycopg/psycopg/blob/bced8a8993064a378d5ca852215d99f73f4c6cae/tools/ci/build_libpq.sh",
+      "https://github.com/psycopg/psycopg/blob/bced8a8993064a378d5ca852215d99f73f4c6cae/.github/workflows/packages-bin.yml"
+    ]
+  },
+  "PostgreSQL 18.6": {
+    "notices": {
+      "PostgreSQL-18.6.COPYRIGHT": "3d6af92ff8a4c2cdf69afb1cf44edea727922f5cd0cf8b5f72b11cdecac8fdfd"
+    },
+    "objects": {
+      "psycopg_binary.libs/libpq-e9b5c9ac.so.5.18": "ee8ad7e6497816c693acc1a9691528e3600db2dc0f5f97634653ec5c025ac565"
+    },
+    "sources": [
+      "https://github.com/postgres/postgres/blob/REL_18_6/COPYRIGHT",
+      "https://github.com/psycopg/psycopg/blob/bced8a8993064a378d5ca852215d99f73f4c6cae/tools/ci/build_libpq.sh",
+      "https://github.com/psycopg/psycopg/blob/bced8a8993064a378d5ca852215d99f73f4c6cae/.github/workflows/packages-bin.yml"
+    ]
+  },
+  "Psycopg C extensions with Cython 3.3.1": {
+    "notices": {
+      "Cython.COPYING.txt": "e1eb1c49a8508e8173dac30157e4a6439a44ad8846194746c424fbc3fc2b95d7",
+      "Cython.LICENSE.txt": "9568a2b155e66ac3e0ba1fd80b52b827b9460e6cf6f233125e7cbca8e206ddc3"
+    },
+    "objects": {
+      "psycopg_binary/_psycopg.cpython-315-x86_64-linux-gnu.so": "b0cbdf92a5236d527cab88b1dfbfa43a0d9dbde831dd00af499b3b37b79a10a7",
+      "psycopg_binary/pq.cpython-315-x86_64-linux-gnu.so": "0b4108481583cfa38397d2361e5f475cfc07e7ae4fcf237523bdd0da8658f87f"
+    },
+    "sources": [
+      "https://github.com/psycopg/psycopg/actions/runs/43127304274/job/130919096449",
+      "https://github.com/psycopg/psycopg/tree/bced8a8993064a378d5ca852215d99f73f4c6cae/psycopg_c",
+      "https://github.com/cython/cython/tree/3.3.1"
+    ],
+    "wheel_notices": {
+      "psycopg_binary-3.3.9.dist-info/licenses/LICENSE.txt": "e3a994d82e644b03a792a930f574002658412f62407f5fee083f2555c5f23118"
+    },
+    "wheel_sha256": "e51c7c493f07b51be56875cfa8a7674824749fa1cda3515339ca64e628f1b992"
+  },
+  "cyrus-sasl-lib-2.1.26-24.el7_9": {
+    "notices": {
+      "cyrus-sasl-lib-2.1.26-24.el7_9.AUTHORS": "573b62290f3745835142337245599b5f3a38707b986d666fc97641f2846798ce",
+      "cyrus-sasl-lib-2.1.26-24.el7_9.COPYING": "9d6e5d1632140a6c135b251260953650d17d87cd1124f87aaf72192aa4580d4b"
+    },
+    "objects": {
+      "psycopg_binary.libs/libsasl2-84219a89.so.3.0.0": "a01821d4716316892f28751616ad586f679ec66bc18a775205e1a0fab579f00b"
+    },
+    "sources": [
+      "https://vault.centos.org/7.9.2009/updates/x86_64/Packages/cyrus-sasl-lib-2.1.26-24.el7_9.x86_64.rpm",
+      "https://github.com/pypa/auditwheel/blob/6.7.0/src/auditwheel/repair.py"
+    ],
+    "upstream_archive_sha256": "e1d065bfaef705d407c6134352d1afc64ecf26a5970a0e5282f6dda745483db8",
+    "upstream_object_sha256": "84219a89b635c809c66b297f2970df52f1f38dd429426c213d0340dea5e7ec9d"
+  },
+  "keyutils-libs-1.5.8-3.el7": {
+    "notices": {
+      "keyutils-libs-1.5.8-3.el7.LICENCE.LGPL": "0d15593e3a8ad90917f8509b5ac1e4b5e5d196434a68029aa9dc0858a4a4c521"
+    },
+    "objects": {
+      "psycopg_binary.libs/libkeyutils-dfe70bd6.so.1.5": "c29e41b03cf4b2dffbfb4960946e2b42f82c0ca5d53d231d3f0fc597ba274488"
+    },
+    "sources": [
+      "https://vault.centos.org/7.9.2009/os/x86_64/Packages/keyutils-libs-1.5.8-3.el7.x86_64.rpm",
+      "https://github.com/pypa/auditwheel/blob/6.7.0/src/auditwheel/repair.py"
+    ],
+    "upstream_archive_sha256": "16c7cb17dd4eced77c44697bc431c0ac9eb012da78fc91abacd828d3aa8e5dd3",
+    "upstream_object_sha256": "dfe70bd63f57aa3fc805f88ffb04b9440794faacbf7cffd080fc68984d25f3fb"
+  },
+  "libcom_err-1.42.9-19.el7": {
+    "notices": {
+      "libcom_err-1.42.9-19.el7.COPYING": "680f852df303874fe9c722283a7da571ae9a0477768df8af1e363298e2adc51e"
+    },
+    "objects": {
+      "psycopg_binary.libs/libcom_err-2abe824b.so.2.1": "5426dcb54dd01c9eedda05e2179f0e47114e8b48a534ffe9e94916e79471b257"
+    },
+    "sources": [
+      "https://vault.centos.org/7.9.2009/os/x86_64/Packages/libcom_err-1.42.9-19.el7.x86_64.rpm",
+      "https://github.com/pypa/auditwheel/blob/6.7.0/src/auditwheel/repair.py"
+    ],
+    "upstream_archive_sha256": "b98e19c3bbf6de458697a895654db0d75e93e7738ef22bc1540e2c78fa91748b",
+    "upstream_object_sha256": "2abe824bc4b40f400391ad327090796ecc2cd48df173c2f82134ec5c1d3d6c91"
+  },
+  "libxcrypt 4.5.2": {
+    "notices": {
+      "Libxcrypt-4.5.2.AUTHORS": "6d1e45c055b6d9e9bf4e9521419eb3dee4ca42a02dd4d824beaaad476dacfdca",
+      "Libxcrypt-4.5.2.COPYING.LIB": "dc626520dcd53a22f727af3ee42c770e56c97a64fe3adb063799d8ab032fe551",
+      "Libxcrypt-4.5.2.LICENSING": "9144e66d8140feb84f0e4e344906ac425378896320032e0248567ef195cf0135"
+    },
+    "objects": {
+      "psycopg_binary.libs/libcrypt-bc2db45e.so.1": "e2a6f6ff300e287a60dfc0c6fdb76ee01e333068df7c60b4e87453d942ccda65"
+    },
+    "sources": [
+      "https://github.com/psycopg/psycopg/actions/runs/43127304274/job/130919096449",
+      "https://quay.io/repository/pypa/manylinux2014_x86_64?tab=tags&tag=sha256:c163a278006f45883c117b4166b93cdc7b574b62e58292ed9e52879579841d77",
+      "https://github.com/besser82/libxcrypt/tree/v4.5.2"
+    ],
+    "upstream_object_sha256": "bc2db45ec146e845246bd2610dd4d8bf8c9176adda585ba15f51dd30dbf36459",
+    "wheel_sha256": "e51c7c493f07b51be56875cfa8a7674824749fa1cda3515339ca64e628f1b992"
+  }
+}

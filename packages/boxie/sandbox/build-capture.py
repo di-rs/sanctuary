@@ -9,10 +9,12 @@ import gzip
 import subprocess
 import sys
 import tempfile
+from importlib.util import find_spec
 from pathlib import Path
 
 SOURCE = Path(__file__).resolve().parents[1] / "src" / "boxie" / "sandbox"
 TARGETS = {"amd64": "x86_64-linux-musl", "arm64": "aarch64-linux-musl"}
+NOTICES = {"LICENSE.zig": "LICENSE", "COPYRIGHT.musl": "lib/libc/musl/COPYRIGHT"}
 
 
 def main() -> None:
@@ -58,6 +60,18 @@ def main() -> None:
             else:
                 resource.parent.mkdir(exist_ok=True)
                 resource.write_bytes(gzip.compress(program, compresslevel=9, mtime=0))
+
+    ziglang = find_spec("ziglang")
+    if ziglang is None or ziglang.origin is None:
+        raise SystemExit("locate the pinned ziglang package")
+    for filename, upstream in NOTICES.items():
+        notice = (Path(ziglang.origin).parent / upstream).read_bytes()
+        resource = SOURCE / "capture_bins" / filename
+        if args.check:
+            if not resource.is_file() or resource.read_bytes() != notice:
+                raise SystemExit(f"refresh {resource.name} from the pinned ziglang package")
+        else:
+            resource.write_bytes(notice)
 
 
 if __name__ == "__main__":

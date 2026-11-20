@@ -1,0 +1,3 @@
+# Keep the upstream RPM notice bytes, including their whitespace and line endings.
+*.COPYING -text -whitespace
+*.LICENCE.LGPL -text -whitespace

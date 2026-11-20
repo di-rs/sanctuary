@@ -1,0 +1,19 @@
+{
+  "websockets 17.4": {
+    "complete": true,
+    "notices": {},
+    "objects": {
+      "websockets/speedups.cpython-315-x86_64-linux-gnu.so": "d68d318d7776a85a4774424fc74a2b0fe8c4097cb3cc7ba85479d7c6f0176348"
+    },
+    "sources": [
+      "https://github.com/python-websockets/websockets/tree/625a59ed613ac60e60d577dd64b8641d59ecb2b1",
+      "https://github.com/python-websockets/websockets/actions/runs/41066009694",
+      "https://pypi.org/integrity/websockets/17.4/websockets-17.4-cp315-cp315-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl/provenance"
+    ],
+    "upstream_archive_sha256": "09d3939b70df0c8ad2da145ebd50978bccaee1d565e838b0e7921a34d38571eb",
+    "wheel_notices": {
+      "websockets-17.4.dist-info/licenses/LICENSE": "3d6a0c050d8bec52fabad502e45fb25bd02bcadbd70dea34d447b6a0ff4e6da8"
+    },
+    "wheel_sha256": "3acc45494c08a4d27375a2c28474537f68910219f42624a08011221b04623d04"
+  }
+}

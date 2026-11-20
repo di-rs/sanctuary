@@ -1,0 +1,14 @@
+{
+  "utf8_range from Protobuf v33.6": {
+    "complete": false,
+    "notices": {
+      "Protobuf-33.6-utf8_range.LICENSE": "02de69b64fc36d9e938f418e52723e42f0b2b226d58a9cb3c8dcbdf7059f5074"
+    },
+    "objects": {
+      "google/_upb/_message.abi3.so": "3a60308c1b67d8f21cc2cf5058a01a4e36a35c09d03d31f95a90a7c73b56ffe2"
+    },
+    "sources": [
+      "https://github.com/protocolbuffers/protobuf/blob/v33.6/third_party/utf8_range/LICENSE"
+    ]
+  }
+}

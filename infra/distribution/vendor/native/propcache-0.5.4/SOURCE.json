@@ -1,0 +1,25 @@
+{
+  "Embedded Cython 3.3.0 utility code": {
+    "complete": true,
+    "notices": {
+      "Cython.COPYING.txt": "e1eb1c49a8508e8173dac30157e4a6439a44ad8846194746c424fbc3fc2b95d7",
+      "Cython.LICENSE.txt": "9568a2b155e66ac3e0ba1fd80b52b827b9460e6cf6f233125e7cbca8e206ddc3"
+    },
+    "objects": {
+      "propcache/_helpers_c.cpython-315-x86_64-linux-gnu.so": "46f31239fdb579062d8d207b0c77f9a660a4fb791b3caaabedc72bd3d12842f2"
+    },
+    "sources": [
+      "https://github.com/aio-libs/propcache/tree/cc9882f95c6aadbfe7b88898e3f0230e4a38341a",
+      "https://github.com/aio-libs/propcache/actions/runs/35035668489",
+      "https://pypi.org/integrity/propcache/0.5.4/propcache-0.5.4-cp315-cp315-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl/provenance",
+      "https://github.com/cython/cython/tree/3.3.0",
+      "https://github.com/aio-libs/propcache/actions/runs/35035668489/job/104604254841"
+    ],
+    "upstream_archive_sha256": "ff6b113f50bc066a698db5d944d2c6dc7507168dd3341e255a8892fd0715a558",
+    "wheel_notices": {
+      "propcache-0.5.4.dist-info/licenses/LICENSE": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "propcache-0.5.4.dist-info/licenses/NOTICE": "56d6ac6c8105c0a51304c21db060e361af9a8ea0af9a75c239c28b5d13693838"
+    },
+    "wheel_sha256": "23278f808cd81d5ada7184a76606b925fb3389c60e1077b2cd7da7b1fcf0553c"
+  }
+}

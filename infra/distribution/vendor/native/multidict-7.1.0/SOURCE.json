@@ -1,0 +1,20 @@
+{
+  "multidict 7.1.0": {
+    "complete": true,
+    "notices": {},
+    "objects": {
+      "multidict/_multidict.cpython-315-x86_64-linux-gnu.so": "cf3b41c7c5ca0aa3d9a3332586d1e69751f6314ea44deb69e66a0c8652a6dc86",
+      "multidict/_testcapi.cpython-315-x86_64-linux-gnu.so": "6a9bd2666df6054bbe3be310a2896c10b918cc8b68747aad540593cd3ef3bd4b"
+    },
+    "sources": [
+      "https://github.com/aio-libs/multidict/tree/709f2600d00c4c3ed28f696e578027a299c7da83",
+      "https://github.com/aio-libs/multidict/actions/runs/37929221966",
+      "https://pypi.org/integrity/multidict/7.1.0/multidict-7.1.0-cp315-cp315-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl/provenance"
+    ],
+    "upstream_archive_sha256": "61a4e5d81b8d4e4ad61964b230129e7a2b914793d96289029078fc9009f074ec",
+    "wheel_notices": {
+      "multidict-7.1.0.dist-info/licenses/LICENSE": "2e4be5fc6c4c72a466fcb665d726e049a6891981fe536c4f04b6366749461d23"
+    },
+    "wheel_sha256": "4b87ad54e8d4adeb0a1f04889504d6ec7f04fb02609220810f51f1b6c66bc1cc"
+  }
+}

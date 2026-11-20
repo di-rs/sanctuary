@@ -1,9 +1,25 @@
+import { readFileSync } from "node:fs";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vite-plus";
 
 export default defineConfig(({ command }) => ({
-  plugins: [tailwindcss(), svelte()],
+  plugins: [
+    tailwindcss(),
+    svelte(),
+    {
+      name: "tailwindcss-license",
+      apply: "build",
+      generateBundle() {
+        // Vite's report covers bundled JS. theme.css also includes Tailwind CSS.
+        this.emitFile({
+          type: "asset",
+          fileName: "tailwindcss.LICENSE",
+          source: readFileSync(new URL("./node_modules/tailwindcss/LICENSE", import.meta.url)),
+        });
+      },
+    },
+  ],
   base: command === "build" ? "/static/" : "/",
   build: {
     outDir: "../src/cli_playground/static",

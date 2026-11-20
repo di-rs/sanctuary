@@ -124,6 +124,33 @@ up to 1,024 CLIs, depth 16, 4,096 command nodes and 32,768 arguments across both
 trees, with bounded strings and collections. Unknown versions and fields,
 duplicate identities, invalid names, and unsafe control characters are rejected.
 
+### Download notices with a preview build
+
+Open **Build and artifacts** in the PR preview comment and sign in to GitHub
+with access to that workflow run. Download `cli-playground-binaries` and
+`cli-playground-notices-<head-sha>` from the same run. The binaries expire
+after seven days. The companion is uploaded first and kept for eight days, so
+its download window covers the binaries. The build summary links directly to
+the companion. Browser terminals execute the binaries in Boxie and stream the
+terminal output.
+
+The companion artifact contains `third-party-notices.zip`. Open its
+`manifest.json` and confirm that `revision` matches the preview head and
+that each `executables` SHA-256 matches the corresponding extracted binary.
+The manifest also records the target, Cargo lockfile digest, active crate
+features and paths to the license and copyright texts. The executable ZIP
+retains the flat executable members and optional `catalog.json`.
+
+The Linux build generates the companion from the same locked Cargo invocation
+that produced the executables. It selects the target artifacts reported by
+Cargo and adds the pinned Rust standard library notices. When a crate has no
+notice text or needs review for bundled native code, the build fails before
+either preview artifact is uploaded. Check the exact crate revision and add
+reviewed upstream notices before retrying the build. For a crate missing texts
+from its published package, record its Cargo lock checksum and the upstream
+license source beside the exact texts in `tools/cli-playground/vendor/rust-notices/`.
+The Cargo license policy applies to the complete dependency graph.
+
 Trusted publication and backend admission validate the sidecar against the
 expected head SHA and the exact executable names and digests. They never execute
 uploaded binaries. These checks bind descriptions to an artifact; they cannot

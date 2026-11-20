@@ -1,0 +1,28 @@
+{
+  "Embedded Cython 3.2.5 utility code": {
+    "complete": true,
+    "notices": {
+      "Cython.COPYING.txt": "e1eb1c49a8508e8173dac30157e4a6439a44ad8846194746c424fbc3fc2b95d7",
+      "Cython.LICENSE.txt": "9568a2b155e66ac3e0ba1fd80b52b827b9460e6cf6f233125e7cbca8e206ddc3"
+    },
+    "objects": {
+      "aiohttp/_http_parser.cpython-315-x86_64-linux-gnu.so": "d82feb503bf02c2191ba90db8efea355f14a1fbe7a6451a44b0d344ec5dd3566",
+      "aiohttp/_http_writer.cpython-315-x86_64-linux-gnu.so": "10ea74c8a4574f2b702d3c53a990002e7d93b966df2b31873f496ae6930dcd0f",
+      "aiohttp/_websocket/mask.cpython-315-x86_64-linux-gnu.so": "29de069195680c3a967e0048ead7c7484eac9b64835b4b0388439ae9af8024a7",
+      "aiohttp/_websocket/reader_c.cpython-315-x86_64-linux-gnu.so": "2dc1b77fc891e234cf71c43021fc6300790e248fc1419f0fd987d1cd2afc42b4"
+    },
+    "sources": [
+      "https://github.com/aio-libs/aiohttp/tree/f17c631bddcfd4ec712342db28f1d3381a3fec71",
+      "https://github.com/aio-libs/aiohttp/actions/runs/38097142483",
+      "https://pypi.org/integrity/aiohttp/3.14.5/aiohttp-3.14.5-cp315-cp315-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl/provenance",
+      "https://github.com/cython/cython/tree/3.2.5",
+      "https://github.com/aio-libs/aiohttp/actions/runs/38097142483/job/114347510756"
+    ],
+    "upstream_archive_sha256": "5558a7f5a05af9ecf744af91e5baefc436f93c9333e656c27ec253f9a6bbe178",
+    "wheel_notices": {
+      "aiohttp-3.14.5.dist-info/licenses/LICENSE.txt": "2e4be5fc6c4c72a466fcb665d726e049a6891981fe536c4f04b6366749461d23",
+      "aiohttp-3.14.5.dist-info/licenses/vendor/llhttp/LICENSE": "628168d68bb5a8a17e0bbefb3bd74e326e1edc20583d76f52f457c82c921867d"
+    },
+    "wheel_sha256": "276a4fc00b1d9ae492b802763a789c5b86328b989c5ea169f2faa447d6a11c7c"
+  }
+}
