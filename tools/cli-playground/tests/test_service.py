@@ -1,17 +1,23 @@
 """Service lifecycle boundaries independent of HTTP validation."""
 
 import asyncio
+import hashlib
+import shutil
 import threading
+import zipfile
 from collections.abc import AsyncIterator
 from pathlib import Path
 from uuid import UUID
 
+import httpx
 import pytest
 from cli_playground import service as service_module
+from cli_playground.app import create_app
 from cli_playground.artifacts import stage_archive
 from cli_playground.config import Settings
 from cli_playground.domain import ArtifactConflictError, SessionBinding, request_stop
 from cli_playground.models import BuildIdentity, BuildUpdate
+from cli_playground.observability import current_request_id, request_context
 from cli_playground.sandbox import SandboxRequest, SandboxView
 from cli_playground.service import CliPlaygroundService
 from cli_playground.session_store import SessionStore
@@ -23,7 +29,7 @@ from sqlalchemy.pool import NullPool
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from .boxie_fake import FakeBoxie
-from .helpers import MutableClock, binary_bundle, elf_binary
+from .helpers import AUTH, MutableClock, binary_bundle, elf_binary
 
 
 def test_expiry_cleanup_preserves_build_refreshed_during_session_shutdown(
@@ -106,6 +112,79 @@ def test_archive_timeout_waits_for_worker_without_blocking_metadata(
         assert (await service.store.get(environment.id)) == environment
         assert not service.uploads.locked()
         assert not list(service.settings.data_dir.glob(".upload-*"))
+
+    asyncio.run(exercise())
+
+
+@pytest.mark.parametrize("operation", ["write", "cleanup"])
+def test_metadata_responds_while_upload_storage_waits(
+    operation: str, docker_settings: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from time import perf_counter
+    from typing import IO, Any
+
+    app = create_app(docker_settings, boxie=FakeBoxie())
+    bundle = binary_bundle({"echor": elf_binary()})
+
+    async def exercise() -> None:
+        loop = asyncio.get_running_loop()
+        entered, release, finished = asyncio.Event(), threading.Event(), threading.Event()
+        started = 0.0
+
+        def stall() -> None:
+            nonlocal started
+            started = perf_counter()
+            loop.call_soon_threadsafe(entered.set)
+            release.wait(2)
+            finished.set()
+
+        open_path, remove_tree = Path.open, shutil.rmtree
+
+        def open_with_slow_write(path: Path, mode: str = "r", *args: Any, **kwargs: Any) -> IO[Any]:
+            stream = open_path(path, mode, *args, **kwargs)
+            if path.name == "bundle.zip" and mode == "wb":
+                write = stream.write
+
+                def slow_write(chunk: bytes) -> int:
+                    stall()
+                    return write(chunk)
+
+                monkeypatch.setattr(stream, "write", slow_write)
+            return stream
+
+        def slow_cleanup(path: Path, *args: Any, **kwargs: Any) -> None:
+            if Path(path).name.startswith(".upload-"):
+                stall()
+            remove_tree(path, *args, **kwargs)
+
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app),
+            base_url=docker_settings.public_url,
+            headers=AUTH,
+        ) as client:
+            previous = await client.post(
+                "/api/environments", params={"pr": 123, "sha": "a" * 40}, content=bundle
+            )
+            assert previous.status_code == 201
+            if operation == "write":
+                monkeypatch.setattr(Path, "open", open_with_slow_write)
+            else:
+                monkeypatch.setattr(shutil, "rmtree", slow_cleanup)
+
+            deploying = asyncio.create_task(
+                client.post(
+                    "/api/environments", params={"pr": 124, "sha": "b" * 40}, content=bundle
+                )
+            )
+            try:
+                await asyncio.wait_for(entered.wait(), timeout=5)
+                metadata = await client.get(f"/api/environments/{previous.json()['id']}")
+                assert metadata.status_code == 200 and metadata.json()["sha"] == "a" * 40
+                assert not finished.is_set(), f"metadata took {perf_counter() - started:.3f}s"
+            finally:
+                release.set()
+                uploaded = await deploying
+            assert uploaded.status_code == 201
 
     asyncio.run(exercise())
 
@@ -229,6 +308,102 @@ def test_failed_remote_upload_preserves_ready_and_retries_the_same_artifact(
         assert current is not None and current.sha == "b" * 40
         assert current.artifact_id == intent.artifact.artifact_id
         assert not (await restarted.sessions.uploads())
+
+    asyncio.run(exercise())
+
+
+def test_cancelled_staging_discards_archive_before_recording_intent(
+    docker_settings: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def body() -> AsyncIterator[bytes]:
+        yield binary_bundle({"echor": elf_binary()})
+
+    async def exercise() -> None:
+        service = make_service(docker_settings)
+        loop = asyncio.get_running_loop()
+        entered, release = asyncio.Event(), threading.Event()
+        stage = service.staging.stage
+
+        def slow_stage(identifier: UUID, source: Path) -> None:
+            stage(identifier, source)
+            loop.call_soon_threadsafe(entered.set)
+            assert release.wait(5)
+
+        monkeypatch.setattr(service.staging, "stage", slow_stage)
+        deploying = asyncio.create_task(service.deploy(body(), "a" * 40, 123))
+        try:
+            await asyncio.wait_for(entered.wait(), timeout=5)
+            deploying.cancel()
+            await asyncio.sleep(0)
+            deploying.cancel()
+            await asyncio.sleep(0)
+            assert not deploying.done() and service.uploads.locked()
+            assert list(service.staging.uploads.glob("*.zip"))
+            assert list(service.staging.root.glob(".upload-*"))
+        finally:
+            release.set()
+            with pytest.raises(asyncio.CancelledError):
+                await deploying
+        assert not service.uploads.locked()
+        assert not list(service.staging.root.glob(".upload-*"))
+        assert not list(service.staging.uploads.iterdir())
+        assert not await service.sessions.uploads()
+
+    asyncio.run(exercise())
+
+
+def test_cancelled_upload_recovers_original_bytes_and_request(
+    docker_settings: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    binary = elf_binary(b"recover this upload")
+    request_id = UUID(int=42)
+
+    async def body() -> AsyncIterator[bytes]:
+        yield binary_bundle({"echor": binary})
+
+    async def exercise() -> None:
+        service = make_service(docker_settings)
+        remote = boxie(service)
+        upload = remote.upload
+        entered = asyncio.Event()
+
+        async def blocked_upload(*args: object) -> None:
+            entered.set()
+            await asyncio.Future[None]()
+
+        monkeypatch.setattr(remote, "upload", blocked_upload)
+        with request_context(str(request_id)):
+            deploying = asyncio.create_task(service.deploy(body(), "a" * 40, 123))
+        try:
+            await asyncio.wait_for(entered.wait(), timeout=5)
+        finally:
+            deploying.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await deploying
+
+        (intent,) = await service.sessions.uploads()
+        assert intent.request_id == request_id
+        identifier = intent.artifact.artifact_id
+        staged = service.staging.archive(identifier)
+        data = staged.read_bytes()
+        assert hashlib.sha256(data).hexdigest() == intent.artifact.sha256
+        with zipfile.ZipFile(staged) as archive:
+            assert archive.read("echor") == binary
+        assert not list(service.staging.root.glob(".upload-*"))
+        assert not service.uploads.locked()
+
+        async def recovered_upload(artifact_id: UUID, digest: str, archive: Path) -> None:
+            assert current_request_id() == str(request_id)
+            assert artifact_id == identifier
+            await upload(artifact_id, digest, archive)
+
+        monkeypatch.setattr(remote, "upload", recovered_upload)
+        app = create_app(docker_settings, boxie=remote, clock=service.clock)
+        async with app.router.lifespan_context(app):
+            restarted: CliPlaygroundService = app.state.service
+            assert remote.artifacts[identifier] == data
+            assert not await restarted.sessions.uploads()
+            assert not staged.exists()
 
     asyncio.run(exercise())
 

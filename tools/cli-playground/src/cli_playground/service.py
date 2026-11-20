@@ -4,14 +4,13 @@ import asyncio
 import hashlib
 import logging
 import secrets
-import shutil
 import time
 import zipfile
 import zlib
 from asyncio import timeout
 from collections.abc import AsyncIterable, Callable
+from contextlib import AsyncExitStack
 from functools import partial
-from pathlib import Path
 from uuid import UUID, uuid4
 
 from anyio import CancelScope
@@ -38,7 +37,7 @@ from cli_playground.sandbox import (
     SandboxRequest,
     SandboxView,
 )
-from cli_playground.upload_staging import UploadStaging, run_staging
+from cli_playground.upload_staging import UploadStaging, run_staging, staging_resource
 
 logger = logging.getLogger(__name__)
 
@@ -115,12 +114,13 @@ class CliPlaygroundService:
             await self.boxie.upload(
                 artifact.artifact_id, artifact.sha256, self.staging.archive(artifact.artifact_id)
             )
+            remove_staged = partial(self.staging.remove, artifact.artifact_id)
             try:
                 environment = await self.store.finish_upload(artifact, intent.build)
             except ArtifactConflictError:
-                self.staging.remove(artifact.artifact_id)
+                await run_staging(remove_staged)
                 raise
-            self.staging.remove(artifact.artifact_id)
+            await run_staging(remove_staged)
             await self.collect_artifacts()
             return environment
 
@@ -316,19 +316,21 @@ class CliPlaygroundService:
             await asyncio.wait_for(self.uploads.acquire(), timeout=1)
         except TimeoutError as error:
             raise UploadBusyError from error
-        temporary: Path | None = None
         try:
-            async with timeout(60):
+            async with AsyncExitStack() as resources, timeout(60):
                 await self.cleanup_inactive()
-                temporary = self.staging.temporary_directory()
+                temporary = await resources.enter_async_context(
+                    staging_resource(self.staging.temporary_directory)
+                )
                 size = 0
                 archive = temporary / "bundle.zip"
-                with archive.open("wb") as binary:
+                async with staging_resource(lambda: archive.open("wb")) as binary:
                     async for chunk in chunks:
                         size += len(chunk)
                         if size > self.settings.max_archive_bytes:
                             raise UploadTooLargeError
-                        binary.write(chunk)
+                        if chunk:
+                            await run_staging(partial(binary.write, chunk))
                 staged = temporary / "binaries"
                 canonical = temporary / "canonical.zip"
 
@@ -396,16 +398,20 @@ class CliPlaygroundService:
                     build=build,
                     previous_revision=current.revision if current else None,
                 )
-                await run_staging(partial(self.staging.stage, metadata.artifact_id, canonical))
+                remove_staged = partial(self.staging.remove, metadata.artifact_id)
+                try:
+                    await run_staging(partial(self.staging.stage, metadata.artifact_id, canonical))
+                except asyncio.CancelledError, OSError:
+                    await run_staging(remove_staged)
+                    raise
+                # Keep the archive if the intent transaction's outcome is uncertain.
                 try:
                     await self.sessions.upload_intent(intent)
                 except ArtifactConflictError:
-                    await run_staging(partial(self.staging.remove, metadata.artifact_id))
+                    await run_staging(remove_staged)
                     raise
                 return await self.finish_upload(intent)
         finally:
-            if temporary is not None:
-                shutil.rmtree(temporary, ignore_errors=True)
             self.uploads.release()
 
     async def close_pull_request(self, pr: int) -> int:
