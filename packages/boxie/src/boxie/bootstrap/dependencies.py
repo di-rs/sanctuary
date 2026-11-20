@@ -134,11 +134,11 @@ class Dependencies:
             ):
                 return False
             await temporal_namespace_ready(self.temporal)
+            queue_name = lifecycle_queue(self.identity) if self.identity else TASK_QUEUE
             for kind in (
                 TaskQueueType.TASK_QUEUE_TYPE_WORKFLOW,
                 TaskQueueType.TASK_QUEUE_TYPE_ACTIVITY,
             ):
-                queue_name = lifecycle_queue(self.identity) if self.identity else TASK_QUEUE
                 if not await temporal_poller_ready(self.temporal, queue_name, kind):
                     return False
             if self.schedules is not None:
