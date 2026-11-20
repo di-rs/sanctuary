@@ -92,6 +92,24 @@ fn malformed_input_is_not_eof(cx: &TestContext) -> Result<()> {
     Ok(())
 }
 
+#[cli_test]
+fn reports_common_line_before_later_decode_error(cx: &TestContext) -> Result<()> {
+    let dir = assert_fs::TempDir::new()?;
+    let input = dir.path().join("input");
+    std::fs::write(&input, b"a\nz\n")?;
+    let stdin = std::path::Path::new("-");
+    for args in [[stdin, &input], [&input, stdin]] {
+        cx.cmd()
+            .args(args)
+            .write_stdin(b"a\n\xff\n")
+            .assert()
+            .code(65)
+            .stdout("\t\ta\n")
+            .stderr("Error: stream did not contain valid UTF-8\n");
+    }
+    Ok(())
+}
+
 #[test]
 fn exports_public_cli_schema_without_application_side_effects()
 -> std::result::Result<(), Box<dyn std::error::Error>> {
