@@ -45,7 +45,9 @@ in the workflow. After a slot becomes available, rerun the current PR workflow.
 To change capacity, set the desired count in
 `/etc/sanctuary/playground-apps/limit` on the host. Each preview has a 384 MiB
 gateway and a 320 MiB database limit. All PR apps share three of Boxie’s eight
-sandbox slots. Production can use any available slot.
+sandbox slots. Once the shared artifact store reaches half of its byte or object
+budget, Boxie accepts new uploads only from installation credentials. Production
+can use all available slots and storage.
 The private Playground bridge reserves `10.237.93.2` for the Boxie API across releases.
 
 To reconcile an existing PR or retry after a host restart, supply its number.

@@ -96,7 +96,8 @@ Advisory secret scans must not publish credential values and run without credent
   Traefik terminates TLS and Dokku routes each hostname to its app. Boxie resolves the digest of the
   bearer from a read-only operator grant directory on each authentication. Removing
   a grant revokes future authentication. Boxie limits scoped grants to three shared
-  sandbox slots. Dokku rotates each preview's container logs. On close, the trusted Boxie operator stops
+  sandbox slots and half of the host's artifact byte and object budgets. Dokku
+  rotates each preview's container logs. On close, the trusted Boxie operator stops
   the revoked consumer’s sandboxes and retires its artifacts through the private API.
   Production credentials stay in the production app. See [Playground deployment](../tools/cli-playground/docs/deployment.md).
 - **Local fixture recipes and recordings:** CLI test catalogs and their reference

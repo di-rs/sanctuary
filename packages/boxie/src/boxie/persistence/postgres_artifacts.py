@@ -120,9 +120,7 @@ class PostgresArtifactStore:
 
             legacy = await self._inventory()
             async with self.sessions() as session, session.begin():
-                upload = await reserve_upload(
-                    session, principal.consumer_id, self.limits, self.quota, legacy
-                )
+                upload = await reserve_upload(session, principal, self.limits, self.quota, legacy)
             return await self._stage(principal, artifact_id, sha256, chunks, upload)
 
     async def _stage(

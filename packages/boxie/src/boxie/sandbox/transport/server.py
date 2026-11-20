@@ -115,9 +115,10 @@ def create_supervisor_app(
         response: Response,
         consumer_id: Annotated[ConsumerId, Query()],
         x_content_sha256: Annotated[str, Header()],
+        scoped: bool = False,
     ) -> dict[str, object]:
         result = await artifacts.put(
-            Principal(consumer_id), artifact_id, x_content_sha256, request.stream()
+            Principal(consumer_id, scoped=scoped), artifact_id, x_content_sha256, request.stream()
         )
         response.status_code = 201 if result.created else 200
         return asdict(result.artifact)

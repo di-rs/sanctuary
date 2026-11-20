@@ -146,7 +146,7 @@ class SupervisorClient:
         status, body = await self._request(
             "PUT",
             f"/v1/artifacts/{artifact_id}",
-            params={"consumer_id": principal.consumer_id},
+            params={"consumer_id": principal.consumer_id, "scoped": principal.scoped},
             headers={"X-Content-SHA256": sha256},
             content=bounded(),
         )

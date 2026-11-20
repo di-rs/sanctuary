@@ -10,6 +10,7 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from boxie.domain.errors import BoxieError
+from boxie.domain.models import Principal
 from boxie.persistence.artifacts import MAX_UPLOAD_BYTES, ArtifactLimits, ArtifactQuota
 from boxie.persistence.models import Artifact, ArtifactUpload
 
@@ -67,7 +68,7 @@ async def inventory_legacy(session: AsyncSession, root: Path) -> dict[str, int]:
 
 async def reserve_upload(
     session: AsyncSession,
-    consumer_id: str,
+    principal: Principal,
     limits: ArtifactLimits,
     quota: ArtifactQuota,
     legacy_orphans: dict[str, int],
@@ -79,7 +80,7 @@ async def reserve_upload(
         ).where(col(Artifact.collected_at).is_(None)),
         select(ArtifactUpload.consumer_id, ArtifactUpload.reserved_bytes),
     ).subquery()
-    owner = usage.c.owner == consumer_id
+    owner = usage.c.owner == principal.consumer_id
     total_bytes, total_objects, owner_bytes, owner_objects = (
         await session.exec(
             select(
@@ -90,19 +91,24 @@ async def reserve_upload(
             ).select_from(usage)
         )
     ).one()
+    # Scoped uploads leave half of each installation budget available to static consumers.
+    byte_limit, object_limit = quota.total_bytes, quota.total_objects
+    if principal.scoped:
+        byte_limit //= 2
+        object_limit //= 2
     available = min(
         quota.consumer_bytes - int(owner_bytes),
-        quota.total_bytes - int(total_bytes) - sum(legacy_orphans.values()),
+        byte_limit - int(total_bytes) - sum(legacy_orphans.values()),
     )
     if (
         available <= 0
         or owner_objects >= quota.consumer_objects
-        or total_objects + len(legacy_orphans) >= quota.total_objects
+        or total_objects + len(legacy_orphans) >= object_limit
     ):
         raise BoxieError(429, "artifact storage quota reached")
     upload = ArtifactUpload(
         storage_id=uuid4(),
-        consumer_id=consumer_id,
+        consumer_id=principal.consumer_id,
         reserved_bytes=min(available, limits.compressed_bytes + limits.expanded_bytes),
     )
     session.add(upload)

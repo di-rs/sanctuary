@@ -254,9 +254,12 @@ def test_quota_scopes_and_exact_retry_through_api(
                 ) as origin,
                 SupervisorClient(origin, b"supervisor-test-secret") as upstream,
             ):
+                preview = "scoped." + "a" * 64
+                (tmp_path / hashlib.sha256(preview.encode()).hexdigest()).write_text("preview")
                 app = create_app(
                     ApiConfig(
                         release="test",
+                        consumer_grants_dir=tmp_path,
                         consumers={
                             "one": b"consumer-one-secret",
                             "two": b"consumer-two-secret",
@@ -291,6 +294,9 @@ def test_quota_scopes_and_exact_retry_through_api(
                     assert (await put(winner, CONSUMER_AUTH)).status_code == 200
                     assert (await put(winner, CONSUMER_AUTH, data + b"x")).status_code == 422
                     assert (await put(winner, FOREIGN_AUTH)).status_code == 404
+                    assert (
+                        await put(uuid4(), {"Authorization": "Bearer " + preview})
+                    ).status_code == 429
                     assert (await put(uuid4(), FOREIGN_AUTH)).status_code == 201
                     full = await put(uuid4(), {"Authorization": "Bearer consumer-three-secret"})
                     assert full.status_code == 429
