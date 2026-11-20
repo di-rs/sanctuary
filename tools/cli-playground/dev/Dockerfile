@@ -35,5 +35,6 @@ COPY --from=frontend /frontend/dist/ /app/tools/cli-playground/src/cli_playgroun
 COPY packages/boxie/sandbox/fixtures/ /opt/fixtures/
 ENV PATH="/app/.venv/bin:/usr/local/bin:/usr/bin:/bin" PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 RUN install -d -o 1000 -g 1000 -m 0700 /var/lib/playground-sessions
+RUN install -d -o 1000 -g 1000 -m 0700 /run/boxie
 USER 1000:1000
 CMD ["python", "-m", "tests.dev_server"]

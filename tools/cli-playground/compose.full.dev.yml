@@ -1,0 +1,8 @@
+services:
+  playground:
+    networks: [default, boxie]
+
+networks:
+  boxie:
+    external: true
+    name: ${LOCAL_DEV_BOXIE_NETWORK:?Set the worktree Boxie consumer network}

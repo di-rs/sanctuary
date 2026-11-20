@@ -1,0 +1,49 @@
+# Disposable, native Linux development. The production projects retain their
+# own topology, privileges, images, and operator-owned configuration.
+x-local-logging: &local-logging
+  driver: local
+  options: !override {}
+
+services:
+  postgres:
+    extends: {file: postgres/compose.yml, service: postgres}
+    networks: !override [control]
+  temporal:
+    extends: {file: temporal/compose.yml, service: temporal}
+    user: ${LOCAL_DEV_USER}
+    # Temporal's Go resource detection needs these when the host UID has no
+    # entry in the image's passwd database.
+    environment:
+      USER: temporal
+      HOME: /tmp
+    logging: *local-logging
+  schema:
+    extends: {file: temporal/compose.yml, service: schema}
+  bootstrap:
+    extends: {file: temporal/compose.yml, service: bootstrap}
+    user: ${LOCAL_DEV_USER}
+  migrate:
+    extends: {file: compose.operations.yml, service: migrate}
+    user: ${LOCAL_DEV_USER}
+  supervisor:
+    extends: {file: compose.yml, service: supervisor}
+    user: ${LOCAL_DEV_USER}
+    group_add: ["${LOCAL_DEV_DOCKER_GID:-0}"]
+    logging: *local-logging
+    stop_grace_period: 45s
+  api:
+    extends: {file: compose.yml, service: api}
+    user: ${LOCAL_DEV_USER}
+    logging: *local-logging
+    ports:
+      - target: 8090
+        host_ip: 127.0.0.1
+        protocol: tcp
+
+volumes:
+  postgres-data:
+
+networks:
+  consumer: {}
+  control:
+    internal: true

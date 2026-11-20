@@ -1,0 +1,19 @@
+services:
+  playground:
+    labels:
+      sanctuary.local.terminal: boxie
+    environment:
+      DEV_BOXIE_URL: ${LOCAL_DEV_BOXIE_ORIGIN:-http://boxie-api:8090}
+    volumes:
+      - boxie-credential:/run/boxie:ro
+  credential:
+    profiles: [operations]
+    image: ${LOCAL_DEV_PLAYGROUND_IMAGE}
+    platform: linux/amd64
+    network_mode: none
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    volumes:
+      - boxie-credential:/run/boxie
+    entrypoint: [python, -m, tests.dev_credential]
