@@ -64,6 +64,7 @@ def cargo_artifacts(
 def notice_files(package: CargoPackage, root: Path, checksum: str | None) -> dict[str, bytes]:
     directory = Path(package["manifest_path"]).parent
     label = f"{package['name']}@{package['version']}"
+    notice_root = directory
     paths = {
         path
         for path in directory.iterdir()
@@ -78,6 +79,7 @@ def notice_files(package: CargoPackage, root: Path, checksum: str | None) -> dic
         manifest = tomllib.loads(Path(package["manifest_path"]).read_text())
         inherited = manifest["package"].get("license") == {"workspace": True}
         if inherited and "vendor" not in directory.relative_to(root).parts:
+            notice_root = root
             paths.add(root / "LICENSE")
     if not paths and checksum:
         supplement = root / "tools/cli-playground/vendor/rust-notices" / label.replace("@", "-")
@@ -86,9 +88,18 @@ def notice_files(package: CargoPackage, root: Path, checksum: str | None) -> dic
             review = json.loads(provenance.read_bytes())
             if review["crate_sha256"] != checksum:
                 raise ValueError(f"reviewed notice checksum does not match Cargo.lock for {label}")
+            notice_root = supplement
             paths = {supplement / filename for filename in review["notices"]}
             paths.add(provenance)
-    texts = {path.name: path.read_bytes() for path in sorted(paths)}
+    texts = {}
+    for path in sorted(paths):
+        relative = (
+            path.relative_to(notice_root) if path.is_relative_to(notice_root) else Path(path.name)
+        )
+        name = path.name if ".." in relative.parts else relative.as_posix()
+        if name in texts:
+            raise ValueError(f"conflicting notice path for {label}: {name}")
+        texts[name] = path.read_bytes()
     if not texts or any(not content.strip() for content in texts.values()):
         raise ValueError(f"missing license notice text for {label}")
     if package["links"]:

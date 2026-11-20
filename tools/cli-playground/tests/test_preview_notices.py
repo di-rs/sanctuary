@@ -73,6 +73,38 @@ def test_missing_crate_notice_stops_companion_creation(tmp_path: Path) -> None:
     assert not output.exists()
 
 
+def test_companion_preserves_distinct_notice_paths(tmp_path: Path) -> None:
+    crate = tmp_path / "demo"
+    (crate / "licenses").mkdir(parents=True)
+    (crate / "LICENSE").write_bytes(b"root notice")
+    (crate / "licenses/LICENSE").write_bytes(b"declared notice")
+    (tmp_path / "Cargo.lock").write_text("version = 4\n")
+    rust_docs = tmp_path / "share/doc/rust"
+    rust_docs.mkdir(parents=True)
+    (rust_docs / "COPYRIGHT-library.html").write_bytes(b"Rust notices")
+    package: preview_notices.CargoPackage = {
+        "id": "demo",
+        "name": "demo",
+        "version": "1.0.0",
+        "source": None,
+        "manifest_path": str(crate / "Cargo.toml"),
+        "license": None,
+        "license_file": "licenses/LICENSE",
+        "links": None,
+    }
+    output = tmp_path / "notices.zip"
+    preview_notices.write_notice_bundle(
+        tmp_path, output, "a" * 40, {}, {"demo": set()}, [package], tmp_path
+    )
+    with ZipFile(output) as archive:
+        [entry] = json.loads(archive.read("manifest.json"))["crates"]
+        root_notice, declared_notice = entry["notices"]
+        assert Path(root_notice).name == "LICENSE"
+        assert declared_notice == str(Path(root_notice).parent / "licenses/LICENSE")
+        assert archive.read(root_notice) == b"root notice"
+        assert archive.read(declared_notice) == b"declared notice"
+
+
 @pytest.mark.integration
 @pytest.mark.parametrize("name", ["echor", "uniqr"])
 def test_linux_preview_companion_matches_real_executables(name: str, tmp_path: Path) -> None:
