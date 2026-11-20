@@ -47,6 +47,7 @@ def source_changed_packages(root: Path, members: list[Package], paths: list[str]
 
 def lock_closures(content: str) -> dict[str, Closure]:
     records: Closure = {}
+    identities: dict[tuple[str, ...], PackageId | None] = {}
     for record in tables(tomllib.loads(content).get("package", [])):
         key = (
             string(record.get("name"), "package.name"),
@@ -56,27 +57,23 @@ def lock_closures(content: str) -> dict[str, Closure]:
         if key in records:
             raise ValueError(f"Duplicate locked package: {key}")
         records[key] = record
-    edges: dict[PackageId, set[PackageId]] = {}
+        name, version, source = key
+        # A spelling shared by multiple packages cannot resolve a dependency.
+        for spelling in ((name,), (name, version), (name, version, f"({source})")):
+            identities[spelling] = None if spelling in identities else key
+
+    graph: dict[PackageId, tuple[dict[str, object], set[PackageId]]] = {}
     for key, record in records.items():
         dependencies: set[PackageId] = set()
         for dependency in strings(record.get("dependencies", []), "package.dependencies"):
-            parts = dependency.split(" ", 2)
-            matches = [
-                candidate
-                for candidate in records
-                if candidate[0] == parts[0]
-                and (len(parts) < 2 or candidate[1] == parts[1])
-                and (len(parts) < 3 or f"({candidate[2]})" == parts[2])
-            ]
-            if len(matches) != 1:
+            target = identities.get(tuple(dependency.split(" ", 2)))
+            if target is None:
                 raise ValueError(f"Cannot resolve locked dependency: {dependency}")
-            dependencies.add(matches[0])
-        edges[key] = dependencies
-    normalized = {
-        key: record | {"dependencies": sorted(edges[key])} for key, record in records.items()
-    }
+            dependencies.add(target)
+        graph[key] = record | {"dependencies": sorted(dependencies)}, dependencies
+
     result: dict[str, Closure] = {}
-    for root in records:
+    for root in graph:
         if root[2]:
             continue
         closure: Closure = {}
@@ -84,8 +81,9 @@ def lock_closures(content: str) -> dict[str, Closure]:
         while pending:
             key = pending.pop()
             if key not in closure:
-                closure[key] = normalized[key]
-                pending.extend(edges[key])
+                record, dependencies = graph[key]
+                closure[key] = record
+                pending.extend(dependencies)
         if root[0] in result:
             raise ValueError(f"Ambiguous local package: {root[0]}")
         result[root[0]] = closure
