@@ -36,7 +36,7 @@ class ConsumerAuth:
                 re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", principal)
                 and principal not in self._credentials
             ):
-                found = principal
+                return Principal(principal, scoped=True)
         if found is None:
             raise BoxieError(401, "invalid consumer credential")
         return Principal(found)

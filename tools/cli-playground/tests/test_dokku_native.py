@@ -7,8 +7,10 @@ import shutil
 import ssl
 import subprocess
 from pathlib import Path
+from uuid import uuid4
 
 import httpx
+import psycopg
 import pytest
 import yaml
 from integration.stack import LifecycleStack
@@ -95,9 +97,11 @@ def prepare_boxie(tmp_path: Path) -> LifecycleStack:
     stack = LifecycleStack(tmp_path, runtime_overlay=overlay)
     stack.start()
     api = tmp_path / "api.json"
-    api.write_text(
-        json.dumps({**json.loads(api.read_text()), "consumer_grants_dir": "/run/boxie-consumers"})
-    )
+    settings = json.loads(api.read_text())
+    settings["consumer_grants_dir"] = "/run/boxie-consumers"
+    credentials = settings["consumer_credential_files"]
+    credentials["cli-playground"] = credentials.pop("smoke")
+    api.write_text(json.dumps(settings))
     stack.runtime_command("restart", "api")
     stack.wait_ready()
     (CONFIG / "boxie").mkdir()
@@ -163,12 +167,32 @@ def test_dokku_two_prs_and_production(tmp_path: Path) -> None:
         (CONFIG / "cli-playground-image.env").write_text(
             "CLI_PLAYGROUND_IMAGE=cli-playground:lifecycle\n"
         )
+        binary = ROOT / "target/release/echor"
+        archive = binary_bundle({"echor": binary.read_bytes()})
+        old = uuid4()
+        httpx.put(
+            f"{stack.api_url}/v1/artifacts/{old}",
+            headers={
+                "Authorization": f"Bearer {stack.consumer}",
+                "X-Content-SHA256": hashlib.sha256(archive).hexdigest(),
+            },
+            content=archive,
+        ).raise_for_status()
+        legacy = tmp_path / "legacy.yml"
+        legacy.write_text(
+            "services:\n  backend:\n    image: cli-playground:lifecycle\n    command: [sleep, infinity]\n"
+        )
+        subprocess.run(
+            ["docker", "compose", "-p", "cli-playground", "-f", legacy, "up", "-d"], check=True
+        )
         subprocess.run(["bash", OWNER / "scripts/install.sh"], check=True)
+        with psycopg.connect(stack.dsn) as db:
+            assert not db.execute(
+                "select 1 from artifacts where id=%s and not retired", (old,)
+            ).fetchone()
         subprocess.run(remote("deploy.sh"), check=True)
         production_tag = "localhost/sanctuary-cli-playground:" + "c" * 40
         stream_image(production_tag, remote("deploy.sh", production_tag))
-        binary = ROOT / "target/release/echor"
-        archive = binary_bundle({"echor": binary.read_bytes()})
         with httpx.Client(verify=tls, timeout=60, trust_env=False) as client:
             production = (
                 client.post(
@@ -192,6 +216,10 @@ def test_dokku_two_prs_and_production(tmp_path: Path) -> None:
                 and config["HostConfig"]["ReadonlyRootfs"]
             )
             assert config["Config"]["User"] == "65532:65532"
+            assert config["HostConfig"]["LogConfig"] == {
+                "Type": "local",
+                "Config": {"max-size": "4m", "max-file": "2"},
+            }
             assert set(config["NetworkSettings"]["Networks"]) == {
                 "playground-apps",
                 "dokku.postgres.playground-pr-22.playground-pr-22",
@@ -210,6 +238,8 @@ def test_dokku_two_prs_and_production(tmp_path: Path) -> None:
             ) as browser:
                 check_terminals(browser, "open")
                 feature(11, "d" * 40, tmp_path)
+                subprocess.run(["docker", "restart", "dokku.postgres.playground-pr-11"], check=True)
+                feature(11, "d" * 40, tmp_path)
                 check_terminals(browser, "updated")
                 subprocess.run(remote("feature.sh", "remove", "11"), check=True)
                 check_terminals(browser, "closed")
@@ -220,6 +250,10 @@ def test_dokku_two_prs_and_production(tmp_path: Path) -> None:
             for check in ("apps:exists", "postgres:exists"):
                 assert subprocess.run([*DOKKU, check, "playground-pr-11"]).returncode != 0
             assert not (FEATURES / "playground-pr-11").exists()
+            with psycopg.connect(stack.dsn) as db:
+                assert not db.execute(
+                    "select 1 from artifacts where consumer_id='playground-pr-11' and not retired"
+                ).fetchone()
             forbidden = client.delete(
                 f"https://{DOMAIN}/api/pull-requests/7",
                 headers={

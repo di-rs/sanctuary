@@ -16,6 +16,12 @@ if [[ ! -e $token && ! -L $token ]]; then openssl rand -hex 32 > "$token"; fi
 }
 [[ $(docker network inspect --format '{{.Internal}}' playground-apps) == true ]]
 docker volume create cli-playground-certificates >/dev/null
+legacy=$(docker ps -aq --filter "label=com.docker.compose.project=${CLI_PLAYGROUND_PROJECT_NAME:-cli-playground}" --filter label=com.docker.compose.service=backend)
+if [[ -n $legacy ]]; then
+    docker stop "$legacy"
+    api=$(docker ps -q --filter label=com.docker.compose.service=api --filter network=boxie-consumers)
+    docker exec -i "$api" python -m boxie.bootstrap.retire_consumer cli-playground < "$config/boxie/consumer.secret"
+fi
 docker compose --env-file "$config/settings.env" -f "$owner/compose.production.yml" up -d --build --remove-orphans --wait
 dokku nginx:set --global client-max-body-size 512m
 dokku nginx:set --global proxy-read-timeout 3600s
@@ -31,6 +37,7 @@ done
 # Boxie owns this reserved bridge address across independent releases.
 dokku config:set --no-restart playground-review-template CLI_PLAYGROUND_BOXIE_URL=http://10.237.93.2:8090
 dokku docker-options:add playground-review-template deploy,run --runtime=runsc --user=65532:65532 \
+    --log-driver=local --log-opt=max-size=4m --log-opt=max-file=2 \
     --memory=384m --cpus=0.75 --pids-limit=128 --tmpfs=/var/lib/cli-playground:rw,nosuid,noexec,size=96m,uid=65532
 dokku checks:disable cli-playground web
 dokku domains:set cli-playground "$CLI_PLAYGROUND_DOMAIN" "*.$CLI_PLAYGROUND_DOMAIN"

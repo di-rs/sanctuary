@@ -240,7 +240,11 @@ class PostgresLifecycle:
                 slot = (
                     await session.exec(
                         select(CapacitySlot)
-                        .where(col(CapacitySlot.sandbox_id).is_(None))
+                        .where(
+                            col(CapacitySlot.sandbox_id).is_(None),
+                            # Reserve five of the eight slots for installation credentials.
+                            CapacitySlot.slot >= (6 if principal.scoped else 1),
+                        )
                         .order_by(col(CapacitySlot.slot))
                         .with_for_update(skip_locked=True)
                         .limit(1)

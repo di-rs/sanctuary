@@ -10,8 +10,7 @@ on: # zizmor: ignore[dangerous-triggers]
         required: true
         type: string
   pull_request_target:
-    branches: [master]
-    types: [opened, synchronize, reopened, closed]
+    types: [opened, synchronize, reopened, edited, closed]
 
 permissions: {}
 concurrency:
@@ -24,7 +23,7 @@ env:
 
 jobs:
   select:
-    if: github.ref == 'refs/heads/master'
+    if: github.ref == 'refs/heads/master' && (github.event.action != 'edited' || github.event.changes.base.ref.from != '')
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:

@@ -17,9 +17,11 @@ gh workflow run cli-playground-release.yml --ref master
 
 Actions builds the image and streams it to the pinned SSH host. The release
 applies Alembic, deploys the local image with Dokku, then checks public HTTPS
-and authenticated Boxie readiness. Dokku creates a fresh production database on the first setup. Rerun CLI preview builds
-to republish open PRs. Subsequent releases reuse the database, upload volume and wildcard certificate. Traefik is the public
-listener. The Dokku manager and Boxie have no public ports.
+and authenticated Boxie readiness. During the switch from Compose, setup stops
+the old gateway and retires its Boxie resources. Dokku starts with a fresh
+production database. Rerun CLI preview builds to republish open PRs. Subsequent
+releases reuse the database, upload volume and wildcard certificate. Traefik
+is the public listener. The Dokku manager and Boxie have no public ports.
 
 ## Playground app previews
 
@@ -30,9 +32,10 @@ to try that revision at `app-pr-N.<playground-domain>`. Its terminal includes
 usual [CLI binary preview](previews.md) at `pr-N.<playground-domain>`.
 
 Each feature app has its own PostgreSQL instance, upload storage, publisher token
-and Boxie consumer. A push updates the same URL. Closing the PR or removing its
-Playground changes destroys its app and revokes its token. Reopening an eligible
-PR recreates it. The [feature workflow](../../../.github/workflows/cli-playground-feature.yml)
+and Boxie consumer. A push updates the same URL. Closing the PR, changing its
+base away from `master`, or removing its Playground changes destroys its app and
+revokes its token. Reopening an eligible PR recreates it.
+The [feature workflow](../../../.github/workflows/cli-playground-feature.yml)
 uses the existing `cli-playground` SSH environment.
 
 Feature storage is disposable. A database container restart clears that preview's
@@ -41,7 +44,8 @@ accepts three simultaneous app previews by default. A full host reports capacity
 in the workflow. After a slot becomes available, rerun the current PR workflow.
 To change capacity, set the desired count in
 `/etc/sanctuary/playground-apps/limit` on the host. Each preview has a 384 MiB
-gateway and a 320 MiB database limit, in addition to its Boxie terminal workload.
+gateway and a 320 MiB database limit. All PR apps share three of Boxie’s eight
+sandbox slots. Production can use any available slot.
 The private Playground bridge reserves `10.237.93.2` for the Boxie API across releases.
 
 To reconcile an existing PR or retry after a host restart, supply its number.

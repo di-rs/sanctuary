@@ -11,6 +11,7 @@ from uuid import UUID
 @dataclass(frozen=True)
 class Principal:
     consumer_id: str
+    scoped: bool = False
 
 
 @dataclass(frozen=True)

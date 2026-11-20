@@ -56,7 +56,10 @@ case $operation in
         db_ip=$(docker inspect --format "{{(index .NetworkSettings.Networks \"$link\").IPAddress}}" "dokku.postgres.$app")
         [[ $db_ip =~ ^[0-9]+(\.[0-9]+){3}$ ]]
         dokku config:set --no-restart "$app" "PGHOSTADDR=$db_ip" </dev/null
+        previous=$(dokku git:report "$app" --git-source-image </dev/null)
         dokku git:load-image "$app" "$repository:$sha"
+        # An unchanged tag skips the release phase. Reconcile a restarted, empty PR database.
+        if [[ $previous == "$repository:$sha" ]]; then dokku ps:rebuild "$app" </dev/null; fi
         clean_images "$sha"
         ;;
     publish)

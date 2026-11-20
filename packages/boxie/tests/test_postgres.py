@@ -61,16 +61,24 @@ MIGRATIONS = Path(__file__).parents[1] / "alembic"
 OWNER = Principal("one")
 
 
-def test_nine_concurrent_creates_reserve_exactly_eight(postgres_dsn: str, tmp_path: Path) -> None:
+@pytest.mark.parametrize(("scoped", "limit"), [(False, 8), (True, 3)])
+def test_concurrent_admission_preserves_reserved_capacity(
+    postgres_dsn: str, tmp_path: Path, scoped: bool, limit: int
+) -> None:
     async def exercise() -> None:
         async with database(postgres_dsn, tmp_path) as (life, artifacts, sessions, _):
-            spec = await upload(artifacts)
+            caller = Principal("requester", scoped=scoped)
+            spec = await upload(artifacts, caller)
             result = await asyncio.gather(
-                *(life.submit(OWNER, str(i), spec) for i in range(9)), return_exceptions=True
+                *(life.submit(caller, str(i), spec) for i in range(limit + 1)),
+                return_exceptions=True,
             )
-            assert sum(not isinstance(item, Exception) for item in result) == 8
+            assert sum(not isinstance(item, Exception) for item in result) == limit
             errors = [item for item in result if isinstance(item, BoxieError)]
             assert len(errors) == 1 and errors[0].status == 429
+            if scoped:
+                production = await upload(artifacts, OWNER)
+                await asyncio.gather(*(life.submit(OWNER, str(i), production) for i in range(5)))
             assert await counts(sessions) == (8, 8, 8, 8)
 
     asyncio.run(exercise())
