@@ -1,14 +1,6 @@
 use chrono::{DateTime, Local};
-use std::{
-    fmt::Display,
-    fs,
-    os::unix::fs::MetadataExt,
-    path::{Path, PathBuf},
-};
+use std::{fmt::Display, fs, os::unix::fs::MetadataExt, path::PathBuf};
 use tabular::{Row, Table};
-
-mod owner;
-use owner::Owner;
 use uzers::{get_group_by_gid, get_user_by_uid};
 
 /// # Errors
@@ -48,10 +40,9 @@ pub fn get_formatted_output(paths: &[PathBuf]) -> Result<impl Display, std::io::
     let mut table = Table::new(fmt);
 
     for path in paths {
+        // Long listings use the target metadata for symlinks.
         let metadata = path.metadata()?;
-        let is_symlink = metadata.file_type().is_symlink();
-
-        let file_type = format_file_type(path, is_symlink);
+        let file_type = if metadata.is_dir() { "d" } else { "-" };
         let perms = format_mode(metadata.mode());
         let link_count = metadata.nlink();
 
@@ -70,7 +61,6 @@ pub fn get_formatted_output(paths: &[PathBuf]) -> Result<impl Display, std::io::
         let size = metadata.len();
         let modified: DateTime<Local> = DateTime::from(metadata.modified()?);
         let date = modified.format("%b %d %y %H:%M");
-        let full_path = format_full_path(path, is_symlink);
 
         table.add_row(
             Row::new()
@@ -81,50 +71,27 @@ pub fn get_formatted_output(paths: &[PathBuf]) -> Result<impl Display, std::io::
                 .with_cell(group)
                 .with_cell(size)
                 .with_cell(date)
-                .with_cell(full_path),
+                .with_cell(path.display()),
         );
     }
 
     Ok(table)
 }
 
-fn format_file_type(path: &Path, is_symlink: bool) -> &str {
-    if is_symlink {
-        "l"
-    } else if path.is_dir() {
-        "d"
-    } else {
-        "-"
-    }
-}
-
 fn format_mode(mode: u32) -> String {
-    format!(
-        "{}{}{}",
-        permission_triple(mode, Owner::User),
-        permission_triple(mode, Owner::Group),
-        permission_triple(mode, Owner::Other),
-    )
-}
-
-fn permission_triple(mode: u32, owner: Owner) -> String {
-    let [read, write, execute] = owner.masks();
-    format!(
-        "{}{}{}",
-        if mode & read == 0 { "-" } else { "r" },
-        if mode & write == 0 { "-" } else { "w" },
-        if mode & execute == 0 { "-" } else { "x" },
-    )
-}
-
-fn format_full_path(path: &Path, is_symlink: bool) -> String {
-    let path_str = path.display();
-    if is_symlink {
-        path.read_link().map_or_else(
-            |_| path_str.to_string(),
-            |target| format!("{path_str} -> {}", target.display()),
-        )
-    } else {
-        path_str.to_string()
-    }
+    const PERMISSIONS: [(u32, char); 9] = [
+        (0o400, 'r'),
+        (0o200, 'w'),
+        (0o100, 'x'),
+        (0o040, 'r'),
+        (0o020, 'w'),
+        (0o010, 'x'),
+        (0o004, 'r'),
+        (0o002, 'w'),
+        (0o001, 'x'),
+    ];
+    PERMISSIONS
+        .into_iter()
+        .map(|(mask, letter)| if mode & mask == 0 { '-' } else { letter })
+        .collect()
 }

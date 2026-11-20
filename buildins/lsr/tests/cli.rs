@@ -2,7 +2,10 @@ use assert_fs::prelude::*;
 use cli_testing::{TestContext, Workspace, cli_test};
 use predicates::prelude::*;
 use pretty_assertions::assert_eq;
-use std::{fs, os::unix::fs::PermissionsExt};
+use std::{
+    fs,
+    os::unix::fs::{PermissionsExt, symlink},
+};
 
 const HIDDEN: &str = "tests/inputs/.hidden";
 const EMPTY: &str = "tests/inputs/empty.txt";
@@ -237,6 +240,46 @@ fn dir2_long_all(cx: &TestContext) -> Result<()> {
             ("tests/inputs/dir/.gitkeep", "-rw-r--r--", "0"),
         ],
     )
+}
+
+#[cli_test]
+fn long_listings_show_symlink_targets_under_the_link_names(cx: &TestContext) -> Result<()> {
+    let dir = cx.workspace()?;
+    let listed = dir.child("listed");
+    let file = dir.child("target-file");
+    let folder = dir.child("target-dir");
+    listed.create_dir_all()?;
+    file.touch()?;
+    folder.create_dir_all()?;
+    fs::set_permissions(file.path(), fs::Permissions::from_mode(0o641))?;
+    fs::set_permissions(folder.path(), fs::Permissions::from_mode(0o751))?;
+    symlink("../target-file", listed.path().join("file-link"))?;
+    symlink("../target-dir", listed.path().join("dir-link"))?;
+
+    let command = dir
+        .cmd()
+        .args(["--long", "listed"])
+        .assert()
+        .code(0)
+        .stderr("");
+    let stdout = std::str::from_utf8(&command.get_output().stdout)?;
+    let mut rows: Vec<_> = stdout
+        .lines()
+        .filter(|line| !line.is_empty())
+        .map(|line| {
+            let mut columns = line.split_whitespace();
+            (columns.next(), columns.last())
+        })
+        .collect();
+    rows.sort_unstable();
+    assert_eq!(
+        rows,
+        [
+            (Some("-rw-r----x"), Some("listed/file-link")),
+            (Some("drwxr-x--x"), Some("listed/dir-link")),
+        ]
+    );
+    Ok(())
 }
 
 fn check_listing(dir: &Workspace, args: &[&str], expected: &[&str]) -> Result<()> {
