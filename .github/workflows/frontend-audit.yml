@@ -1,5 +1,6 @@
 name: Frontend dependency audit
 on:
+  workflow_dispatch:
   pull_request:
     branches: [master]
     types: [opened, synchronize, reopened, ready_for_review, labeled]
@@ -8,18 +9,20 @@ on:
       - 'tools/cli-playground/frontend/pnpm-lock.yaml'
       - 'tools/cli-playground/frontend/pnpm-workspace.yaml'
       - 'tools/cli-playground/frontend/.node-version'
+      - '.github/scripts/dependency_audit.py'
       - '.github/workflows/frontend-audit.yml'
 permissions:
   contents: read
 concurrency:
-  group: frontend-audit-${{ github.event.pull_request.number }}-${{ github.event.action == 'labeled' && github.event.label.name != 'run-ci' && github.run_id || 'checks' }}
+  group: frontend-audit-${{ github.event.pull_request.number || github.sha }}-${{ github.event.action == 'labeled' && github.event.label.name != 'run-ci' && github.run_id || 'checks' }}
   cancel-in-progress: true
 jobs:
   audit:
     if: >-
       ${{
-        (github.event.action != 'labeled' || github.event.label.name == 'run-ci') &&
-        (!github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'run-ci'))
+        github.event_name == 'workflow_dispatch' ||
+        ((github.event.action != 'labeled' || github.event.label.name == 'run-ci') &&
+         (!github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'run-ci')))
       }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -34,34 +37,15 @@ jobs:
           node-version-file: .node-version
           version-file: package.json
           run-install: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: '0.13.0'
       - name: Audit locked production and development dependencies
         shell: bash
         run: |
-          frontend=tools/cli-playground/frontend
-          if [[ ! -f "$frontend/pnpm-lock.yaml" ]]; then
-            echo 'Frontend audit: no lockfile present; skipped.' >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-          # Audit a lockfile copy without repository ignore rules or lifecycle scripts.
-          audit_dir=$(mktemp -d)
-          trap 'rm -rf "$audit_dir"' EXIT
-          cp "$frontend/package.json" "$frontend/pnpm-lock.yaml" "$audit_dir/"
-          printf 'packages: []\n' > "$audit_dir/pnpm-workspace.yaml"
-          report="$RUNNER_TEMP/frontend-audit.json"
-          status=0
-          (cd "$audit_dir" && NPM_CONFIG_USERCONFIG=/dev/null NPM_CONFIG_GLOBALCONFIG=/dev/null \
-            timeout 300 pnpm audit --json --ignore-registry-errors=false) > "$report" || status=$?
-          if jq -e '[.metadata.vulnerabilities[]? | select(type == "number")] | (add // 0) > 0' "$report" > /dev/null 2>&1; then
-            echo 'Frontend audit: known vulnerabilities found; no exceptions permitted.' >> "$GITHUB_STEP_SUMMARY"
-            cat "$report"
+          if ! uv run --locked --only-group pr-review python .github/scripts/dependency_audit.py frontend; then
+            if [[ ! -s "$GITHUB_STEP_SUMMARY" ]]; then
+              echo 'Frontend dependency audit — Incomplete. The audit runner could not start.' >> "$GITHUB_STEP_SUMMARY"
+            fi
             exit 1
-          fi
-          if [[ "$status" -eq 0 ]] && jq -e '
-            (.metadata.vulnerabilities | type) == "object" and
-            (.metadata.vulnerabilities | length) > 0 and
-            all(.metadata.vulnerabilities[]; type == "number" and . >= 0) and .error == null
-          ' "$report" > /dev/null 2>&1; then
-            echo 'Frontend audit: no known vulnerabilities found.' >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo 'Frontend audit incomplete; this is not a clean result.' >> "$GITHUB_STEP_SUMMARY"
           fi
