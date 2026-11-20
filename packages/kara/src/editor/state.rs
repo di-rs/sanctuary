@@ -156,7 +156,7 @@ impl EditorState {
                     }
                     self.search_snapshot = None;
                     self.message_bar
-                        .set(format!("{} matches", self.search.matches.len()));
+                        .set(format!("{} matches", self.search.match_count()));
                     self.change_mode(EditorMode::View);
                 } else if let Some(prompt) = &mut self.prompt {
                     prompt.handle_edit(edit_command);
@@ -202,7 +202,7 @@ impl EditorState {
             .select(self.buffer.cursor().position, direction, false);
         self.search.visible = true;
         self.reveal_search_match();
-        if self.search.matches.is_empty() {
+        if self.search.match_count() == 0 {
             self.message_bar.set("No matches".to_owned());
         }
     }
