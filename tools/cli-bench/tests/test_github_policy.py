@@ -7,9 +7,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from threading import Thread
 
 import anyio
+import github_publication as publisher
 import httpx
 import pytest
-import report as publisher
 from githubkit import GitHub
 
 
