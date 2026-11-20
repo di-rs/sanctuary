@@ -1,11 +1,14 @@
 """Exercise the public preview and authenticated deployment contract."""
 
 import asyncio
+import zipfile
 from collections.abc import AsyncIterator
 from pathlib import Path
+from unittest.mock import Mock
 
 import httpx
 import pytest
+from cli_playground import zip_metadata
 from cli_playground.app import create_app
 from cli_playground.service import CliPlaygroundService
 from fastapi.testclient import TestClient
@@ -206,6 +209,28 @@ def test_streamed_upload_enforces_limit_and_removes_partial_files(
     )
     assert response.status_code == 413
     assert not list((tmp_path / "data").rglob("echor"))
+
+
+def test_upload_bounds_zip_directory_bytes_before_parsing(
+    api_client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    deployed = upload(api_client)
+    bundle = binary_bundle({"echor": elf_binary()})
+    monkeypatch.setattr(zip_metadata, "MAX_DIRECTORY_BYTES", 46)
+    parser = Mock(side_effect=AssertionError("eager ZIP parser called"))
+    monkeypatch.setattr(zipfile, "ZipFile", parser)
+
+    response = api_client.post(
+        "/api/environments",
+        params={"sha": "b" * 40, "pr": 123},
+        content=bundle,
+        headers=AUTH,
+    )
+    assert response.status_code == 422
+    assert response.json()["detail"] == "ZIP central directory is too large"
+    parser.assert_not_called()
+    assert api_client.get(f"/api/environments/{deployed['id']}").json()["sha"] == "a" * 40
+    assert not list((tmp_path / "data").glob(".upload-*"))
 
 
 def test_websocket_rejects_a_foreign_origin(api_client: TestClient) -> None:

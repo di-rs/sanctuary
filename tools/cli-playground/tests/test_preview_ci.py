@@ -1006,6 +1006,23 @@ def test_invalid_artifacts_are_never_uploaded(artifact: str) -> None:
     assert not any("/deployments" in path for path, _ in github.writes)
 
 
+def test_publisher_bounds_zip_members_before_parsing(monkeypatch: pytest.MonkeyPatch) -> None:
+    github = FakeGitHub()
+    github.payload = archive(["echor", "catr", "wcr"])
+    monkeypatch.setattr(artifacts, "MAX_CLIS", 1)
+    parser = Mock(side_effect=AssertionError("eager ZIP parser called"))
+    monkeypatch.setattr(zipfile, "ZipFile", parser)
+    backend = Mock(return_value={"id": "a" * 32, "url": "https://play.example/p/" + "a" * 32})
+
+    with pytest.raises(ValueError, match="Failed to publish"):
+        preview_ci.publish(github, REPO, 500, "https://play.example", "token", backend=backend)
+
+    parser.assert_not_called()
+    assert backend.call_count == 1
+    assert backend.call_args.kwargs["method"] == "PUT"
+    assert not any("/deployments" in path for path, _ in github.writes)
+
+
 def test_only_the_exact_bundle_artifact_name_reaches_upload() -> None:
     github = FakeGitHub()
     github.artifacts[0]["name"] = "cli-playground-binaries-extra"
