@@ -28,52 +28,15 @@ jobs:
         run: |
           printf 'sha=%s\n' "$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           printf 'attempt=%s\n' "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
-  boxie:
-    needs: source
-    uses: ./.github/workflows/build-image.yml # zizmor: ignore[self-repository]
-    with:
-      component: boxie
-      revision: ${{ needs.source.outputs.sha }}
-    permissions:
-      contents: read
-      packages: write
-  backend:
-    needs: source
-    uses: ./.github/workflows/build-image.yml # zizmor: ignore[self-repository]
-    with:
-      component: cli-playground
-      revision: ${{ needs.source.outputs.sha }}
-    permissions:
-      contents: read
-      packages: write
-  sandbox:
-    needs: source
-    uses: ./.github/workflows/build-image.yml # zizmor: ignore[self-repository]
-    with:
-      component: boxie-sandbox
-      revision: ${{ needs.source.outputs.sha }}
-    permissions:
-      contents: read
-      packages: write
-  collector:
-    needs: source
-    uses: ./.github/workflows/build-image.yml # zizmor: ignore[self-repository]
-    with:
-      component: collector
-      revision: ${{ needs.source.outputs.sha }}
-    permissions:
-      contents: read
-      packages: write
   provision:
     name: ☁️ Provision and install the shared host
-    needs: [source, boxie, backend, sandbox, collector]
+    needs: source
     if: ${{ github.ref == 'refs/heads/master' }}
     environment: sanctuary
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    timeout-minutes: 120
     permissions:
       contents: read
-      packages: read
     env:
       PULUMI_SKIP_UPDATE_CHECK: 'true'
       PULUMI_BACKEND_URL: ${{ vars.PULUMI_BACKEND_URL }}
@@ -99,6 +62,11 @@ jobs:
       with:
         ref: ${{ needs.source.outputs.sha }}
         persist-credentials: 'false'
+    - name: Build production images locally
+      run: |
+        for component in boxie boxie-sandbox cli-playground collector; do
+            bash infra/environments/single-host/build-image.sh "$component"
+        done
     - name: 🐍 Set up uv and Python
       uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2
       with:
@@ -113,32 +81,15 @@ jobs:
     - name: 📦 Prepare committed installation files
       env:
         SOURCE_SHA: ${{ needs.source.outputs.sha }}
-        BOXIE_SOURCE_SHA: ${{ needs.boxie.outputs.source_sha }}
-        BACKEND_SOURCE_SHA: ${{ needs.backend.outputs.source_sha }}
-        SANDBOX_SOURCE_SHA: ${{ needs.sandbox.outputs.source_sha }}
-        COLLECTOR_SOURCE_SHA: ${{ needs.collector.outputs.source_sha }}
-        BOXIE_IMAGE: ${{ needs.boxie.outputs.image }}
-        CLI_PLAYGROUND_IMAGE: ${{ needs.backend.outputs.image }}
-        BOXIE_SANDBOX_IMAGE: ${{ needs.sandbox.outputs.image }}
-        OBS_COLLECTOR_IMAGE: ${{ needs.collector.outputs.image }}
       run: |
         set -euo pipefail
         umask 077
-        for source in "$BOXIE_SOURCE_SHA" "$BACKEND_SOURCE_SHA" "$SANDBOX_SOURCE_SHA" "$COLLECTOR_SOURCE_SHA"; do
-            [[ $source == "$SOURCE_SHA" ]]
-        done
         [[ $(git rev-parse HEAD) == "$SOURCE_SHA" ]]
         mkdir -p .installation/infra/environments .installation/packages/boxie .installation/tools/cli-playground
         cp -a infra/environments/single-host .installation/infra/environments/
         cp -a packages/boxie/infra .installation/packages/boxie/
         cp -a tools/cli-playground/infra .installation/tools/cli-playground/
         printf '%s\n' "$SOURCE_SHA" > .installation/revision
-        for key in BOXIE_IMAGE CLI_PLAYGROUND_IMAGE BOXIE_SANDBOX_IMAGE OBS_COLLECTOR_IMAGE; do
-            value=${!key}
-            [[ $value =~ ^[a-z0-9][a-z0-9./:_-]+@sha256:[a-f0-9]{64}$ ]]
-        done
-        printf 'BOXIE_IMAGE=%s\nBOXIE_SANDBOX_IMAGE=%s\nOBS_COLLECTOR_IMAGE=%s\n' "$BOXIE_IMAGE" "$BOXIE_SANDBOX_IMAGE" "$OBS_COLLECTOR_IMAGE" > .installation/boxie-image.env
-        printf 'CLI_PLAYGROUND_IMAGE=%s\n' "$CLI_PLAYGROUND_IMAGE" > .installation/cli-playground-image.env
     - name: ☁️ Provision shared infrastructure
       working-directory: infra/environments/single-host
       run: |
@@ -164,8 +115,6 @@ jobs:
         pulumi preview --refresh --non-interactive --diff --suppress-outputs
         pulumi up --yes --refresh --non-interactive --suppress-outputs
     - name: 🔐 Render private setup inputs and install over pinned SSH
-      env:
-        REGISTRY_TOKEN: ${{ github.token }}
       run: |
         set -euo pipefail
         umask 077
@@ -208,8 +157,6 @@ jobs:
             path.write_text(value + '\n')
             path.chmod(0o600)
         PYCODE
-        mkdir -m 0700 .installation/registry
-        printf '{"auths":{"ghcr.io":{"auth":"%s"}}}\n' "$(printf '%s:%s' "$GITHUB_ACTOR" "$REGISTRY_TOKEN" | base64 -w0)" > .installation/registry/config.json
         [[ $GITHUB_RUN_ID =~ ^[0-9]+$ && $GITHUB_RUN_ATTEMPT =~ ^[0-9]+$ ]]
         host=$(cat "$private/host")
         cat > "$private/config" <<SSH
@@ -238,8 +185,18 @@ jobs:
           exit "$status"
         fi
         BOOTSTRAP
+        revision=$(git rev-parse HEAD)
+        send_image() {
+            bash infra/environments/single-host/send-image.sh "$private/config" "localhost/sanctuary-$1:$revision"
+        }
+        BOXIE_IMAGE=$(send_image boxie)
+        BOXIE_SANDBOX_IMAGE=$(send_image boxie-sandbox)
+        CLI_PLAYGROUND_IMAGE=$(send_image cli-playground)
+        OBS_COLLECTOR_IMAGE=$(send_image collector)
+        printf 'BOXIE_IMAGE=%s\nBOXIE_SANDBOX_IMAGE=%s\nOBS_COLLECTOR_IMAGE=%s\n' "$BOXIE_IMAGE" "$BOXIE_SANDBOX_IMAGE" "$OBS_COLLECTOR_IMAGE" > .installation/boxie-image.env
+        printf 'CLI_PLAYGROUND_IMAGE=%s\n' "$CLI_PLAYGROUND_IMAGE" > .installation/cli-playground-image.env
         echo 'Uploading installation inputs'
         ssh -F "$private/config" deployment "install -d -m 0700 $remote"
         scp -F "$private/config" -r .installation/. deployment:"$remote/"
         echo 'Installing application services'
-        ssh -F "$private/config" deployment "set -e; trap 'rm -rf $remote' EXIT; DOCKER_CONFIG=$remote/registry bash $remote/infra/environments/single-host/install.sh $remote"
+        ssh -F "$private/config" deployment "set -e; trap 'rm -rf $remote' EXIT; bash $remote/infra/environments/single-host/install.sh $remote"

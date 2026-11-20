@@ -62,33 +62,13 @@ def test_setup_queues_before_selecting_master_and_builds_all_images() -> None:
     assert setup["concurrency"] == QUEUE
     jobs = setup["jobs"]
     assert jobs["source"]["steps"][0]["with"]["ref"] == "master"
-    for name, component in {
-        "boxie": "boxie",
-        "backend": "cli-playground",
-        "sandbox": "boxie-sandbox",
-        "collector": "collector",
-    }.items():
-        job = jobs[name]
-        assert job["uses"] == "./.github/workflows/build-image.yml"
-        assert job["needs"] == "source"
-        assert job["with"] == {
-            "component": component,
-            "revision": "${{ needs.source.outputs.sha }}",
-        }
-    assert set(jobs["provision"]["needs"]) == {"source", "boxie", "backend", "sandbox", "collector"}
-    assert "concurrency" not in jobs["provision"]
-
-
-def test_reusable_builder_uses_fixed_components_without_deployment_secrets() -> None:
-    builder = yaml.load((WORKFLOWS / "build-image.yml").read_text(), Loader=yaml.BaseLoader)
-    job = builder["jobs"]["build"]
-    assert set(builder["on"]) == {"workflow_call"}
-    assert job["permissions"] == {"contents": "read", "packages": "write"}
-    assert "Boxie.Dockerfile" in str(job)
-    assert "CliPlayground.Dockerfile" in str(job)
-    assert "packages/boxie/sandbox/Dockerfile" in str(job)
-    assert "observability/collector" in str(job)
-    assert "secrets." not in str(job)
+    assert set(jobs) == {"source", "provision"}
+    provision = jobs["provision"]
+    assert provision["needs"] == "source"
+    commands = "\n".join(step.get("run", "") for step in provision["steps"])
+    for component in ("boxie", "boxie-sandbox", "cli-playground", "collector"):
+        assert f"$(send_image {component})" in commands
+    assert "packages" not in provision["permissions"]
 
 
 @pytest.mark.parametrize(
@@ -115,9 +95,8 @@ def test_release_uses_one_queue_current_master_and_direct_ssh(job_name: str, app
     assert deployment["steps"][-1]["run"] == (
         f"bash infra/environments/single-host/release.sh {selector}"
     )
-    assert deployment["steps"][-1]["env"]["IMAGE"] == (
-        "${{ needs." + component + ".outputs.image }}"
-    )
+    assert f"build-image.sh {selector}" in commands
+    assert "packages" not in deployment["permissions"]
     assert "submit-release.sh" not in commands
     assert "release_selection.py" not in commands
     assert "expected-revision" not in commands
@@ -137,17 +116,10 @@ def test_releases_are_manual_and_keep_backend_separate_from_boxie() -> None:
     ]:
         assert release["on"] == {"workflow_dispatch": {}}
         jobs = release["jobs"]
-        assert set(jobs) == {"source", *components, *(f"deploy-{name}" for name in components)}
-        for name, component in components.items():
-            assert jobs[name]["needs"] == "source"
-            assert jobs[name]["uses"] == "./.github/workflows/build-image.yml"
-            assert jobs[name]["with"] == {
-                "component": component,
-                "revision": "${{ needs.source.outputs.sha }}",
-            }
-    assert set(boxie["jobs"]["deploy-boxie"]["needs"]) == {"source", "boxie", "sandbox"}
-    assert set(boxie["jobs"]["deploy-sandbox"]["needs"]) == {"source", "sandbox", "deploy-boxie"}
-    assert set(playground["jobs"]["deploy-backend"]["needs"]) == {"source", "backend"}
+        assert set(jobs) == {"source", *(f"deploy-{name}" for name in components)}
+    assert boxie["jobs"]["deploy-boxie"]["needs"] == "source"
+    assert set(boxie["jobs"]["deploy-sandbox"]["needs"]) == {"source", "deploy-boxie"}
+    assert playground["jobs"]["deploy-backend"]["needs"] == "source"
     assert not (WORKFLOWS / "boxie-sandbox-release.yml").exists()
 
 
@@ -217,7 +189,7 @@ def test_setup_reports_bootstrap_failure_without_ignoring_it(status: int) -> Non
 
 
 @pytest.mark.parametrize("status", [0, 1, 2])
-def test_setup_stops_before_upload_when_bootstrap_fails(status: int) -> None:
+def test_setup_stops_before_upload_when_bootstrap_fails(status: int, tmp_path: Path) -> None:
     script = workflow("setup")["jobs"]["provision"]["steps"][-1]["run"]
     script = script[script.index("echo 'Waiting for host bootstrap'") :]
     result = subprocess.run(
@@ -226,21 +198,23 @@ def test_setup_stops_before_upload_when_bootstrap_fails(status: int) -> None:
             "-euo",
             "pipefail",
             "-c",
-            "private=/unused\nremote=/unused\n"
+            "private=/unused\nremote=/unused\nmkdir .installation\n"
+            "git() { echo revision; }\nbash() { echo loaded-image; }\n"
             f"ssh() {{ cat >/dev/null; return {status}; }}\n"
             "scp() { echo uploaded; }\n" + script,
         ],
         text=True,
+        cwd=tmp_path,
         capture_output=True,
     )
     assert result.returncode == status
     assert ("uploaded" in result.stdout) == (status == 0)
 
 
-def test_setup_pulls_all_images_before_starting_boxie() -> None:
+def test_setup_inspects_all_images_before_starting_boxie() -> None:
     installer = (WORKFLOWS.parent.parent / "infra/environments/single-host/install.sh").read_text()
     assert "BOXIE_SANDBOX_IMAGE" in installer
-    assert installer.index('docker pull "$image"') < installer.index(
+    assert installer.index('docker image inspect "$image"') < installer.index(
         "bash /opt/sanctuary/boxie/install.sh"
     )
 

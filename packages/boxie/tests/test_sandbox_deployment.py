@@ -42,7 +42,7 @@ def test_sandbox_update_preserves_boxie_image_and_custom_profile(tmp_path: Path)
     )
     docker.chmod(0o755)
     log = tmp_path / "calls"
-    digest = "ghcr.io/test/sandbox@sha256:" + "c" * 64
+    digest = "sha256:" + "c" * 64
     result = subprocess.run(
         ["bash", str(ROOT / "packages/boxie/infra/sandbox-release.sh"), digest],
         env={
@@ -59,7 +59,7 @@ def test_sandbox_update_preserves_boxie_image_and_custom_profile(tmp_path: Path)
     profile["default"]["image_digest"] = digest
     assert json.loads((boxie / "profiles.json").read_text()) == profile
     calls = [json.loads(line) for line in log.read_text().splitlines()]
-    assert any("pull" in call and digest in call for call in calls)
+    assert any("inspect" in call and digest in call for call in calls)
     stops = [index for index, call in enumerate(calls) if "stop" in call]
     updates = [call for call in calls if "up" in call]
     assert len(stops) == 1

@@ -24,9 +24,8 @@ case $component in
         ;;
     *) echo 'Unknown release component' >&2; exit 2 ;;
 esac
-[[ $SOURCE_SHA =~ ^[a-f0-9]{40}$ && $BUILT_SHA == "$SOURCE_SHA" ]]
+[[ $SOURCE_SHA =~ ^[a-f0-9]{40}$ ]]
 [[ $(git rev-parse HEAD) == "$SOURCE_SHA" ]]
-[[ $IMAGE =~ ^[a-z0-9][a-z0-9./:_-]+@sha256:[a-f0-9]{64}$ ]]
 [[ $DEPLOY_HOST =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]+$ ]]
 [[ $GITHUB_RUN_ID =~ ^[0-9]+$ && $GITHUB_RUN_ATTEMPT =~ ^[0-9]+$ ]]
 private=$(mktemp -d)
@@ -58,20 +57,18 @@ Host deployment
 SSH
 ssh -F "$private/config" deployment "install -d -m 0700 /opt/sanctuary/$owner $remote"
 remote_created=true
+IMAGE=$(bash infra/environments/single-host/send-image.sh "$private/config" "localhost/sanctuary-$component:$SOURCE_SHA")
 scp -F "$private/config" -r "$files/." "deployment:/opt/sanctuary/$owner/"
 printf '%s=%s\n' "$image_key" "$IMAGE" > "$private/image.env"
 for retained_key in "${retained_keys[@]}"; do
     retained=$(ssh -F "$private/config" deployment "sed -n 's/^$retained_key=//p' /etc/sanctuary/$owner-image.env")
-    [[ $retained =~ ^[a-z0-9][a-z0-9./:_-]+@sha256:[a-f0-9]{64}$ ]]
+    [[ $retained =~ ^(([a-z0-9][a-z0-9./:_-]+@)?sha256:[a-f0-9]{64}|localhost/sanctuary-[a-z-]+:[a-f0-9]{64})$ ]]
     printf '%s=%s\n' "$retained_key" "$retained" >> "$private/image.env"
 done
-mkdir "$private/registry"
-printf '{"auths":{"ghcr.io":{"auth":"%s"}}}\n' "$(printf '%s:%s' "$GITHUB_ACTOR" "$GHCR_TOKEN" | base64 | tr -d '\n')" > "$private/registry/config.json"
 scp -F "$private/config" "$private/image.env" "deployment:$remote/image.env"
-scp -F "$private/config" -r "$private/registry" "deployment:$remote/registry"
 case $component in
     boxie) command="/opt/sanctuary/boxie/deploy.sh $SOURCE_SHA" ;;
     boxie-sandbox) command="/opt/sanctuary/boxie/sandbox-release.sh $IMAGE" ;;
     cli-playground) command=/opt/sanctuary/cli-playground/scripts/deploy.sh ;;
 esac
-ssh -F "$private/config" deployment "set -e; trap 'rm -rf $remote' EXIT; install -m 0600 $remote/image.env /etc/sanctuary/$owner-image.env; DOCKER_CONFIG=$remote/registry bash $command"
+ssh -F "$private/config" deployment "set -e; trap 'rm -rf $remote' EXIT; install -m 0600 $remote/image.env /etc/sanctuary/$owner-image.env; bash $command"

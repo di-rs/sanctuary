@@ -28,25 +28,15 @@ jobs:
         run: |
           printf 'sha=%s\n' "$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           printf 'attempt=%s\n' "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
-  backend:
-    needs: source
-    uses: ./.github/workflows/build-image.yml # zizmor: ignore[self-repository]
-    with:
-      component: cli-playground
-      revision: ${{ needs.source.outputs.sha }}
-    permissions:
-      contents: read
-      packages: write
   deploy-backend:
     name: 🚀 Update cli-playground Backend with Compose
-    needs: [source, backend]
+    needs: source
     if: ${{ github.ref == 'refs/heads/master' && vars.DEPLOYMENT_ACCEPTANCE_PASSED == 'true' }}
     environment: cli-playground
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 60
     permissions:
       contents: read
-      packages: read
     steps:
       - name: 🔎 Require a complete workflow retry
         env:
@@ -61,13 +51,12 @@ jobs:
         with:
           ref: ${{ needs.source.outputs.sha }}
           persist-credentials: false
+      - name: Build production image locally
+        run: bash infra/environments/single-host/build-image.sh cli-playground
       - name: 🚀 Copy backend files and run Compose
         env:
           SOURCE_SHA: ${{ needs.source.outputs.sha }}
-          BUILT_SHA: ${{ needs.backend.outputs.source_sha }}
-          IMAGE: ${{ needs.backend.outputs.image }}
           DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
-          GHCR_TOKEN: ${{ github.token }}
         run: bash infra/environments/single-host/release.sh cli-playground
