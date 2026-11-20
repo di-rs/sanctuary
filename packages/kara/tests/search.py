@@ -26,6 +26,13 @@ def main() -> None:
         [b"/target", b"\r", b"iX", b"\x1b", b"\x13\x11"],
         b"one Xtarget two",
     )
+    for suffix in ("e\u0301", "👩‍💻", "🇦🇧"):
+        check(
+            binary,
+            b"one target two",
+            [f"/target{suffix}\x7f\r".encode(), b"iX", b"\x1b", b"\x13\x11"],
+            b"one Xtarget two",
+        )
     check(
         binary,
         b"one target two",
