@@ -13,6 +13,7 @@ reference.clis[0].head.command.subcommands = [
         id: "lines",
         long: "lines",
         short: "n",
+        aliases: ["l", "length"],
         num_args: { min: 1, max: 1 },
         value_names: ["LINES"],
       }),
@@ -52,6 +53,12 @@ describe("terminal-driven command choices", () => {
     expect(context("biggie text --lines 12").used).toEqual(["lines"]);
     expect(context("biggie text --lines=12").used).toEqual(["lines"]);
   });
+  test("accepts typed flag aliases and suggests declared names in long-first order", () => {
+    expect(context("biggie txt -l").pending?.argument.id).toBe("lines");
+    expect(context("biggie txt --length=12").used).toEqual(["lines"]);
+    expect(context("biggie txt --leng").kind).toBe("missing");
+    expect(context("biggie txt -").choices.map((choice) => choice.label)).toEqual(["--lines"]);
+  });
   test("does not guess for complex shells or incomplete quotes", () => {
     for (const value of [
       "biggie | cat",
@@ -65,6 +72,19 @@ describe("terminal-driven command choices", () => {
       "hello world",
     ]);
   });
+});
+
+test("removed subcommands leave positional operands available", () => {
+  const reference = catalog("a".repeat(40), ["echor"]);
+  const { head, base } = reference.clis[0];
+  if (!base) throw new Error("Expected a comparison baseline");
+  base.command.subcommands = [command({ name: "repeat", aliases: ["again"] })];
+  head.command.args.push(argument({ id: "text", short: null, long: null, index: 1 }));
+  const result = commandContext("echor again --number", ["echor"], indexCatalog(reference));
+  expect(result.node?.path).toEqual([]);
+  expect(result.kind).toBe("flags");
+  expect(result.used).toEqual(["number"]);
+  expect(result.choices).toEqual([]);
 });
 
 test("end-of-options stops flag and command suggestions", () => {

@@ -1,5 +1,5 @@
 import type { ArgumentView, Change, CommandView } from "./catalog-diff";
-import { quoteToken as quote } from "./shell";
+import { flagNames, quoteToken as quote } from "./shell";
 
 interface Token {
   value: string;
@@ -62,6 +62,10 @@ export interface Context {
   endOfOptions?: boolean;
   pending?: ArgumentView;
 }
+
+const isCurrent = ({ change }: { change: Change }) => change !== "removed";
+const commandNames = ({ command }: CommandView) => [command.name, ...command.aliases];
+
 export function commandContext(
   text: string,
   names: string[],
@@ -108,6 +112,7 @@ export function commandContext(
   const root = commands.get(cli);
   if (!root) return { ...empty, cli, kind: "unsupported" };
   let node = root;
+  let children = node.children.filter(isCurrent);
   let pending: ArgumentView | undefined;
   let remaining = 0;
   let operands = false;
@@ -126,15 +131,15 @@ export function commandContext(
       endOfOptions = true;
       continue;
     }
-    const flags = node.args.filter((row) => row.change !== "removed");
     if (!endOfOptions && token.value.startsWith("-")) {
       const name = token.value.split("=")[0];
-      const flag = flags.find((row) =>
-        [
-          row.argument.long && `--${row.argument.long}`,
-          row.argument.short && `-${row.argument.short}`,
-          ...row.argument.aliases.map((alias) => `${alias.length === 1 ? "-" : "--"}${alias}`),
-        ].includes(name),
+      const flag = node.args.find(
+        (row) =>
+          isCurrent(row) &&
+          (Object.values(flagNames(row.argument)).includes(name) ||
+            row.argument.aliases.some(
+              (alias) => `${alias.length === 1 ? "-" : "--"}${alias}` === name,
+            )),
       );
       if (!flag) {
         partial = token;
@@ -148,39 +153,25 @@ export function commandContext(
       }
       continue;
     }
-    const child = node.children.find(
-      (item) =>
-        item.change !== "removed" &&
-        [item.command.name, ...item.command.aliases].includes(token.value),
-    );
-    if (!operands && child) {
+    const child = operands
+      ? undefined
+      : children.find((item) => commandNames(item).includes(token.value));
+    if (child) {
       node = child;
+      children = node.children.filter(isCurrent);
       continue;
     }
-    if (!operands && node.children.some((child) => child.change !== "removed")) {
-      partial = token;
-      kind = "commands";
-      break;
-    }
-    if (node.args.some((row) => row.argument.index !== null)) {
+    if ((operands || !children.length) && node.args.some((row) => row.argument.index !== null)) {
       operands = true;
       continue;
     }
     partial = token;
-    kind = "commands";
     break;
   }
-  const flags = node.args.filter(
-    (row) => !endOfOptions && row.change !== "removed" && (row.argument.short || row.argument.long),
-  );
+  const flags = endOfOptions
+    ? []
+    : node.args.filter((row) => isCurrent(row) && (row.argument.short || row.argument.long));
   const query = partial?.value ?? "";
-  const children = node.children.filter(
-    (child) =>
-      !endOfOptions &&
-      child.change !== "removed" &&
-      (!query ||
-        [child.command.name, ...child.command.aliases].some((name) => name.includes(query))),
-  );
   let choices: Suggestion[] = [];
   if (pending) {
     kind = "value";
@@ -193,11 +184,8 @@ export function commandContext(
     choices = flags
       .filter((row) => !used.includes(row.argument.id))
       .flatMap((row) => {
-        const names = [
-          row.argument.long ? `--${row.argument.long}` : "",
-          row.argument.short ? `-${row.argument.short}` : "",
-        ].filter(Boolean);
-        const name = names.find((name) => name.includes(query));
+        const { long, short } = flagNames(row.argument);
+        const name = [long, short].find((name) => name && name.includes(query));
         return name
           ? [
               {
@@ -210,13 +198,15 @@ export function commandContext(
           : [];
       });
   } else {
-    choices = children.map((child) => ({
-      label: child.command.name,
-      description: child.command.about,
-      value: replace(partial, child.command.name),
-      change: child.change,
-    }));
-    if (!children.length && !partial) kind = "flags";
+    choices = (endOfOptions ? [] : children)
+      .filter((child) => !query || commandNames(child).some((name) => name.includes(query)))
+      .map((child) => ({
+        label: child.command.name,
+        description: child.command.about,
+        value: replace(partial, child.command.name),
+        change: child.change,
+      }));
+    if (!choices.length && !partial) kind = "flags";
   }
   choices = choices.filter((choice) => choice.value !== "");
   if (partial && (!choices.length || parsed.at(-1) !== partial)) kind = "missing";

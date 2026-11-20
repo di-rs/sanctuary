@@ -1,4 +1,5 @@
 import type { Argument, Catalog, CliCatalog, Command } from "../services/catalog";
+import { flagNames } from "./shell";
 
 export type Change = "added" | "changed" | "removed" | "unchanged";
 export interface FieldChange {
@@ -61,8 +62,7 @@ function properties(arg: Argument): Record<string, unknown> {
 }
 const spellings = (arg: Argument) => [
   ...arg.aliases,
-  ...(arg.long ? [`--${arg.long}`] : []),
-  ...(arg.short ? [`-${arg.short}`] : []),
+  ...Object.values(flagNames(arg)).filter(Boolean),
 ];
 
 function matchEntries<T extends object>(
