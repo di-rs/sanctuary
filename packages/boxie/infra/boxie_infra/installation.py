@@ -4,22 +4,36 @@ import argparse
 import json
 import os
 import tempfile
+from collections.abc import Mapping
 from pathlib import Path
+
+
+def _replace_private_text(path: Path, text: str) -> None:
+    with tempfile.NamedTemporaryFile(mode="w", dir=path.parent, delete=False) as output:
+        temporary = Path(output.name)
+        try:
+            output.write(text)
+            output.flush()
+            os.fsync(output.fileno())
+            temporary.replace(path)
+        finally:
+            temporary.unlink(missing_ok=True)
 
 
 def write_environment(path: Path, values: dict[str, str]) -> None:
     for name, value in values.items():
         if any(character in value for character in "\n\r\x00'$`\\"):
             raise ValueError(f"Invalid installation setting: {name}")
-    with tempfile.NamedTemporaryFile(mode="w", dir=path.parent, delete=False) as output:
-        temporary = Path(output.name)
-        try:
-            output.write("".join(f"{key}='{value}'\n" for key, value in values.items()))
-            output.flush()
-            os.fsync(output.fileno())
-            temporary.replace(path)
-        finally:
-            temporary.unlink(missing_ok=True)
+    _replace_private_text(path, "".join(f"{key}='{value}'\n" for key, value in values.items()))
+
+
+def _render_template(source: Path, root: Path, values: Mapping[str, str], *keys: str) -> None:
+    content = source.read_text()
+    for key in keys:
+        content = content.replace("${" + key + "}", values[key])
+    target = root / source.name
+    target.write_text(content)
+    target.chmod(0o644)
 
 
 def render(root: Path, source: Path) -> None:
@@ -68,24 +82,28 @@ def render(root: Path, source: Path) -> None:
     ):
         values[variable] = secret(name)
     write_environment(root / "boxie.env", values)
-    prometheus = (source / "packages/boxie/infra/observability/prometheus.yml").read_text()
-    for key in ("BOXIE_INSTALLATION_ID", "BOXIE_HOST_ID", "BOXIE_TEMPORAL_NAMESPACE"):
-        prometheus = prometheus.replace("${" + key + "}", values[key])
-    (root / "prometheus.yml").write_text(prometheus)
-    (root / "prometheus.yml").chmod(0o644)
-    ingress = (source / "packages/boxie/infra/ingress/cloudflared.yml").read_text()
-    for key in (
+
+    infra = source / "packages/boxie/infra"
+    _render_template(
+        infra / "observability/prometheus.yml",
+        root,
+        values,
+        "BOXIE_INSTALLATION_ID",
+        "BOXIE_HOST_ID",
+        "BOXIE_TEMPORAL_NAMESPACE",
+    )
+    _render_template(
+        infra / "ingress/cloudflared.yml",
+        root,
+        os.environ,
         "OPERATOR_TUNNEL_ID",
         "OPERATOR_TEAM_NAME",
         "OPERATOR_GRAFANA_HOSTNAME",
         "OPERATOR_TEMPORAL_HOSTNAME",
         "OPERATOR_GRAFANA_AUDIENCE",
         "OPERATOR_TEMPORAL_AUDIENCE",
-    ):
-        ingress = ingress.replace("${" + key + "}", os.environ[key])
-    (root / "cloudflared.yml").write_text(ingress)
-    (root / "cloudflared.yml").chmod(0o644)
-    update_profile(root, source / "packages/boxie/infra")
+    )
+    update_profile(root, infra)
 
 
 def update_profile(root: Path, source: Path) -> None:
@@ -96,15 +114,7 @@ def update_profile(root: Path, source: Path) -> None:
         profile = json.loads((source / "profiles/default.json").read_text())["default"]
     profile["image_digest"] = os.environ["BOXIE_SANDBOX_IMAGE"]
     profiles["default"] = profile
-    with tempfile.NamedTemporaryFile(mode="w", dir=profiles_path.parent, delete=False) as output:
-        temporary = Path(output.name)
-        try:
-            output.write(json.dumps(profiles, indent=2) + "\n")
-            output.flush()
-            os.fsync(output.fileno())
-            temporary.replace(profiles_path)
-        finally:
-            temporary.unlink(missing_ok=True)
+    _replace_private_text(profiles_path, json.dumps(profiles, indent=2) + "\n")
 
 
 def main() -> None:

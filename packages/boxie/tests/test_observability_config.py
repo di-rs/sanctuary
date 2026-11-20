@@ -4,6 +4,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -165,20 +166,70 @@ def test_temporal_monitoring_is_optional_and_origins_stay_private() -> None:
     assert all(not service.get("ports") for service in monitored["services"].values())
 
 
-def test_operator_routes_require_distinct_access_audiences() -> None:
-    from string import Template
-
-    template = (INFRA / "ingress/cloudflared.yml").read_text()
-    config = yaml.safe_load(
-        Template(template).substitute(
-            OPERATOR_TUNNEL_ID="00000000-0000-0000-0000-000000000001",
-            OPERATOR_TEAM_NAME="operators",
-            OPERATOR_GRAFANA_HOSTNAME="grafana.example.com",
-            OPERATOR_TEMPORAL_HOSTNAME="temporal.example.com",
-            OPERATOR_GRAFANA_AUDIENCE="grafana-aud",
-            OPERATOR_TEMPORAL_AUDIENCE="temporal-aud",
-        )
+def test_installation_renders_metrics_and_distinct_operator_audiences(tmp_path: Path) -> None:
+    credentials = tmp_path / "boxie"
+    credentials.mkdir()
+    for name in (
+        "host-id",
+        "installation-id",
+        "postgres-password",
+        "boxie-password",
+        "temporal-password",
+        "visibility-password",
+    ):
+        (credentials / name).write_text(f"test-{name}\n")
+    image = "ghcr.io/test/sandbox@sha256:" + "a" * 64
+    tunnel = "00000000-0000-0000-0000-000000000001"
+    subprocess.run(
+        [
+            sys.executable,
+            "-I",
+            "-S",
+            str(INFRA / "boxie_infra/installation.py"),
+            str(INFRA.parents[2]),
+        ],
+        env={
+            **os.environ,
+            "SANCTUARY_CONFIG_DIR": str(tmp_path),
+            "BOXIE_IMAGE": "boxie:test",
+            "BOXIE_SANDBOX_IMAGE": image,
+            "OBS_COLLECTOR_IMAGE": "collector:test",
+            "OBS_JOURNAL_GROUP_GID": "190",
+            "OPERATOR_TUNNEL_ID": tunnel,
+            "OPERATOR_TEAM_NAME": "operators",
+            "OPERATOR_GRAFANA_HOSTNAME": "grafana.example.com",
+            "OPERATOR_TEMPORAL_HOSTNAME": "temporal.example.com",
+            "OPERATOR_GRAFANA_AUDIENCE": "grafana-aud",
+            "OPERATOR_TEMPORAL_AUDIENCE": "temporal-aud",
+        },
+        check=True,
+        timeout=15,
     )
+
+    settings = tmp_path / "boxie.env"
+    profiles = credentials / "profiles.json"
+    for private in (settings, profiles):
+        assert private.stat().st_mode & 0o777 == 0o600
+    assert "POSTGRES_PASSWORD='test-postgres-password'\n" in settings.read_text()
+    assert json.loads(profiles.read_text())["default"]["image_digest"] == image
+
+    prometheus, ingress = tmp_path / "prometheus.yml", tmp_path / "cloudflared.yml"
+    for public in (prometheus, ingress):
+        assert public.stat().st_mode & 0o777 == 0o644
+    scrapes = {
+        job["job_name"]: job for job in yaml.safe_load(prometheus.read_text())["scrape_configs"]
+    }
+    for role in ("api", "supervisor"):
+        filters = scrapes[f"boxie-{role}-sdk"]["metric_relabel_configs"]
+        assert {"source_labels": ["namespace"], "regex": "boxie|", "action": "keep"} in filters
+        assert {
+            "source_labels": ["task_queue"],
+            "regex": "boxie/test-installation-id/test-host-id/(lifecycle|maintenance)|",
+            "action": "keep",
+        } in filters
+
+    config = yaml.safe_load(ingress.read_text())
+    assert config["tunnel"] == tunnel
     assert config["credentials-file"] == "/run/secrets/tunnel.json"
     assert config["ingress"][-1] == {"service": "http_status:404"}
     assert len(config["ingress"]) == 3
