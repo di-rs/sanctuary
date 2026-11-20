@@ -6,7 +6,7 @@ import os
 import shutil
 import time
 from collections.abc import AsyncIterator
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid4
@@ -350,6 +350,10 @@ def test_interrupted_upload_and_retirement_keep_capacity_until_collection(
                 assert still_staged.value.status == 429
                 assert staged.is_dir()
 
+            async with sessions.begin() as session:
+                await session.exec(
+                    update(ArtifactUpload).values(retry_after=func.clock_timestamp())
+                )
             assert await restarted.collect_orphans() == 1
             assert not staged.exists()
             artifact = (await upload(restarted)).artifact_id
@@ -366,6 +370,64 @@ def test_interrupted_upload_and_retirement_keep_capacity_until_collection(
             assert await restarted.collect() == 1
             assert not path.exists()
             await upload(restarted)
+
+    asyncio.run(exercise())
+
+
+def test_failed_orphan_yields_to_younger_reservation_and_legacy_files(
+    postgres_dsn: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def exercise() -> None:
+        async with database(postgres_dsn, tmp_path) as (_, store, sessions, _):
+            blocked, removable = uuid4(), uuid4()
+            async with sessions.begin() as session:
+                for hours, identifier in ((3, blocked), (2, removable)):
+                    session.add(
+                        ArtifactUpload(
+                            storage_id=identifier,
+                            consumer_id=OWNER.consumer_id,
+                            reserved_bytes=10,
+                            created_at=datetime.now(UTC) - timedelta(hours=hours),
+                        )
+                    )
+                    (store.root / f".upload-{identifier}").mkdir()
+            blocked_path = store.root / f".upload-{blocked}"
+            remove = shutil.rmtree
+
+            def remove_unless_blocked(path: Path) -> None:
+                if path == blocked_path:
+                    raise PermissionError("blocked reservation")
+                remove(path)
+
+            with monkeypatch.context() as patch:
+                patch.setattr(shutil, "rmtree", remove_unless_blocked)
+                assert await store.collect_orphans(limit=1) == 0
+                restarted = PostgresArtifactStore(sessions, store.root)
+                assert await restarted.collect_orphans(limit=1) == 1
+                assert not (store.root / f".upload-{removable}").exists()
+                legacy = store.root / ".upload-legacy"
+                legacy.mkdir()
+                os.utime(legacy, (time.time() - 7200,) * 2)
+                # Each later sweep can retry the blocked row and still advance the legacy scan.
+                for _ in range(2):
+                    async with sessions.begin() as session:
+                        await session.exec(
+                            update(ArtifactUpload).values(retry_after=func.clock_timestamp())
+                        )
+                    await restarted.collect_orphans(limit=1)
+                assert not legacy.exists()
+                assert blocked_path.is_dir()
+                async with sessions() as session:
+                    (reservation,) = (await session.exec(select(ArtifactUpload))).all()
+                    assert reservation.storage_id == blocked
+                    assert reservation.reserved_bytes == 10
+                    assert reservation.retry_after is not None
+            async with sessions.begin() as session:
+                await session.exec(
+                    update(ArtifactUpload).values(retry_after=func.clock_timestamp())
+                )
+            assert await restarted.collect_orphans(limit=1) == 1
+            assert not blocked_path.exists()
 
     asyncio.run(exercise())
 

@@ -66,6 +66,7 @@ class ArtifactUpload(SQLModel, table=True):
         sa_type=DateTime(timezone=True),
         sa_column_kwargs={"server_default": func.clock_timestamp()},
     )
+    retry_after: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
 
 
 class Sandbox(SQLModel, table=True):

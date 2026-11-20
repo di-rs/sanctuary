@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import BinaryIO, cast
 from uuid import UUID
 
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -264,19 +264,27 @@ class PostgresArtifactStore:
         if minimum_age_seconds < 60 or not 1 <= limit <= 1000:
             raise ValueError("orphan collection requires bounded limit and >=60s grace")
         async with self._operation(), self.sessions() as session, session.begin():
+            now = cast(datetime, await session.scalar(select(func.clock_timestamp())))
             uploads = (
                 await session.exec(
                     select(ArtifactUpload)
                     .where(
-                        ArtifactUpload.created_at
-                        < func.clock_timestamp() - timedelta(seconds=minimum_age_seconds)
+                        ArtifactUpload.created_at < now - timedelta(seconds=minimum_age_seconds),
+                        or_(
+                            col(ArtifactUpload.retry_after).is_(None),
+                            col(ArtifactUpload.retry_after) <= now,
+                        ),
                     )
-                    .order_by(col(ArtifactUpload.created_at))
+                    .order_by(
+                        func.coalesce(ArtifactUpload.retry_after, ArtifactUpload.created_at),
+                        col(ArtifactUpload.storage_id),
+                    )
                     .with_for_update(skip_locked=True)
                     .limit(limit)
                 )
             ).all()
             count = 0
+            remaining = limit
             for upload in uploads:
                 identifier = upload.storage_id
                 try:
@@ -284,11 +292,13 @@ class PostgresArtifactStore:
                         self.root / f".upload-{identifier}", self.root / str(identifier)
                     )
                 except OSError:
+                    upload.retry_after = now + timedelta(minutes=1)
                     continue
                 await session.delete(upload)
-            return count + await self._collect_legacy(
-                session, minimum_age_seconds, limit - len(uploads)
-            )
+                remaining -= 1
+            if remaining:
+                count += await self._collect_legacy(session, minimum_age_seconds, remaining)
+            return count
 
     async def _collect_legacy(self, session: AsyncSession, age: int, limit: int) -> int:
         count = 0
@@ -312,7 +322,10 @@ class PostgresArtifactStore:
                 ).first()
                 if exists:
                     continue
-            count += self._remove(Path(entry.path))
+            try:
+                count += self._remove(Path(entry.path))
+            except OSError:
+                continue
             if self._legacy_orphans is not None:
                 self._legacy_orphans.pop(entry.name, None)
         return count

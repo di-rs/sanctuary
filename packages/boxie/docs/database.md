@@ -121,7 +121,7 @@ count. A lower budget blocks new jobs until enough bytes are available.
 
 ## Artifact storage and collection
 
-Apply Alembic revision `0009_artifact_quota` with the old supervisor stopped,
+Apply migrations through `0010_artifact_orphan_retry` with the old supervisor stopped,
 then start the upgraded supervisor with the same artifact root. On startup it
 records expanded file sizes for indexed objects from before the migration. A
 missing legacy object retains a conservative 512 MiB charge until collection
@@ -134,8 +134,11 @@ complete files under the storage UUID before the transaction that replaces the
 staging reservation with the retained object. If publication is interrupted,
 PostgreSQL still records either the retained object or its staging reservation.
 After the one-hour grace period, `collect_orphans()` can remove abandoned upload
-bytes and release the reservation. The retired artifact collector waits for
-sandbox references and releases capacity after deletion and directory sync.
+bytes and release the reservation. If deletion fails, the reservation stays
+charged. The collector can process other uploads and retry the failed one
+after one minute, including after a supervisor restart. The retired artifact
+collector waits for sandbox references and releases capacity after deletion
+and directory sync.
 Run collection on the sole owning supervisor with PostgreSQL available.
 
 To roll back, stop the supervisor and keep the migrated database and artifact
