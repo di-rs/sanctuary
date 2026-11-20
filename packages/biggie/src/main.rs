@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use biggie::{generate_bytes, generate_fields, generate_records, generate_text};
-use std::process::ExitCode;
+use serde_json::{Value, json};
+use std::{io::BufWriter, path::Path, process::ExitCode};
 mod cli;
 mod output;
 use cli::{Cli, Command, ParsedCli};
@@ -52,133 +53,119 @@ fn main() -> ExitCode {
     })
 }
 fn execute(cli: &ParsedCli) -> Result<()> {
-    let record_options = match &cli.command {
-        Command::Records(args) => Some(args.options().context("Cannot load record corpus")?),
-        _ => None,
-    };
-    let plan = if cli.json || cli.dry_run {
-        generation_plan(cli, record_options.as_ref())?
-    } else {
-        serde_json::Value::Null
-    };
-    if cli.dry_run {
-        if cli.json {
-            emit_json(&serde_json::json!({"ok": true, "data": plan}))?;
-        } else {
-            emit_json(&plan)?;
-        }
-        return Ok(());
-    }
     match &cli.command {
+        Command::Text(args) => {
+            let options = args.options();
+            execute_single(
+                cli,
+                "text",
+                &args.file,
+                options.generation.lines,
+                ("line", "records"),
+                |writer| generate_text(writer, &options),
+            )
+        }
         Command::Records(args) => {
-            let options = record_options.as_ref().context("Missing record options")?;
+            let options = args.options().context("Cannot load record corpus")?;
             if args.file.as_os_str() != "-"
                 && let Some(input) = &args.records_file
             {
                 output::reject_alias(input, &args.file)?;
             }
-            output::single(
+            execute_single(
+                cli,
+                "records",
                 &args.file,
                 options.total_records()?,
-                "record",
-                !cli.json,
-                |writer| generate_records(writer, options),
-            )?;
+                ("record", "records"),
+                |writer| generate_records(writer, &options),
+            )
         }
         Command::Fields(args) => {
             let options = args.options();
-            output::single(&args.file, options.lines, "record", !cli.json, |writer| {
-                generate_fields(writer, &options)
-            })?;
+            execute_single(
+                cli,
+                "fields",
+                &args.file,
+                options.lines,
+                ("record", "records"),
+                |writer| generate_fields(writer, &options),
+            )
         }
         Command::Bytes(args) => {
             let options = args.options();
-            output::single(&args.file, options.bytes, "byte", !cli.json, |writer| {
-                generate_bytes(writer, &options)
-            })?;
+            execute_single(
+                cli,
+                "bytes",
+                &args.file,
+                options.bytes,
+                ("byte", "bytes"),
+                |writer| generate_bytes(writer, &options),
+            )
         }
-        Command::Text(args) => write_text(args, !cli.json)?,
-        Command::Pair(args) => output::pair(&args.left, &args.right, &args.options(), !cli.json)?,
+        Command::Pair(args) => {
+            let options = args.options();
+            if cli.dry_run {
+                output::reject_alias(&args.left, &args.right)?;
+            } else {
+                output::pair(&args.left, &args.right, &options, !cli.json)?;
+            }
+            emit_plan(cli, "pair", || {
+                let (left, right) = options.record_counts()?;
+                Ok(vec![
+                    describe_output(&args.left, left, "records"),
+                    describe_output(&args.right, right, "records"),
+                ])
+            })
+        }
     }
+}
+
+fn execute_single(
+    cli: &ParsedCli,
+    operation: &str,
+    path: &Path,
+    count: u64,
+    (completion_unit, plan_unit): (&str, &str),
+    generate: impl FnOnce(&mut BufWriter<output::Destination>) -> Result<()>,
+) -> Result<()> {
+    if !cli.dry_run {
+        anyhow::ensure!(
+            !cli.json || path.as_os_str() != "-",
+            "--json requires named outputs or --dry-run; stdout is reserved for generated data"
+        );
+        output::single(path, count, completion_unit, !cli.json, generate)?;
+    }
+    emit_plan(cli, operation, || {
+        Ok(vec![describe_output(path, count, plan_unit)])
+    })
+}
+
+fn describe_output(path: &Path, count: u64, unit: &str) -> Value {
+    json!({"path": path.to_string_lossy(), "count": count, "unit": unit})
+}
+
+fn emit_plan(
+    cli: &ParsedCli,
+    operation: &str,
+    outputs: impl FnOnce() -> Result<Vec<Value>>,
+) -> Result<()> {
+    if !cli.dry_run && !cli.json {
+        return Ok(());
+    }
+    let plan = json!({"operation": operation, "dry_run": cli.dry_run, "outputs": outputs()?});
     if cli.json {
-        emit_json(&serde_json::json!({"ok": true, "data": plan}))?;
+        emit_json(&json!({"ok": true, "data": plan}))
+    } else {
+        emit_json(&plan)
     }
-    Ok(())
 }
 
-fn write_text(args: &cli::text::TextArgs, report: bool) -> Result<()> {
-    let options = args.options();
-    output::single(
-        &args.file,
-        options.generation.lines,
-        "line",
-        report,
-        |writer| generate_text(writer, &options),
-    )
-}
-
-fn emit_json(value: &serde_json::Value) -> Result<()> {
+fn emit_json(value: &Value) -> Result<()> {
     use std::io::Write;
     let mut stdout = std::io::stdout().lock();
     serde_json::to_writer(&mut stdout, value)?;
     writeln!(stdout)?;
     stdout.flush()?;
     Ok(())
-}
-
-fn generation_plan(
-    cli: &ParsedCli,
-    records: Option<&biggie::RecordOptions>,
-) -> Result<serde_json::Value> {
-    use serde_json::json;
-    let (operation, outputs) = match &cli.command {
-        Command::Text(a) => (
-            "text",
-            vec![
-                json!({"path": a.file.to_string_lossy(), "count": a.options().generation.lines, "unit": "records"}),
-            ],
-        ),
-        Command::Fields(a) => (
-            "fields",
-            vec![
-                json!({"path": a.file.to_string_lossy(), "count": a.options().lines, "unit": "records"}),
-            ],
-        ),
-        Command::Bytes(a) => (
-            "bytes",
-            vec![
-                json!({"path": a.file.to_string_lossy(), "count": a.options().bytes, "unit": "bytes"}),
-            ],
-        ),
-        Command::Records(a) => {
-            let options = records.context("Missing record options")?;
-            if a.file.as_os_str() != "-"
-                && let Some(input) = &a.records_file
-            {
-                output::reject_alias(input, &a.file)?;
-            }
-            (
-                "records",
-                vec![
-                    json!({"path": a.file.to_string_lossy(), "count": options.total_records()?, "unit": "records"}),
-                ],
-            )
-        }
-        Command::Pair(a) => {
-            output::reject_alias(&a.left, &a.right)?;
-            let (left, right) = a.options().record_counts()?;
-            (
-                "pair",
-                vec![
-                    json!({"path": a.left.to_string_lossy(), "count": left, "unit": "records"}),
-                    json!({"path": a.right.to_string_lossy(), "count": right, "unit": "records"}),
-                ],
-            )
-        }
-    };
-    anyhow::ensure!(
-        !cli.json || cli.dry_run || outputs.iter().all(|o| o.get("path") != Some(&json!("-"))),
-        "--json requires named outputs or --dry-run; stdout is reserved for generated data"
-    );
-    Ok(json!({"operation": operation, "dry_run": cli.dry_run, "outputs": outputs}))
 }
