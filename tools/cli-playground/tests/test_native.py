@@ -351,8 +351,13 @@ def test_local_deploy_browser_and_worktree_teardown(tmp_path: Path) -> None:
         assert (
             own_preview == sibling_preview
         )  # Identical PR numbers still refer to separate records.
+        gateway_id = external.run("ps", "-q", "playground", capture=True).strip()
+        assert gateway_id
         connected.clear()
         try:
+            with pytest.raises(subprocess.CalledProcessError):
+                local(first, "start", "portable")
+            assert external.run("ps", "-q", "playground", capture=True).strip() == gateway_id
             with pytest.raises(subprocess.CalledProcessError):
                 local(first, "down", "external")
             assert external.run("ps", "--status", "running", "-q", "postgres", capture=True).strip()

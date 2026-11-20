@@ -91,6 +91,7 @@ def test_start_failure_preserves_services_and_prints_diagnostics(
     with pytest.raises(subprocess.CalledProcessError):
         Stack(tmp_path).start(build=False)
     assert commands == [
+        ("ps", "--all", "-q", "playground"),
         ("up", "-d", "--no-build", "--wait", "--wait-timeout", "180"),
         ("ps", "--all"),
         ("logs", "--tail", "100"),
@@ -192,6 +193,51 @@ def test_down_executes_remote_drain_only_for_boxie(
     else:
         stack.down_playground()
         assert commands == [("ps", "--all", "-q", "playground"), ("down", "--volumes")]
+
+
+@pytest.mark.parametrize("reachable", [False, True])
+def test_portable_start_drains_existing_boxie_gateway_before_replacement(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, reachable: bool
+) -> None:
+    stack = playground(tmp_path, "portable", None)
+    events = []
+
+    def compose(*args: str, capture: bool = False) -> str:
+        events.append(args[0])
+        if args[0] == "ps":
+            return "external-gateway"
+        assert args[0] == "up"
+        return ""
+
+    def docker(*args: str, capture: bool = False) -> str:
+        events.append(args[0])
+        if args[0] == "inspect":
+            assert args[-1] == "external-gateway"
+            return "boxie"
+        assert args == (
+            "exec",
+            "-i",
+            "external-gateway",
+            "python",
+            "-m",
+            "tests.dev_server",
+            "drain",
+        )
+        if not reachable:
+            raise subprocess.CalledProcessError(1, args)
+        return ""
+
+    monkeypatch.setattr(stack, "run", compose)
+    monkeypatch.setattr(stack, "docker", docker)
+    monkeypatch.setattr(stack, "url", lambda: "http://127.0.0.1:49123/")
+    monkeypatch.setattr("local_dev.stack.wait_for_http", lambda *a, **kw: True)
+    if reachable:
+        stack.start(build=False)
+        assert events == ["ps", "inspect", "exec", "up"]
+    else:
+        with pytest.raises(DevError, match="cleanup is unconfirmed"):
+            stack.start(build=False)
+        assert events == ["ps", "inspect", "exec"]
 
 
 @pytest.mark.parametrize("backend", ["boxie", "playground"])

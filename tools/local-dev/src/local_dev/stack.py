@@ -117,7 +117,7 @@ class Stack:
     def identify(self) -> None:
         print(f"Worktree: {self.root}\nCompose project: {self.project}", flush=True)
 
-    def down_playground(self) -> None:
+    def drain_playground(self) -> None:
         for container in self.run("ps", "--all", "-q", "playground", capture=True).split():
             backend = self.docker(
                 "inspect",
@@ -133,8 +133,11 @@ class Stack:
             except subprocess.CalledProcessError:
                 raise DevError(
                     "Playground cleanup is unconfirmed. Its local database and volumes were kept. "
-                    "Restore the Boxie API connection and retry down."
+                    "Restore the Boxie API connection and retry the command."
                 ) from None
+
+    def down_playground(self) -> None:
+        self.drain_playground()
         self.run("down", "--volumes")
 
     def start(
@@ -151,6 +154,7 @@ class Stack:
         try:
             wait = ("up", "-d", "--no-build", "--wait", "--wait-timeout", "180")
             if credential is None:
+                self.drain_playground()
                 self.run(*wait)
             else:
                 self.run(*wait, "postgres")
