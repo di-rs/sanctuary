@@ -5,7 +5,7 @@ requires-python = ">=3.15"
 dependencies = [
     "alembic>=1.18,<2",
     "psycopg[binary]==3.3.9",
-    "sqlalchemy[asyncio]>=2.1.8,<2.2",
+    "sqlalchemy[asyncio]>=2.1.9,<2.2",
     "sqlmodel>=0.0.37,<0.1",
     "aiohttp>=3.13,<4",
     "anyio>=4.16.0",
@@ -17,7 +17,7 @@ dependencies = [
 ]
 
 [build-system]
-requires = ["uv_build==0.13.8"]
+requires = ["uv_build==0.13.9"]
 build-backend = "uv_build"
 
 [tool.uv.build-backend]
