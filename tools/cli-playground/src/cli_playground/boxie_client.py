@@ -115,7 +115,7 @@ class HttpBoxieClient:
                     and json.loads(data) == {"detail": "sandbox not found"}
                 ):
                     raise SandboxNotFound("sandbox not found")
-                if response.status not in {200, 201, 202, 204} or len(data) > 65536:
+                if response.status not in {200, 201, 202, 204}:
                     raise BoxieUnavailable("sandbox service unavailable")
                 return data
         except (aiohttp.ClientError, TimeoutError, ValueError) as error:
