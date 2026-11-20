@@ -243,18 +243,56 @@ fn dir2_long_all(cx: &TestContext) -> Result<()> {
 }
 
 #[cli_test]
-fn long_listings_show_symlink_targets_under_the_link_names(cx: &TestContext) -> Result<()> {
+fn long_listing_describes_symlinks(cx: &TestContext) -> Result<()> {
+    let dir = cx.workspace()?;
+    dir.child("target.txt").write_str("x")?;
+    dir.child("folder/child").write_str("contents")?;
+    symlink("target.txt", dir.child("file-link").path())?;
+    symlink("folder", dir.child("dir-link").path())?;
+    symlink("missing", dir.child("dangling").path())?;
+
+    for (args, prefix, rows) in [
+        (&["-l", "file-link", "dir-link", "dangling"][..], "", 3),
+        (&["-l", "."][..], "./", 5),
+    ] {
+        let listing = dir.cmd().args(args).assert().code(0).stderr("");
+        let stdout = std::str::from_utf8(&listing.get_output().stdout)?;
+        assert_eq!(stdout.lines().filter(|line| !line.is_empty()).count(), rows);
+        for (name, target, size) in [
+            ("file-link", "target.txt", "10"),
+            ("dir-link", "folder", "6"),
+            ("dangling", "missing", "7"),
+        ] {
+            let suffix = format!(" {prefix}{name} -> {target}");
+            let row = stdout
+                .lines()
+                .find(|line| line.ends_with(&suffix))
+                .ok_or_else(|| format!("missing {suffix:?} in {stdout:?}"))?;
+            assert_eq!(row.chars().next(), Some('l'), "{row}");
+            assert_eq!(row.split_whitespace().nth(4), Some(size));
+        }
+    }
+
+    dir.cmd()
+        .arg("dir-link")
+        .assert()
+        .code(0)
+        .stdout("dir-link/child\n")
+        .stderr("");
+    Ok(())
+}
+
+#[cli_test]
+fn long_listings_format_file_and_directory_permission_bits(cx: &TestContext) -> Result<()> {
     let dir = cx.workspace()?;
     let listed = dir.child("listed");
-    let file = dir.child("target-file");
-    let folder = dir.child("target-dir");
+    let file = listed.child("file");
+    let folder = listed.child("folder");
     listed.create_dir_all()?;
     file.touch()?;
     folder.create_dir_all()?;
     fs::set_permissions(file.path(), fs::Permissions::from_mode(0o641))?;
     fs::set_permissions(folder.path(), fs::Permissions::from_mode(0o751))?;
-    symlink("../target-file", listed.path().join("file-link"))?;
-    symlink("../target-dir", listed.path().join("dir-link"))?;
 
     let command = dir
         .cmd()
@@ -275,8 +313,8 @@ fn long_listings_show_symlink_targets_under_the_link_names(cx: &TestContext) -> 
     assert_eq!(
         rows,
         [
-            (Some("-rw-r----x"), Some("listed/file-link")),
-            (Some("drwxr-x--x"), Some("listed/dir-link")),
+            (Some("-rw-r----x"), Some("listed/file")),
+            (Some("drwxr-x--x"), Some("listed/folder")),
         ]
     );
     Ok(())

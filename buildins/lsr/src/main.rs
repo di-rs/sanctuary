@@ -2,7 +2,7 @@ use std::io::{BufWriter, Write};
 
 mod cli;
 use crate::cli::{Cli, CliError};
-use lsr::{find_files, get_formatted_output};
+use lsr::{find_files, find_long_files, get_formatted_output};
 
 fn main() -> std::process::ExitCode {
     cli_log::run("lsr", |cli| match run(&cli) {
@@ -19,8 +19,13 @@ fn run(cli: &Cli) -> Result<bool, CliError> {
 
     let mut failed = false;
     let mut paths = Vec::new();
+    let find = if cli.long {
+        find_long_files
+    } else {
+        find_files
+    };
     for path in &cli.paths {
-        match find_files(std::slice::from_ref(path), cli.show_hidden) {
+        match find(std::slice::from_ref(path), cli.show_hidden) {
             Ok(found) => paths.extend(found),
             Err(error) => {
                 cli_log::diagnostic!("{}: {error}", path.display());
