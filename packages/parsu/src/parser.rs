@@ -1,4 +1,4 @@
-use crate::combinators::{and_then, map, pred};
+use crate::combinators::{map, pred};
 
 pub type ParseResult<'a, Output> = Result<(&'a str, Output), &'a str>;
 
@@ -22,17 +22,6 @@ pub trait Parser<'a, Output> {
         F: Fn(&Output) -> bool + 'a,
     {
         BoxedParser::new(pred(self, predicate_fn))
-    }
-
-    fn and_then<F, NextParser, NewOutput>(self, f: F) -> BoxedParser<'a, NewOutput>
-    where
-        Self: Sized + 'a,
-        NewOutput: 'a,
-        Output: 'a,
-        NextParser: Parser<'a, NewOutput> + 'a,
-        F: Fn(Output) -> NextParser + 'a,
-    {
-        BoxedParser::new(and_then(self, f))
     }
 }
 

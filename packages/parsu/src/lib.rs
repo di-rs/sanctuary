@@ -1,5 +1,5 @@
 use crate::{
-    combinators::{either, left, one_or_more, pair, pred, right, zero_or_more},
+    combinators::{either, left, map, one_or_more, pair, pred, right, zero_or_more},
     parser::{ParseResult, Parser},
 };
 
@@ -89,47 +89,33 @@ fn attributes<'a>() -> impl Parser<'a, Vec<(String, String)>> {
     zero_or_more(right(space1(), attribute_pair()))
 }
 
-fn element_start<'a>() -> impl Parser<'a, (String, Vec<(String, String)>)> {
-    right(match_literal("<"), pair(identifier, attributes()))
+fn close_element<'a>(expected_name: &str) -> impl Parser<'a, String> {
+    pred(
+        right(match_literal("</"), left(identifier, match_literal(">"))),
+        move |name| name == expected_name,
+    )
 }
 
-fn single_element<'a>() -> impl Parser<'a, Element> {
-    left(element_start(), match_literal("/>")).map(|(name, attributes)| Element {
-        name,
-        attributes,
-        children: vec![],
+fn element(input: &str) -> ParseResult<'_, Element> {
+    whitespace_wrap(|input| {
+        let (after_attributes, (name, attributes)) =
+            right(match_literal("<"), pair(identifier, attributes())).parse(input)?;
+        let self_closing = map(match_literal("/>"), |()| Vec::new());
+        let parent = right(
+            match_literal(">"),
+            left(zero_or_more(element), right(space0(), close_element(&name))),
+        );
+        let (rest, children) = either(self_closing, parent).parse(after_attributes)?;
+        Ok((
+            rest,
+            Element {
+                name,
+                attributes,
+                children,
+            },
+        ))
     })
-}
-
-fn open_element<'a>() -> impl Parser<'a, Element> {
-    left(element_start(), match_literal(">")).map(|(name, attributes)| Element {
-        name,
-        attributes,
-        children: vec![],
-    })
-}
-
-fn close_element<'a>(expected_name: String) -> impl Parser<'a, String> {
-    right(match_literal("</"), left(identifier, match_literal(">")))
-        .pred(move |name| name == &expected_name)
-}
-
-fn parent_element<'a>() -> impl Parser<'a, Element> {
-    open_element().and_then(|el| {
-        left(
-            zero_or_more(element()),
-            right(space0(), close_element(el.name.clone())),
-        )
-        .map(move |children| {
-            let mut el = el.clone();
-            el.children = children;
-            el
-        })
-    })
-}
-
-fn element<'a>() -> impl Parser<'a, Element> {
-    whitespace_wrap(either(single_element(), parent_element()))
+    .parse(input)
 }
 
 /// Parses one element with optional surrounding whitespace.
@@ -138,7 +124,7 @@ fn element<'a>() -> impl Parser<'a, Element> {
 ///
 /// Returns an unparsed input slice if parsing fails or trailing input remains.
 pub fn parse_xml(input: &str) -> Result<Element, &str> {
-    let (rest, element) = element().parse(input)?;
+    let (rest, element) = element(input)?;
     if rest.is_empty() {
         Ok(element)
     } else {
@@ -244,7 +230,7 @@ fn attribute_parser() {
 }
 
 #[test]
-fn single_element_parser() {
+fn self_closing_element_parser() {
     assert_eq!(
         Ok((
             "",
@@ -254,7 +240,7 @@ fn single_element_parser() {
                 children: vec![]
             }
         )),
-        single_element().parse("<div class=\"float\"/>")
+        element("<div class=\"float\"/>")
     );
 }
 
@@ -287,7 +273,7 @@ fn xml_parser() {
             },
         ],
     };
-    assert_eq!(Ok(("", parsed_doc)), element().parse(doc));
+    assert_eq!(Ok(("", parsed_doc)), element(doc));
 }
 
 #[test]
@@ -296,5 +282,5 @@ fn mismatched_closing_tag() {
         <top>
             <bottom/>
         </middle>";
-    assert_eq!(Err("</middle>"), element().parse(doc));
+    assert_eq!(Err("</middle>"), element(doc));
 }
