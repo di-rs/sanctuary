@@ -1,0 +1,59 @@
+name: 🧪 Boxie shipped sandbox image
+
+on:
+  pull_request:
+    branches: [master]
+    types: [opened, synchronize, reopened, ready_for_review, labeled]
+    paths:
+      - '.github/scripts/install-gvisor.sh'
+      - '.github/workflows/boxie-sandbox-smoke.yml'
+      - 'packages/boxie/sandbox/Dockerfile'
+      - 'packages/boxie/sandbox/Dockerfile.dockerignore'
+      - 'packages/boxie/sandbox/shell.sh'
+      - 'packages/boxie/sandbox/fixtures/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: boxie-sandbox-smoke-${{ github.event.pull_request.number }}-${{ github.event.action == 'labeled' && github.event.label.name != 'run-ci' && github.run_id || 'checks' }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  smoke:
+    if: ${{ (github.event.action != 'labeled' || github.event.label.name == 'run-ci') && (!github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'run-ci')) }}
+    name: 🧪 Run the shipped Boxie sandbox under gVisor
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: 📥 Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: 🛡️ Install signed gVisor and configure sandbox runtime
+        run: bash .github/scripts/install-gvisor.sh
+      - name: 🏗️ Build the release Dockerfile and native CLI
+        run: |
+          docker build --platform linux/amd64 --file packages/boxie/sandbox/Dockerfile --tag boxie-sandbox:pr-smoke .
+          cargo build --locked --release --package echor
+      - name: 🧪 Run the native CLI through the image startup shell
+        timeout-minutes: 2
+        run: |
+          smoke_dir=$(mktemp -d "$RUNNER_TEMP/boxie-sandbox-smoke.XXXXXX")
+          trap 'rm -rf -- "$smoke_dir"' EXIT
+          install -d -m 0755 "$smoke_dir/artifact"
+          install -m 0555 target/release/echor "$smoke_dir/artifact/echor"
+
+          docker run --rm --interactive --platform linux/amd64 --runtime=runsc \
+            --network=none --read-only --cap-drop=ALL --security-opt=no-new-privileges \
+            --tmpfs /workspace:rw,nosuid,nodev,noexec,size=16m,uid=65534,gid=65534,mode=700 \
+            --mount "type=bind,src=$smoke_dir/artifact,dst=/opt/artifact,readonly" \
+            boxie-sandbox:pr-smoke > "$smoke_dir/stdout" <<'BASH'
+          [[ -s welcome.txt ]] || exit 1
+          exec echor Boxie sandbox ready
+          BASH
+          diff -u <(printf 'Boxie sandbox ready\n') "$smoke_dir/stdout"
