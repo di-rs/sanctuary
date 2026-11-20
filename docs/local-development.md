@@ -75,13 +75,16 @@ database. Its credential is copied into a worktree-owned volume. Run
 containers, networks, volumes and local copy of the credential. The development
 Boxie and other worktrees continue running.
 
-Before removing its local data, `down` stops sessions and retires artifacts for
-every preview recorded by this worktree. If Boxie has yet to acknowledge
-cleanup, the command exits nonzero and keeps the project's containers,
-database and volumes. Restore connectivity and retry `down`. The playground
-blocks new sessions and publications while teardown is pending. Keep the
-original endpoint and credential until cleanup finishes. If the playground
-container has stopped, start it with those same settings before retrying.
+Switching a Boxie-backed playground to portable mode stops its sessions and
+retires its artifacts before Compose replaces the gateway. `down` runs the
+same cleanup before removing local data. Both commands wait for Boxie to
+acknowledge cleanup for every preview recorded by this worktree.
+
+If cleanup fails, the command exits nonzero and keeps the gateway, database
+and volumes. The gateway blocks new sessions and publications while cleanup
+is pending. Restore connectivity to the original Boxie endpoint with the same
+credential, then retry the command. If the gateway has stopped, start it with
+those settings first.
 Stopping or removing the development PostgreSQL container discards its
 in-memory database and the records needed to retry cleanup.
 
