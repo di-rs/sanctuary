@@ -158,10 +158,13 @@ def test_no_tests_directory_does_not_fall_back_to_bare_pytest(workspace: Path) -
     assert plan(workspace, "python-tests", "apps/api/tests/deleted.py") == []
 
 
-def test_shared_github_publication_checks_both_publisher_packages() -> None:
+def test_shared_github_publication_selects_both_publisher_packages() -> None:
     path = "tools/github_publication.py"
     assert plan(ROOT, "mypy", path) == [
         ["uv", "run", "mypy", "tools/cli-bench", "tools/cli-playground"]
+    ]
+    assert plan(ROOT, "python-tests", path) == [
+        ["uv", "run", "pytest", "tools/cli-bench/tests", "tools/cli-playground/tests"]
     ]
 
 
