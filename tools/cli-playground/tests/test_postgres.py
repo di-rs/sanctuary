@@ -54,6 +54,7 @@ def test_publication_survives_new_engine_without_metadata_files(
 
 def test_cancelled_upload_stays_cancelled_after_reopen(postgres_dsn: str) -> None:
     from cli_playground.domain import ArtifactConflictError, UploadIntent
+    from cli_playground.observability import request_context
     from cli_playground.session_store import SessionStore
     from cli_playground.storage import EnvironmentStore
 
@@ -79,11 +80,55 @@ def test_cancelled_upload_stays_cancelled_after_reopen(postgres_dsn: str) -> Non
             )
             await store.close_pull_request(123)
             await store.reopen_pull_request(123)
-            with pytest.raises(ArtifactConflictError, match="cancelled"):
-                await store.finish_upload(artifact, None)
+            with request_context(str(uuid4())):
+                with pytest.raises(ArtifactConflictError, match="cancelled"):
+                    await store.finish_upload(artifact, None)
             assert await store.get(EnvironmentStore.identifier(123)) is None
             assert await operations.uploads() == []
             assert await operations.retirements() == [artifact.artifact_id]
+            assert await operations.retirement_request_id(artifact.artifact_id) is None
+
+    asyncio.run(exercise())
+
+
+def test_redundant_upload_retires_only_the_unused_artifact(postgres_dsn: str) -> None:
+    from cli_playground.domain import UploadIntent
+    from cli_playground.session_store import SessionStore
+    from cli_playground.storage import EnvironmentStore
+
+    from .helpers import database, migrate
+
+    migrate(postgres_dsn)
+    original = ArtifactMetadata(
+        pr=123,
+        sha="a" * 40,
+        revision="a" * 40,
+        artifact_id=uuid4(),
+        sha256="b" * 64,
+        clis=["echor"],
+        expires_at=100,
+    )
+    redundant = original.model_copy(update={"artifact_id": uuid4()})
+    origin = uuid4()
+
+    async def exercise() -> None:
+        async with database(postgres_dsn) as sessions:
+            store = EnvironmentStore(sessions, preview_seconds=100, clock=lambda: 1)
+            operations = SessionStore(sessions)
+            saved = await store.publish(original, None)
+            await operations.upload_intent(
+                UploadIntent(
+                    artifact=redundant,
+                    build=None,
+                    previous_revision=original.revision,
+                    request_id=origin,
+                )
+            )
+            assert await store.finish_upload(redundant, None) == saved
+            assert await store.get(saved.id) == saved
+            assert await operations.uploads() == []
+            assert await operations.retirements() == [redundant.artifact_id]
+            assert await operations.retirement_request_id(redundant.artifact_id) == origin
 
     asyncio.run(exercise())
 
@@ -137,6 +182,7 @@ def test_failed_transaction_keeps_pending_upload_and_previous_revision(
             assert await operations.uploads() == []
             # Replaying after a lost commit acknowledgement preserves the committed UUID.
             assert await store.finish_upload(second, None) == after
+            assert await operations.retirements() == []
 
     asyncio.run(exercise())
 
