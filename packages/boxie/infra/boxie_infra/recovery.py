@@ -33,12 +33,6 @@ RECOVERY_FILES = (
     "boxie/temporal-password",
     "boxie/visibility-password",
     "tls/complete",
-    "tls/server/frontend.key",
-    "tls/server/internode.key",
-    "tls/api/boxie-api.key",
-    "tls/supervisor/boxie-supervisor.key",
-    "tls/operator/operator.key",
-    "tls/ui/ui-client.key",
 )
 ARCHIVE = "boxie-recovery.tar"
 TAG = "boxie-recovery-v1"
@@ -199,6 +193,17 @@ def new_private_directory(path: Path) -> Iterator[None]:
         raise
 
 
+def tls_files() -> set[Path]:
+    inventory = Path(__file__).with_name("certificate-identities.conf")
+    paths: set[Path] = set()
+    for row in inventory.read_text().splitlines():
+        identity, issuer, _dns, _usage, _owner, *trust_roots = row.split()
+        for stem in (Path(identity), Path("ca") / issuer):
+            paths.update(stem.with_suffix(ext) for ext in (".pem", ".key"))
+        paths.update(Path(identity).parent / f"{authority}-ca.pem" for authority in trust_roots)
+    return paths
+
+
 def capture(args: argparse.Namespace) -> None:
     output = args.output.resolve()
     for source in (args.config, args.data):
@@ -206,6 +211,11 @@ def capture(args: argparse.Namespace) -> None:
     with stopped_owner(args.data), new_private_directory(args.output):
         for name in RECOVERY_FILES:
             required((args.config / name).is_file(), f"missing deployment file {name}")
+        for relative in sorted(tls_files()):
+            path = args.config / "tls" / relative
+            required(
+                path.is_file() and path.stat().st_size > 0, f"missing or empty TLS file {relative}"
+            )
         identity = args.config / "boxie"
         installation = str(UUID((identity / "installation-id").read_text().strip()))
         host = (identity / "host-id").read_text().strip()

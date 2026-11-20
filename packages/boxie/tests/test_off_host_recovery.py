@@ -2,6 +2,8 @@ import argparse
 import ast
 import json
 import os
+import shutil
+import subprocess
 import tarfile
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -16,6 +18,47 @@ from boxie_infra import recovery
 def test_operator_tool_parses_on_python_312() -> None:
     assert recovery.__file__ is not None
     ast.parse(Path(recovery.__file__).read_text(), feature_version=(3, 12))
+
+
+@pytest.fixture(scope="module")
+def deployed_tls(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    tls = tmp_path_factory.mktemp("recovery-keys") / "tls"
+    script = Path(recovery.__file__).resolve().parents[1] / "certificates.sh"
+    subprocess.run(["bash", str(script), str(tls), str(os.getuid()), str(os.getgid())], check=True)
+    return tls
+
+
+def test_recovery_inventory_covers_deployed_certificates(deployed_tls: Path) -> None:
+    assert recovery.tls_files() == {
+        path.relative_to(deployed_tls)
+        for path in deployed_tls.rglob("*")
+        if path.suffix in {".key", ".pem"}
+    }
+
+
+@pytest.mark.parametrize(
+    "name", ["api/boxie-api.pem", "api/frontend-ca.pem", "server/client-ca.pem", "ca/client.key"]
+)
+@pytest.mark.parametrize("empty", [False, True])
+def test_capture_rejects_incomplete_tls(
+    tmp_path: Path, deployed_tls: Path, name: str, empty: bool
+) -> None:
+    config, data, output = tmp_path / "config", tmp_path / "data", tmp_path / "capture"
+    shutil.copytree(deployed_tls, config / "tls")
+    for filename in recovery.RECOVERY_FILES:
+        path = config / filename
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.touch()
+    data.mkdir()
+    (data / "owner.lock").touch()
+    missing = config / "tls" / name
+    if empty:
+        missing.write_bytes(b"")
+    else:
+        missing.unlink()
+    with pytest.raises(recovery.RecoveryError, match=f"missing or empty TLS file {name}"):
+        recovery.capture(argparse.Namespace(config=config, data=data, output=output))
+    assert not output.exists()
 
 
 def test_running_supervisor_prevents_capture(tmp_path: Path) -> None:
