@@ -110,16 +110,33 @@ jobs:
           sudo journalctl --flush
       - name: 🧪 Test PostgreSQL and Temporal cancellation, replay and diagnostics
         timeout-minutes: 9
-        run: |
-          uv run pytest -m integration packages/boxie/tests/test_temporal_deployment.py packages/boxie/tests/test_outbox.py packages/boxie/tests/integration/test_artifact_commit.py packages/boxie/tests/test_migrations.py packages/boxie/tests/test_observability_lifecycle.py packages/boxie/tests/test_observability_logging.py packages/boxie/tests/test_observability_native.py -vv --durations=10
+        run: >-
+          uv run --locked pytest -m integration
+          packages/boxie/tests/test_temporal_deployment.py
+          packages/boxie/tests/test_outbox.py
+          packages/boxie/tests/integration/test_artifact_commit.py
+          packages/boxie/tests/test_profiles.py
+          packages/boxie/tests/test_observability_lifecycle.py
+          packages/boxie/tests/test_observability_logging.py
+          packages/boxie/tests/test_observability_native.py
+          -vv --durations=10
       - name: 🔐 Test native credential permissions and endpoint restarts
         timeout-minutes: 3
         run: |
           uv run pytest -m integration packages/boxie/tests/test_native_permissions.py packages/boxie/tests/test_native_scenarios.py -vv --durations=10
-      - name: 🗃️ Test PostgreSQL restart journal recovery
-        timeout-minutes: 3
-        run: |
-          uv run pytest -m integration packages/boxie/tests/test_postgres.py -k failed_restart_journal -vv --durations=10
+      - name: 🗃️ Test PostgreSQL admission, concurrency, recovery and migrations
+        timeout-minutes: 6
+        run: >-
+          uv run --locked pytest -m integration
+          packages/boxie/tests/test_postgres.py
+          packages/boxie/tests/test_api.py
+          packages/boxie/tests/test_activity_cleanup.py
+          packages/boxie/tests/test_activity_context.py
+          packages/boxie/tests/test_migrations.py
+          -vv --durations=10
+      - name: 🔭 Verify Grafana and Temporal MCP deployment
+        timeout-minutes: 6
+        run: uv run --locked pytest -m integration packages/boxie/tests/test_mcp_deployment.py -vv
       # Optional until the native suite's hang is resolved; never blocks a PR.
       - name: 🎭 Run optional native lifecycle tests
         if: github.event_name == 'workflow_dispatch'

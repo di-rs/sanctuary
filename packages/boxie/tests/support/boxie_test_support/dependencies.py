@@ -10,8 +10,9 @@ import psycopg
 import pytest
 from psycopg import sql
 
+# Keep the disposable test server on the deployed PostgreSQL major.
 POSTGRES_IMAGE = (
-    "postgres:17.11@sha256:2d2b8998d31037bf721cfdf764d76ba74171b4fab3431b7f72c27c56ddbdf9e3"
+    "postgres:18.6@sha256:e3d24f6906d0760bf4da0dae872415391ededefad23fd471c47dc53b0ddf3c42"
 )
 
 

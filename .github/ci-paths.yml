@@ -23,6 +23,7 @@ python:
   - '**/pyproject.toml'
   - 'uv.lock'
   - '.python-version'
+  - 'rust-toolchain.toml' # The binary-size integration test uses this pin.
   - '{ruff,.ruff,mypy}.toml'
   - '{mypy,pytest}.ini'
   - 'setup.cfg'
