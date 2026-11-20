@@ -1,7 +1,7 @@
 name: boxie-observability
 services:
   storage-init:
-    image: docker.io/timberio/vector:0.61.0-debian@sha256:f6c23b5a7e16fb2838d33619ef7acf4bad2289a7cf22bc90efc2371f520c4ea2
+    image: docker.io/timberio/vector:0.62.0-debian@sha256:6266b1d35c844918ff1c48ea2ec4f57c2b0664c46f3e17fc2418d5dda1692068
     user: 0:0
     read_only: true
     cap_drop:
@@ -193,7 +193,7 @@ services:
     secrets:
     - grafana-admin
   node-exporter:
-    image: ghcr.io/prometheus/node-exporter:v1.12.1@sha256:1b4e4438faca4dd7e001dd445d161a4a2091b0fededa84093b3a8dfeae1f1be0
+    image: ghcr.io/prometheus/node-exporter:v1.13.1@sha256:d9b8bcd4c7d98e75f915850b92fcbf82ae4d5210902d27cae9af567128de1dea
     user: 65534:65534
     read_only: true
     cap_drop:
