@@ -345,6 +345,25 @@ def test_summary_and_warnings_precede_details_and_ci_time(github: FakeGitHub) ->
     )
 
 
+def test_package_summary_includes_suites_without_completed_cases(github: FakeGitHub) -> None:
+    files = suite_files() | {
+        "extra/suite.toml": 'binary = "tailr"\n',
+        "extra/metadata.json": {
+            "status": "failed",
+            "cases": ["missing-first", "missing-second"],
+            "completed_cases": [],
+            "runs": 1,
+        },
+    }
+    github.responses[f"{BASE}/actions/artifacts/1/zip"] = archive(files)
+
+    result = report.generate(github, REPO, 500)
+
+    assert result is not None
+    assert "| `tailr` | Linux | 1/3 | Incomplete | System tool |" in result
+    assert "| `tailr` | macOS | 0/0 | Unavailable | — |" in result
+
+
 def test_mixed_comparisons_stay_explicit(github: FakeGitHub) -> None:
     rows = [
         report.Measurement(

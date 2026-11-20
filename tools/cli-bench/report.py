@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tomllib
 import zipfile
+from collections import defaultdict
 from datetime import datetime
 from itertools import groupby
 from pathlib import Path, PurePosixPath
@@ -235,42 +236,8 @@ def measurement_tables(rows: list[Measurement]) -> list[str]:
     return lines
 
 
-def render(
-    repo: str,
-    run: dict[str, object],
-    jobs: list[dict[str, object]],
-    suites: list[Suite],
-    selection: dict[str, object],
-    warnings: list[str],
-) -> str:
-    number, run_id, attempt = (integer(run[key]) for key in ("run_number", "id", "run_attempt"))
-    sha = str(run["head_sha"])
-    binaries = [identifier(value) for value in array(selection.get("binaries", []))]
-    binaries = sorted(set(binaries or [suite.binary for suite in suites]))[:64]
-    counts = {suite.runs for suite in suites}
-    if "runs" in selection:
-        counts.add(integer(selection["runs"], 1000))
-    mode = (
-        "**Smoke check:** 1 measured run per command. These samples check execution; "
-        "they do not establish statistically significant performance changes."
-        if counts == {1}
-        else "**Requested benchmark:** 20 measured runs per command. "
-        "Relative times are descriptive; no statistical regression test was performed."
-        if counts == {20}
-        else "Measurement count unavailable or inconsistent."
-    )
-    status = result_label(run["conclusion"])
+def diagnostics_lines(jobs: list[dict[str, object]]) -> list[str]:
     lines = [
-        f"<!-- cli-bench-report number={number} run={run_id} attempt={attempt} -->",
-        "### CLI benchmarks",
-        "",
-        f"**{status}** · `{sha[:12]}` · "
-        f"[Run {number}, attempt {attempt}](https://github.com/{repo}/actions/runs/{run_id}/attempts/{attempt})",
-        "",
-        "**Selected CLIs:** " + (", ".join(f"`{name}`" for name in binaries) or "unavailable"),
-        "",
-        f"> {mode}",
-        "",
         "<details>",
         "<summary>CI time and diagnostics</summary>",
         "",
@@ -304,22 +271,21 @@ def render(
         "Elapsed spans the first job start to the last finish. Runner time adds parallel jobs "
         "and selection, excluding queue time. Platforms: Ubuntu 24.04 and macOS 15.",
         "",
+        "</details>",
     ]
-    lines += ["</details>", ""]
-    # Keep measurements and incomplete-result notices above runner diagnostics.
-    diagnostics_start = lines.index("<details>")
-    diagnostics = lines[diagnostics_start:]
-    lines = lines[:diagnostics_start]
-    rows = [row for suite in suites for row in suite.rows]
-    lines += [f"**Completed measurements:** {len(rows)}", ""]
-    notices = list(warnings)
-    if any(suite.status != "complete" for suite in suites):
-        notices.append("Some suites did not complete; only completed cases are shown.")
-    if run["conclusion"] != "success":
-        notices.append("The workflow did not succeed; inspect the linked run for failures.")
-    lines += [
-        *(f"> {notice}" for notice in notices),
-        "",
+    return lines
+
+
+def package_summary_lines(binaries: list[str], suites: list[Suite]) -> list[str]:
+    by_package_platform: dict[tuple[str, str], list[Suite]] = defaultdict(list)
+    for suite in suites:
+        # A suite with no results can still report a status on its declared system.
+        systems = {row.system for row in suite.rows}
+        systems.add(suite.system)
+        for system in systems:
+            by_package_platform[suite.binary, system].append(suite)
+
+    lines = [
         "#### Package summary",
         "",
         "| Package | Platform | Completed cases | Status | Comparison |",
@@ -327,12 +293,7 @@ def render(
     ]
     for binary in binaries:
         for system in SYSTEMS:
-            matched = [
-                suite
-                for suite in suites
-                if suite.binary == binary
-                and (suite.system == system or any(row.system == system for row in suite.rows))
-            ]
+            matched = by_package_platform.get((binary, system), [])
             measured = [row for suite in matched for row in suite.rows if row.system == system]
             kinds = {row.kind for row in measured}
             comparison = (
@@ -360,12 +321,68 @@ def render(
             lines.append(
                 f"| `{binary}` | {PLATFORMS[system]} | {len(measured)}/{expected} | {state} | {comparison} |"
             )
-    lines.append("")
-    if rows:
-        lines += measurement_tables(rows)
-    else:
-        lines.append("No completed benchmark measurements were available.")
-    lines.extend(["", *diagnostics])
+    return lines
+
+
+def render(
+    repo: str,
+    run: dict[str, object],
+    jobs: list[dict[str, object]],
+    suites: list[Suite],
+    selection: dict[str, object],
+    warnings: list[str],
+) -> str:
+    number, run_id, attempt = (integer(run[key]) for key in ("run_number", "id", "run_attempt"))
+    sha = str(run["head_sha"])
+    binaries = [identifier(value) for value in array(selection.get("binaries", []))]
+    binaries = sorted(set(binaries or [suite.binary for suite in suites]))[:64]
+    counts = {suite.runs for suite in suites}
+    if "runs" in selection:
+        counts.add(integer(selection["runs"], 1000))
+    mode = (
+        "**Smoke check:** 1 measured run per command. These samples check execution; "
+        "they do not establish statistically significant performance changes."
+        if counts == {1}
+        else "**Requested benchmark:** 20 measured runs per command. "
+        "Relative times are descriptive; no statistical regression test was performed."
+        if counts == {20}
+        else "Measurement count unavailable or inconsistent."
+    )
+    status = result_label(run["conclusion"])
+    diagnostics = diagnostics_lines(jobs)
+    rows = [row for suite in suites for row in suite.rows]
+    notices = list(warnings)
+    if any(suite.status != "complete" for suite in suites):
+        notices.append("Some suites did not complete; only completed cases are shown.")
+    if run["conclusion"] != "success":
+        notices.append("The workflow did not succeed; inspect the linked run for failures.")
+    summary = package_summary_lines(binaries, suites)
+    measurements = (
+        measurement_tables(rows)
+        if rows
+        else ["No completed benchmark measurements were available."]
+    )
+    lines = [
+        f"<!-- cli-bench-report number={number} run={run_id} attempt={attempt} -->",
+        "### CLI benchmarks",
+        "",
+        f"**{status}** · `{sha[:12]}` · "
+        f"[Run {number}, attempt {attempt}](https://github.com/{repo}/actions/runs/{run_id}/attempts/{attempt})",
+        "",
+        "**Selected CLIs:** " + (", ".join(f"`{name}`" for name in binaries) or "unavailable"),
+        "",
+        f"> {mode}",
+        "",
+        f"**Completed measurements:** {len(rows)}",
+        "",
+        *(f"> {notice}" for notice in notices),
+        "",
+        *summary,
+        "",
+        *measurements,
+        "",
+        *diagnostics,
+    ]
     return "\n".join(lines).rstrip() + "\n"
 
 
