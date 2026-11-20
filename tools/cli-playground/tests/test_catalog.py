@@ -2,6 +2,8 @@
 
 import hashlib
 import json
+import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -13,11 +15,11 @@ from cli_playground.artifacts import (
     stage_archive,
 )
 from cli_playground.catalog import MAX_CATALOG, Catalog, parse_catalog
-from cli_playground.catalog_build import capture_schema
+from cli_playground.catalog_build import build_catalog, capture_schema
 from fastapi.testclient import TestClient
 
 from .catalog_fixtures import catalog, schema
-from .helpers import AUTH, binary_bundle, elf_binary, upload
+from .helpers import AUTH, binary_bundle, clean_git_env, elf_binary, git_commit, upload
 
 
 def test_catalog_is_validated_and_stripped_from_executable_artifact(tmp_path: Path) -> None:
@@ -140,17 +142,10 @@ def test_capture_bounds_time_and_output(tmp_path: Path, script: str, message: st
         capture_schema(executable(tmp_path / "cli", script), timeout=0.2, limit=128)
 
 
-@pytest.mark.parametrize("baseline", ["supported", "legacy", "failed"])
+@pytest.mark.parametrize("baseline", ["supported", "legacy", "failed", "unreadable"])
 def test_catalog_build_uses_merge_base_and_exact_head_bytes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, baseline: str
 ) -> None:
-    import os
-    import subprocess
-
-    from cli_playground.catalog_build import build_catalog
-
-    from .helpers import clean_git_env, git_commit
-
     root = tmp_path / "repository"
     root.mkdir()
     env = clean_git_env()
@@ -159,74 +154,84 @@ def test_catalog_build_uses_merge_base_and_exact_head_bytes(
             monkeypatch.delenv(key)
     monkeypatch.setenv("GIT_CONFIG_GLOBAL", os.devnull)
     monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    monkeypatch.setenv("CARGO_HOME", str(tmp_path / "cargo-home"))
 
     def git(*args: str) -> str:
         return subprocess.check_output(["git", *args], cwd=root, env=env, text=True).strip()
 
+    def write_workspace(*members: str) -> None:
+        (root / "Cargo.toml").write_text(
+            f'[workspace]\nresolver = "2"\nmembers = {json.dumps(members)}\n'
+            'exclude = ["buildins/fresh"]\n'
+        )
+        subprocess.run(["cargo", "generate-lockfile", "--offline"], cwd=root, check=True)
+
+    def write_cli(path: str, about: str) -> Path:
+        package = root / path
+        (package / "src").mkdir(parents=True, exist_ok=True)
+        (package / "Cargo.toml").write_text(
+            f'[package]\nname = "{package.name}"\nversion = "0.1.0"\n'
+        )
+        source = package / "src/main.rs"
+        payload = schema(package.name, about).model_dump_json(by_alias=True)
+        source.write_text(f'fn main() {{ println!("{{}}", r#"{payload}"#); }}\n')
+        return source
+
     git("init", "-q")
-    package = root / "buildins/echor"
-    (package / "src").mkdir(parents=True)
-    (package / "Cargo.toml").write_text('[package]\nname="echor"\n')
-    (package / "src/main.rs").write_text("baseline marker")
+    write_cli("tools/cli-testing", "Unchanged interface")
+    moved = write_cli("tools/moved", "Ancestor interface")
+    write_cli("buildins/fresh", "Excluded from the workspace")
+    members = ["tools/cli-testing", "tools/moved"]
     if baseline != "legacy":
         exporter = root / "utils/cli-schema"
-        exporter.mkdir(parents=True)
-        (exporter / "Cargo.toml").write_text('[package]\nname="cli-schema"\n')
+        (exporter / "src").mkdir(parents=True)
+        (exporter / "Cargo.toml").write_text('[package]\nname = "cli-schema"\nversion = "0.1.0"\n')
+        (exporter / "src/lib.rs").touch()
+        members.append("utils/cli-schema")
+    write_workspace(*members)
+    if baseline == "failed":
+        moved.write_text('compile_error!("baseline build fixture");\n')
+    if baseline == "unreadable":
+        (root / "Cargo.toml").write_text("[workspace\n")
     git("add", ".")
     git_commit(root)
     ancestor = git("rev-parse", "HEAD")
     # The base branch moves after the fork. It must not become the comparison.
-    (package / "src/main.rs").write_text("base branch moved")
-    added_on_base = root / "buildins/fresh"
-    (added_on_base / "src").mkdir(parents=True)
-    (added_on_base / "Cargo.toml").write_text('[package]\nname="fresh"\n')
-    (added_on_base / "src/main.rs").write_text("fn main() {}")
+    write_cli("tools/moved", "Base tip interface")
+    write_cli("tools/fresh", "Base tip addition")
+    write_workspace(*members, "tools/fresh")
     git("add", ".")
     git_commit(root)
     base = git("rev-parse", "HEAD")
     git("checkout", "--detach", ancestor)
-    (package / "src/main.rs").write_text("head version")
+    (root / "packages").mkdir()
+    (root / "tools/moved").rename(root / "packages/moved")
+    write_cli("packages/moved", "Head interface")
+    write_cli("tools/fresh", "Head addition")
+    members[members.index("tools/moved")] = "packages/moved"
+    write_workspace(*members, "tools/fresh")
     git("add", ".")
     git_commit(root)
     head = git("rev-parse", "HEAD")
-    binaries = tmp_path / "binaries"
-    binaries.mkdir()
-    for name in ("echor", "fresh"):
-        executable(
-            binaries / name,
-            f"print({schema(name, 'Head interface').model_dump_json(by_alias=True)!r})\n",
-        )
-    commands = tmp_path / "commands"
-    commands.mkdir()
-    output = schema(about="Baseline interface").model_dump_json(by_alias=True)
-    program = f"#!{sys.executable}\nprint({output!r})\n"
-    executable(
-        commands / "cargo",
-        "import sys\nfrom pathlib import Path\n"
-        "assert Path('buildins/echor/src/main.rs').read_text() == 'baseline marker'\n"
-        + (
-            "sys.exit(1)\n"
-            if baseline == "failed"
-            else "target=Path(sys.argv[sys.argv.index('--target-dir')+1])/'release'\ntarget.mkdir(parents=True)\n"
-            f"binary=target/'echor'\nbinary.write_text({program!r})\nbinary.chmod(0o755)\n"
-        ),
+    target = tmp_path / "head-target"
+    subprocess.run(
+        ["cargo", "build", "--locked", "--release", "--bins", "--target-dir", str(target)],
+        cwd=root,
+        check=True,
     )
-    monkeypatch.setenv("PATH", str(commands) + os.pathsep + env["PATH"])
-    build_catalog(root, base, head, ["echor", "fresh"], binaries)
-    hashes = {
-        name: hashlib.sha256((binaries / name).read_bytes()).hexdigest()
-        for name in ("echor", "fresh")
-    }
+    binaries = target / "release"
+    names = ["cli-testing", "moved", "fresh"]
+    build_catalog(root, base, head, names, binaries)
+    hashes = {name: hashlib.sha256((binaries / name).read_bytes()).hexdigest() for name in names}
     result = parse_catalog((binaries / "catalog.json").read_bytes(), head, hashes)
     assert result.base_sha == ancestor
-    assert result.clis[0].head.command.about == "Head interface"
-    assert result.clis[1].comparison == "added"
+    unchanged, moved_entry, fresh = result.clis
+    assert moved_entry.head.command.about == "Head interface"
+    assert fresh.comparison == ("unavailable" if baseline == "unreadable" else "added")
     if baseline == "supported":
-        assert result.clis[0].comparison == "available"
-        assert (
-            result.clis[0].base is not None
-            and result.clis[0].base.command.about == "Baseline interface"
-        )
+        assert unchanged.comparison == moved_entry.comparison == "available"
+        assert unchanged.base == unchanged.head
+        assert moved_entry.base == schema("moved", "Ancestor interface")
     else:
-        assert result.clis[0].comparison == "unavailable"
-        assert result.clis[0].base is None
+        assert unchanged.comparison == moved_entry.comparison == "unavailable"
+        assert unchanged.base is moved_entry.base is None

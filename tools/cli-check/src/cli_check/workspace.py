@@ -65,7 +65,7 @@ class Package(WorkspaceRecord):
         return bool(self.binaries) or not self.library
 
 
-def discover(root: Path) -> list[Package]:
+def discover(root: Path, *, timeout: float | None = None) -> list[Package]:
     root = root.resolve()
     command = [
         "cargo",
@@ -78,7 +78,9 @@ def discover(root: Path) -> list[Package]:
         str(root / "Cargo.toml"),
     ]
     try:
-        output = subprocess.run(command, cwd=root, capture_output=True, text=True, check=True)
+        output = subprocess.run(
+            command, cwd=root, capture_output=True, text=True, check=True, timeout=timeout
+        )
     except OSError as error:
         raise ValueError(f"Cannot run cargo metadata: {error}") from error
     except subprocess.CalledProcessError as error:
