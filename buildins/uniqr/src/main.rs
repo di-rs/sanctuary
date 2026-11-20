@@ -71,10 +71,7 @@ fn get_writer(path: Option<String>, input: &Input) -> Result<Box<dyn Write>, Cli
             .create(true)
             .truncate(false)
             .open(&path)
-            .map_err(|err| CliError::FileOpen {
-                err,
-                path: path.clone(),
-            })?;
+            .map_err(|err| CliError::FileOpen { err, path })?;
         let target = file.metadata()?;
         let source = match input {
             Input::File(file) => Some(file.metadata()?),
