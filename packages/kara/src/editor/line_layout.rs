@@ -62,10 +62,10 @@ impl LineLayout {
     }
 
     pub fn width_until(&self, grapheme_index: usize) -> usize {
-        grapheme_index
-            .min(self.len())
-            .checked_sub(1)
-            .and_then(|previous| self.fragments.get(previous))
+        self.fragments
+            .iter()
+            .take(grapheme_index)
+            .next_back()
             .map_or(0, |fragment| fragment.end_cell)
     }
 
