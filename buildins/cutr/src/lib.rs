@@ -25,12 +25,8 @@ impl Extract {
         delimiter: u8,
     ) -> io::Result<()> {
         match self {
-            Self::Bytes(positions) => write_lines(reader, writer, |line| {
-                extract_bytes(line, positions.inner())
-            }),
-            Self::Chars(positions) => write_lines(reader, writer, |line| {
-                extract_chars(line, positions.inner())
-            }),
+            Self::Bytes(positions) => write_lines(reader, writer, positions.inner(), extract_bytes),
+            Self::Chars(positions) => write_lines(reader, writer, positions.inner(), extract_chars),
             Self::Fields(positions) => {
                 let mut rdr = csv::ReaderBuilder::new()
                     .delimiter(delimiter)
@@ -52,10 +48,11 @@ impl Extract {
 fn write_lines(
     reader: impl BufRead,
     mut writer: impl Write,
-    extract: impl Fn(&str) -> String,
+    positions: &[Range<usize>],
+    extract: impl Fn(&str, &[Range<usize>]) -> String,
 ) -> io::Result<()> {
     for line in reader.lines() {
-        let extracted = extract(&line?);
+        let extracted = extract(&line?, positions);
         writeln!(writer, "{extracted}")?;
     }
     Ok(())
