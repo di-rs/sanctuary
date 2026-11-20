@@ -2,7 +2,7 @@ use cli_testing::{TestContext, cli_test};
 use predicates::prelude::*;
 use rand::RngExt;
 use rand::distr::Alphanumeric;
-use std::fs;
+use std::{fs, time::Duration};
 
 const CSV: &str = "tests/inputs/movies1.csv";
 const TSV: &str = "tests/inputs/movies1.tsv";
@@ -51,12 +51,31 @@ fn stdin_chars_keep_requested_order_and_repetitions(cx: &TestContext) {
 
 #[cli_test]
 fn stdin_bytes_use_lossy_utf8_at_split_boundaries(cx: &TestContext) {
-    for (positions, expected) in [("1", "�\n"), ("1-2", "é\n"), ("9", "\n")] {
+    for (positions, expected) in [("1", "�\n"), ("1-2", "é\n"), ("1,2", "é\n"), ("9", "\n")] {
         cx.cmd()
             .args(["-b", positions, "-"])
             .write_stdin("éx")
             .assert()
             .success()
+            .stdout(expected)
+            .stderr("");
+    }
+}
+
+#[cli_test]
+fn stdin_clips_ranges_to_available_positions(cx: &TestContext) {
+    let positions = format!("{0},2-{0},1,2", usize::MAX);
+    for (mode, input, expected) in [
+        ("-b", "abc", "bcab\n"),
+        ("-c", "a界c", "界ca界\n"),
+        ("-f", "a\t界\tc", "界\tc\ta\t界\n"),
+    ] {
+        cx.cmd()
+            .args([mode, &positions])
+            .timeout(Duration::from_secs(5))
+            .write_stdin(input)
+            .assert()
+            .code(0)
             .stdout(expected)
             .stderr("");
     }

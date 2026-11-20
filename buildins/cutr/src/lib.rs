@@ -1,6 +1,6 @@
 use csv::StringRecord;
 use std::{
-    io::{BufRead, Write},
+    io::{self, BufRead, Write},
     range::Range,
 };
 
@@ -21,23 +21,13 @@ impl Extract {
     pub fn extract(
         &self,
         reader: impl BufRead,
-        mut writer: impl Write,
+        writer: impl Write,
         delimiter: u8,
-    ) -> Result<(), std::io::Error> {
+    ) -> io::Result<()> {
         match self {
-            Self::Bytes(byte_pos) => {
-                for line in reader.lines() {
-                    let extracted = extract_bytes(&line?, byte_pos.inner());
-                    writeln!(writer, "{extracted}")?;
-                }
-            }
-            Self::Chars(chars_pos) => {
-                for line in reader.lines() {
-                    let extracted = extract_chars(&line?, chars_pos.inner());
-                    writeln!(writer, "{extracted}")?;
-                }
-            }
-            Self::Fields(field_pos) => {
+            Self::Bytes(positions) => write_lines(reader, writer, positions.inner(), extract_bytes),
+            Self::Chars(positions) => write_lines(reader, writer, positions.inner(), extract_chars),
+            Self::Fields(positions) => {
                 let mut rdr = csv::ReaderBuilder::new()
                     .delimiter(delimiter)
                     .has_headers(false)
@@ -47,37 +37,55 @@ impl Extract {
                     .from_writer(writer);
 
                 for record in rdr.records() {
-                    let extracted = extract_fields(&record?, field_pos.inner());
-                    wrt.write_record(extracted)?;
+                    wrt.write_record(extract_fields(&record?, positions.inner()))?;
                 }
+                Ok(())
             }
         }
-        Ok(())
     }
+}
+
+fn write_lines(
+    reader: impl BufRead,
+    mut writer: impl Write,
+    positions: &[Range<usize>],
+    extract: impl Fn(&str, &[Range<usize>]) -> String,
+) -> io::Result<()> {
+    for line in reader.lines() {
+        let extracted = extract(&line?, positions);
+        writeln!(writer, "{extracted}")?;
+    }
+    Ok(())
+}
+
+fn select<T>(
+    positions: &[Range<usize>],
+    len: usize,
+    get: impl FnMut(usize) -> Option<T>,
+) -> impl Iterator<Item = T> {
+    positions
+        .iter()
+        .flat_map(move |range| range.start..range.end.min(len))
+        .filter_map(get)
 }
 
 fn extract_chars(line: &str, char_pos: &[Range<usize>]) -> String {
     let chars: Vec<_> = line.chars().collect();
-    char_pos
-        .iter()
-        .flat_map(|range| range.iter().filter_map(|i| chars.get(i)))
-        .collect()
+    select(char_pos, chars.len(), |index| chars.get(index)).collect()
 }
 
 fn extract_bytes(line: &str, byte_pos: &[Range<usize>]) -> String {
-    let bytes: Vec<_> = line.bytes().collect();
-    let selected: Vec<_> = byte_pos
-        .iter()
-        .flat_map(|range| range.iter().filter_map(|i| bytes.get(i)).copied())
-        .collect();
+    let bytes = line.as_bytes();
+    let selected: Vec<_> =
+        select(byte_pos, bytes.len(), |index| bytes.get(index).copied()).collect();
     String::from_utf8_lossy(&selected).into_owned()
 }
 
-fn extract_fields(record: &StringRecord, field_pos: &[Range<usize>]) -> Vec<String> {
-    field_pos
-        .iter()
-        .flat_map(|range| range.iter().filter_map(|i| record.get(i).map(String::from)))
-        .collect()
+fn extract_fields<'record>(
+    record: &'record StringRecord,
+    field_pos: &[Range<usize>],
+) -> impl Iterator<Item = &'record str> {
+    select(field_pos, record.len(), move |index| record.get(index))
 }
 
 #[cfg(test)]
@@ -182,7 +190,7 @@ mod tests {
     #[test]
     fn extract_fields_single_range() {
         let input = StringRecord::from(vec!["Captain", "Sham", "12345"]);
-        let res = extract_fields(&input, &[Range::from(0..1)]);
+        let res: Vec<_> = extract_fields(&input, &[Range::from(0..1)]).collect();
         let expected = &["Captain"];
         assert_eq!(res, expected);
     }
@@ -190,7 +198,7 @@ mod tests {
     #[test]
     fn extract_fields_single_range_second() {
         let input = StringRecord::from(vec!["Captain", "Sham", "12345"]);
-        let res = extract_fields(&input, &[Range::from(1..2)]);
+        let res: Vec<_> = extract_fields(&input, &[Range::from(1..2)]).collect();
         let expected = &["Sham"];
         assert_eq!(res, expected);
     }
@@ -198,7 +206,7 @@ mod tests {
     #[test]
     fn extract_fields_two_ranges() {
         let input = StringRecord::from(vec!["Captain", "Sham", "12345"]);
-        let res = extract_fields(&input, &[Range::from(0..1), Range::from(2..3)]);
+        let res: Vec<_> = extract_fields(&input, &[Range::from(0..1), Range::from(2..3)]).collect();
         let expected = &["Captain", "12345"];
         assert_eq!(res, expected);
     }
@@ -206,7 +214,7 @@ mod tests {
     #[test]
     fn extract_fields_with_missing_range() {
         let input = StringRecord::from(vec!["Captain", "Sham", "12345"]);
-        let res = extract_fields(&input, &[Range::from(0..1), Range::from(3..4)]);
+        let res: Vec<_> = extract_fields(&input, &[Range::from(0..1), Range::from(3..4)]).collect();
         let expected = &["Captain"];
         assert_eq!(res, expected);
     }
@@ -214,7 +222,7 @@ mod tests {
     #[test]
     fn extract_fields_unordered_ranges() {
         let input = StringRecord::from(vec!["Captain", "Sham", "12345"]);
-        let res = extract_fields(&input, &[Range::from(1..2), Range::from(0..1)]);
+        let res: Vec<_> = extract_fields(&input, &[Range::from(1..2), Range::from(0..1)]).collect();
         let expected = &["Sham", "Captain"];
         assert_eq!(res, expected);
     }
