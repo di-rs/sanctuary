@@ -169,6 +169,7 @@ jobs:
       run: |
         set -euo pipefail
         umask 077
+        source infra/environments/single-host/deployment.shlib
         private=$(mktemp -d)
         trap 'rm -rf "$private" .installation' EXIT
         (cd infra/environments/single-host && pulumi stack output --json --show-secrets) > "$private/outputs.json"
@@ -208,23 +209,10 @@ jobs:
             path.write_text(value + '\n')
             path.chmod(0o600)
         PYCODE
-        mkdir -m 0700 .installation/registry
-        printf '{"auths":{"ghcr.io":{"auth":"%s"}}}\n' "$(printf '%s:%s' "$GITHUB_ACTOR" "$REGISTRY_TOKEN" | base64 -w0)" > .installation/registry/config.json
+        write_ghcr_config .installation/registry "$GITHUB_ACTOR" "$REGISTRY_TOKEN"
         [[ $GITHUB_RUN_ID =~ ^[0-9]+$ && $GITHUB_RUN_ATTEMPT =~ ^[0-9]+$ ]]
         host=$(cat "$private/host")
-        cat > "$private/config" <<SSH
-        Host deployment
-          HostName $host
-          User root
-          IdentityFile $private/key
-          IdentitiesOnly yes
-          UserKnownHostsFile $private/known_hosts
-          StrictHostKeyChecking yes
-          BatchMode yes
-          ConnectTimeout 15
-          ServerAliveInterval 30
-          ServerAliveCountMax 6
-        SSH
+        write_deployment_ssh_config "$private" "$host"
         remote="/run/sanctuary-setup-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
         echo 'Waiting for host bootstrap'
         ssh -F "$private/config" deployment 'bash -se' <<'BOOTSTRAP'

@@ -1,0 +1,26 @@
+# shellcheck shell=bash
+# Callers use umask 077 and supply the pinned key files in the private directory.
+
+write_deployment_ssh_config() {
+    local directory=$1 host=$2
+    cat > "$directory/config" <<SSH
+Host deployment
+  HostName $host
+  User root
+  IdentityFile $directory/key
+  IdentitiesOnly yes
+  UserKnownHostsFile $directory/known_hosts
+  StrictHostKeyChecking yes
+  BatchMode yes
+  ConnectTimeout 15
+  ServerAliveInterval 30
+  ServerAliveCountMax 6
+SSH
+}
+
+write_ghcr_config() {
+    local directory=$1 actor=$2 token=$3 auth
+    auth=$(printf '%s:%s' "$actor" "$token" | base64 | tr -d '\n') || return
+    mkdir -m 0700 "$directory"
+    printf '{"auths":{"ghcr.io":{"auth":"%s"}}}\n' "$auth" > "$directory/config.json"
+}

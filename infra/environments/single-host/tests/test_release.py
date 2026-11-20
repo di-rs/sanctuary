@@ -1,5 +1,6 @@
 """Run the release transport with fake SSH/SCP boundaries, without a host."""
 
+import base64
 import json
 import os
 import subprocess
@@ -55,6 +56,8 @@ assert "StrictHostKeyChecking yes" in config.read_text()
 assert all(p.stat().st_mode & 0o077 == 0 for p in config.parent.rglob("*") if p.is_file())
 if name == "scp" and args[-1].endswith("/image.env"):
     record["image_env"] = pathlib.Path(args[-2]).read_text()
+if name == "scp" and args[-1].endswith("/registry"):
+    record["registry"] = json.loads((pathlib.Path(args[-2]) / "config.json").read_text())
 with open(os.environ["CALLS"], "a") as log:
     log.write(json.dumps(record) + "\\n")
 if name == "ssh" and "sed -n" in args[-1]:
@@ -78,6 +81,7 @@ def run_release(component: str, env: dict[str, str]) -> subprocess.CompletedProc
         ["bash", str(ROOT / "infra/environments/single-host/release.sh"), component],
         cwd=ROOT,
         env=env,
+        timeout=15,
         text=True,
         capture_output=True,
     )
@@ -125,6 +129,8 @@ def test_release_preserves_other_image_and_cleans_credentials(
         f"{key}={IMAGE}",
         *(f"{name}={RETAINED[name]}" for name in retained_keys),
     }
+    registry = next(call["registry"] for call in calls if "registry" in call)
+    assert base64.b64decode(registry["auths"]["ghcr.io"]["auth"]) == b"test:private-token"
     deployment = next(call["args"][-1] for call in calls if "DOCKER_CONFIG=" in call["args"][-1])
     assert f"/opt/sanctuary/{owner}/{command}" in deployment
     assert f"/etc/sanctuary/{owner}-image.env" in deployment
@@ -140,6 +146,20 @@ def test_release_preserves_other_image_and_cleans_credentials(
     assert not Path(calls[0]["private"]).exists()
     assert "private-key" not in result.stdout + result.stderr
     assert "private-token" not in result.stdout + result.stderr
+
+
+def test_failed_registry_encoding_stops_before_upload(
+    tmp_path: Path, release_env: dict[str, str]
+) -> None:
+    encoder = tmp_path / "base64"
+    encoder.write_text("#!/bin/sh\nexit 22\n")
+    encoder.chmod(0o755)
+
+    result = run_release("boxie", release_env)
+
+    assert result.returncode == 22
+    calls = [json.loads(line) for line in Path(release_env["CALLS"]).read_text().splitlines()]
+    assert not any("registry" in call for call in calls)
 
 
 @pytest.mark.parametrize("failure,code", [("copy", 23), ("deploy", 24)])
