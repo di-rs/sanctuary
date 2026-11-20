@@ -74,6 +74,8 @@ case $operation in
     remove)
         if [[ -s $dir/consumer ]]; then rm -f "$grants/$(digest "$(<"$dir/consumer")")"; fi
         if dokku apps:exists "$app"; then dokku apps:destroy "$app" --force; fi
+        # Dokku removes the app's nginx.conf after its post-delete hooks have run.
+        dokku nginx:reload
         if dokku postgres:exists "$app"; then dokku postgres:destroy "$app" --force; fi
         if [[ -s $dir/consumer ]]; then
             token="scoped.$(openssl rand -hex 32)"; grant="$grants/$(digest "$token")"
