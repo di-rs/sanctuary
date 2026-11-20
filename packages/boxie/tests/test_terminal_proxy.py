@@ -160,8 +160,26 @@ def test_large_output_frame_boundaries_preserve_split_unicode_and_ack_window(
                     assert isinstance(frame, bytes) and len(frame) <= 16392
                     assert int.from_bytes(frame[:8], "big") == sequence
                     received.extend(frame[8:])
-                    await ws.send(json.dumps({"type": "ack", "epoch": epoch, "sequence": sequence}))
+                    if sequence == 5:
+                        # Four full frames fill the window. A heartbeat confirms the
+                        # resize reached the supervisor while the final frame waits.
+                        await ws.send(
+                            json.dumps({"type": "resize", "epoch": epoch, "cols": 100, "rows": 30})
+                        )
+                        heartbeat = {"type": "heartbeat", "epoch": epoch, "nonce": 1}
+                        await ws.send(json.dumps(heartbeat))
+                        assert json.loads(await asyncio.wait_for(ws.recv(), 1)) == heartbeat
+                    if sequence >= 5:
+                        await ws.send(
+                            json.dumps({"type": "ack", "epoch": epoch, "sequence": sequence})
+                        )
                 assert received == data
+                assert json.loads(await asyncio.wait_for(ws.recv(), 1)) == {
+                    "type": "resized",
+                    "epoch": epoch,
+                    "cols": 100,
+                    "rows": 30,
+                }
 
     asyncio.run(exercise())
 
