@@ -29,8 +29,10 @@ The listing includes `main.rs`.
 Reference: [GNU ls](https://www.gnu.org/software/coreutils/manual/html_node/ls-invocation.html).
 Output uses paths rather than a columnar filename layout and is not sorted.
 There is no recursive mode; `-a` does not synthesize `.` or `..` entries.
-Long listings follow symlink metadata rather than describing links themselves,
-and group names are resolved from group IDs, falling back to numeric IDs.
+Long listings show a symbolic link's own metadata and print `path -> target`,
+even when the target is missing or is a directory. Short listings expand a
+directory symlink given as an operand. Group names come from group IDs, with
+numeric IDs as a fallback.
 Invalid operands go to stderr; other operands are processed and the final status
 is 1.
 

@@ -1,3 +1,8 @@
 [[cases]]
 name = "long-list"
 args = ["--long", "--all", "."]
+
+[[cases]]
+name = "long-links"
+setup = "mkdir -p link-demo/folder && printf 'sample\\n' > link-demo/target.txt && ln -s target.txt link-demo/file-link && ln -s folder link-demo/dir-link && ln -s missing link-demo/dangling"
+args = ["--long", "link-demo"]
