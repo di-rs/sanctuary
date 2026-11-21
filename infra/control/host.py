@@ -4,7 +4,6 @@ import argparse
 import fcntl
 import hashlib
 import json
-import os
 import shutil
 import subprocess
 import sys
@@ -16,7 +15,7 @@ from typing import BinaryIO
 from .bucket import Bucket
 from .keys import key_for, lease_live, revoke, write_atomic
 from .release import IMAGES, MAX_BUNDLE, MAX_IMAGE, SERVICES, Release, digest, preview_number
-from .runtime import APP_UID, Site, owned, save_env, secret, sql_role
+from .runtime import APP_UID, Site, install_service_secret, owned, save_env, sql_role
 
 
 class Host:
@@ -171,8 +170,7 @@ class Host:
         if name in IMAGES and (prior is None or prior.commit != rev or prior.blobs != value.blobs):
             self.load_images(value)
         if name == "postgres":
-            secret(self.root / "secrets/postgres/admin")
-            os.chmod(self.root / "secrets/postgres/admin", 0o444)
+            install_service_secret(self.root / "secrets/postgres/admin", 999)
             self.site.compose(name, rev, "up", "-d", "--wait", "--wait-timeout", "90")
         elif name == "temporal":
             password = self.site.database("temporal", "temporal")
@@ -203,8 +201,7 @@ class Host:
                 ("alertmanager", 65534),
             ):
                 owned(self.root / "observability" / service, uid)
-            secret(self.root / "secrets/grafana/password")
-            os.chmod(self.root / "secrets/grafana/password", 0o444)
+            install_service_secret(self.root / "secrets/grafana/password", 472)
             self.site.compose(name, rev, "up", "-d", "--wait", "--wait-timeout", "90")
         elif name == "boxie":
             self.site.configure_boxie(rev)

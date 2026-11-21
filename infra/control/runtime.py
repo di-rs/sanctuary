@@ -24,6 +24,12 @@ def secret(path: Path) -> str:
     return path.read_text().strip()
 
 
+def install_service_secret(path: Path, uid: int) -> None:
+    secret(path)
+    path.chmod(0o400)
+    os.chown(path, uid, -1)
+
+
 def save_env(path: Path, values: dict[str, str]) -> None:
     if any("\n" in v or "\r" in v or "'" in v for v in values.values()):
         raise ValueError("invalid multiline or quoted deployment value")

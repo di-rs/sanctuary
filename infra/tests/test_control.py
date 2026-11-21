@@ -1,5 +1,7 @@
 import hashlib
 import json
+import os
+import stat
 import subprocess
 import time
 from pathlib import Path
@@ -15,10 +17,24 @@ from infra.control.host import Host
 from infra.control.keys import key_for, revoke
 from infra.control.preview import changed_cli, eligible
 from infra.control.release import Release
-from infra.control.runtime import Site, sql_role
+from infra.control.runtime import Site, install_service_secret, sql_role
 
 SHA = "a" * 40
 BLOB = "b" * 64
+
+
+def test_service_secret_is_readable_only_by_its_owner_and_survives_reinstallation(
+    tmp_path: Path,
+) -> None:
+    credential = tmp_path / "service/credential"
+    install_service_secret(credential, os.getuid())
+    first = credential.read_bytes()
+    assert len(first.strip()) == 64
+    credential.chmod(0o640)
+    install_service_secret(credential, os.getuid())
+    assert credential.read_bytes() == first
+    assert credential.stat().st_uid == os.getuid()
+    assert stat.S_IMODE(credential.stat().st_mode) == 0o400
 
 
 def test_key_rotation_revocation_and_expiry_are_live(tmp_path: Path) -> None:
