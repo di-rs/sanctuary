@@ -98,7 +98,7 @@ def python_packages(root: Path, paths: list[str], *, dependents: bool) -> list[s
     extra = {
         "tools/cli-bench": {"tools/cli-check"},
         "tools/cli-playground": {"packages/boxie", "tools/cli-check"},
-        "infra/environments/single-host": {"infra/host", "packages/boxie", "tools/cli-playground"},
+        "infra": {"packages/boxie", "tools/cli-playground"},
     }
     for directory, deps in extra.items():
         if directory in dependencies:
@@ -112,7 +112,6 @@ def python_packages(root: Path, paths: list[str], *, dependents: bool) -> list[s
         and (
             not Path(path).is_relative_to(f"{directory}/tests")
             or path.startswith("packages/boxie/tests/support/")
-            or path == "infra/host/tests/host_mocks.py"
         )
     }
     return sorted(selected | consumers(changed, dependencies))

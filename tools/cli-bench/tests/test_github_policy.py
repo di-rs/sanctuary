@@ -20,13 +20,12 @@ from conftest import BASE, REPO, SHA
 from githubkit import GitHub
 
 TOOLS = Path(__file__).resolve().parents[2]
-PREVIEW = TOOLS / "cli-playground/preview_ci.py"
 REPORT = TOOLS / "cli-bench/report.py"
 
 
-@pytest.fixture(params=[REPORT, PREVIEW], ids=["report", "preview"])
-def publisher(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> ModuleType:
-    script: Path = request.param
+@pytest.fixture
+def publisher(monkeypatch: pytest.MonkeyPatch) -> ModuleType:
+    script = REPORT
     monkeypatch.syspath_prepend(str(script.parent))
     return import_module(script.stem)
 
@@ -213,10 +212,10 @@ def test_stream_transport_failures_are_sanitized(
     assert body.closed
 
 
-@pytest.mark.parametrize("kind", ["preview", "bench", "size"])
+@pytest.mark.parametrize("kind", ["bench", "size"])
 @pytest.mark.parametrize("scenario", ["current", "stale", "timeout", "upstream-error"])
 def test_publisher_script_from_another_directory(tmp_path: Path, kind: str, scenario: str) -> None:
-    workflow_name = f"cli-{'playground' if kind == 'preview' else kind}.yml"
+    workflow_name = f"cli-{kind}.yml"
     workflow_path = f".github/workflows/{workflow_name}"
     run_path = f"/{BASE}/actions/runs/500"
     pull_path = f"/{BASE}/pulls/7"
@@ -252,15 +251,14 @@ def test_publisher_script_from_another_directory(tmp_path: Path, kind: str, scen
                 f"POST {comments_path}": {},
             }
         )
-        if kind != "preview":
-            job_name = (
-                "⏱️ Run CLI benchmarks (ubuntu-24.04)"
-                if kind == "bench"
-                else "📦 Measure Linux binary sizes"
-            )
-            responses[f"GET {run_path}/attempts/1/jobs?per_page=100&page=1"] = {
-                "jobs": [{"name": job_name, "conclusion": "success"}]
-            }
+        job_name = (
+            "⏱️ Run CLI benchmarks (ubuntu-24.04)"
+            if kind == "bench"
+            else "📦 Measure Linux binary sizes"
+        )
+        responses[f"GET {run_path}/attempts/1/jobs?per_page=100&page=1"] = {
+            "jobs": [{"name": job_name, "conclusion": "success"}]
+        }
 
     # Install a test-only HTTP transport at Python startup so the actual script
     # resolves its imports and runs its CLI with a foreign cwd and synthetic credentials.
@@ -301,9 +299,7 @@ githubkit.GitHub = FixtureGitHub
 """,
         encoding="utf-8",
     )
-    args = (
-        [str(PREVIEW), "publish"] if kind == "preview" else [str(REPORT), "--kind", kind, "--post"]
-    )
+    args = [str(REPORT), "--kind", kind, "--post"]
     result = subprocess.run(
         [sys.executable, *args, "--repo", REPO, "--run-id", "500"],
         cwd=tmp_path,
@@ -326,7 +322,6 @@ githubkit.GitHub = FixtureGitHub
         assert result.returncode == 0, result.stderr
         assert result.stderr == ""
         heading = {
-            "preview": "### cli-playground",
             "bench": "### CLI benchmarks",
             "size": "### Package binary sizes",
         }[kind]
@@ -336,20 +331,13 @@ githubkit.GitHub = FixtureGitHub
     elif scenario == "stale":
         assert result.returncode == 0, result.stderr
         assert result.stderr == ""
-        assert result.stdout == (
-            "" if kind == "preview" else "Skipped: no current eligible PR report.\n"
-        )
+        assert result.stdout == "Skipped: no current eligible PR report.\n"
         assert requests == list(responses)
     else:
         assert result.returncode == 1
         assert result.stdout == ""
-        if kind == "preview":
-            assert result.stderr == (
-                "cli-playground CI failed; check configuration, build logs, and artifact validity.\n"
-            )
-        else:
-            assert result.stderr == (
-                f"Cannot report {'benchmarks' if kind == 'bench' else 'sizes'}: "
-                "GitHub request failed or exceeded its response limit or deadline\n"
-            )
+        assert result.stderr == (
+            f"Cannot report {'benchmarks' if kind == 'bench' else 'sizes'}: "
+            "GitHub request failed or exceeded its response limit or deadline\n"
+        )
         assert requests == [f"GET {run_path}"]

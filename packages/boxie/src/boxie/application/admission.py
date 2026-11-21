@@ -29,6 +29,11 @@ class JobPolicy(BaseModel):
     total_result_bytes: Positive = 1024 * 1024 * 1024
     consumer_downloads: Positive = 2
     total_downloads: Positive = 4
+    # Small installations may reserve the first slots for a trusted consumer.
+    # Other installations continue to share the complete pool.
+    priority_consumers: frozenset[ConsumerId] = frozenset()
+    reserved_slots: int = Field(default=0, ge=0, le=7)
+    per_consumer_slots: int = Field(default=8, ge=1, le=8)
 
     @field_validator("profile_grants")
     @classmethod

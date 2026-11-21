@@ -51,7 +51,7 @@ class ArtifactIdentity(BaseModel):
     model_config = ConfigDict(strict=True, frozen=True)
 
     sha: Revision
-    pr: Annotated[int, Field(gt=0)]
+    pr: Annotated[int, Field(ge=0)]
 
 
 class ArtifactMetadata(ArtifactIdentity):
@@ -87,7 +87,7 @@ class Environment(ArtifactMetadata):
 
 
 class PreviewRecord(BaseModel):
-    pr: Annotated[int, Field(gt=0)]
+    pr: Annotated[int, Field(ge=0)]
     expires_at: FiniteFloat
     build: BuildStatus | None = None
     artifact: ArtifactMetadata | None = None

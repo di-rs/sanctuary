@@ -1,0 +1,72 @@
+services:
+  collector:
+    image: otel/opentelemetry-collector-contrib:0.165.0@sha256:e40d61f10c9a617cca1ffd1be4d7e2b3a4b0f0001798ff07e58cabe82e618cea
+    restart: unless-stopped
+    command: ["--config=/etc/collector.yml"]
+    volumes: [./monitoring/collector.yml:/etc/collector.yml:ro]
+    networks:
+      telemetry: {aliases: [otel]}
+      store: {}
+  tempo:
+    image: grafana/tempo:2.9.0@sha256:65a5789759435f1ef696f1953258b9bbdb18eb571d5ce711ff812d2e128288a4
+    restart: unless-stopped
+    command: ["-config.file=/etc/tempo.yml"]
+    volumes: [./monitoring/tempo.yml:/etc/tempo.yml:ro, "${STATE}/observability/tempo:/var/tempo"]
+    networks: [store]
+  loki:
+    image: grafana/loki:3.7.10@sha256:b43c257ccfc925d4a50b8717cac61a3b51df8c48d01847936057e5c4075a24a7
+    restart: unless-stopped
+    command: ["-config.file=/etc/loki.yml"]
+    volumes: [./monitoring/loki.yml:/etc/loki.yml:ro, "${STATE}/observability/loki:/loki"]
+    networks: [store]
+  prometheus:
+    image: prom/prometheus:v3.16.0@sha256:e04987641b57704f408e31f6373ba4138ecf27cb4a165d24aabb6c38fddd0f06
+    restart: unless-stopped
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.path=/prometheus", "--storage.tsdb.retention.time=7d", "--storage.tsdb.retention.size=2GB"]
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - ${STATE}/observability/prometheus:/prometheus
+    networks: [store, telemetry]
+  alerts:
+    image: prom/alertmanager:v0.35.0@sha256:e638797febd034838eca8b98cdbd46f951e9bf7f178777aa8669167406a9946c
+    restart: unless-stopped
+    command: ["--config.file=/etc/alertmanager/config.yml", "--storage.path=/alertmanager", "--cluster.listen-address="]
+    volumes:
+      - ./monitoring/alertmanager.yml:/etc/alertmanager/config.yml:ro
+      - ${ALERT_WEBHOOK_FILE}:/run/webhook:ro
+      - ${STATE}/observability/alertmanager:/alertmanager
+    networks: [store, outbound]
+  host-metrics:
+    image: prom/node-exporter:v1.10.2@sha256:3ac34ce007accad95afed72149e0d2b927b7e42fd1c866149b945b84737c62c3
+    restart: unless-stopped
+    command: ["--collector.disable-defaults", "--collector.textfile", "--collector.textfile.directory=/text"]
+    volumes: ["${STATE}/metrics:/text:ro"]
+    networks: [store]
+  grafana:
+    image: grafana/grafana:13.3.1@sha256:0615ec4fbd4072004b7d86b46ded63013a74b7d6eb1119273dd89e8fa25c13cf
+    restart: unless-stopped
+    environment:
+      GF_SERVER_ROOT_URL: https://${GRAFANA_HOST}
+      GF_AUTH_JWT_ENABLED: "true"
+      GF_AUTH_JWT_HEADER_NAME: Cf-Access-Jwt-Assertion
+      GF_AUTH_JWT_USERNAME_CLAIM: email
+      GF_AUTH_JWT_EMAIL_CLAIM: email
+      GF_AUTH_JWT_AUTO_SIGN_UP: "true"
+      GF_AUTH_JWT_JWK_SET_URL: https://${ACCESS_TEAM_HOST:?}/cdn-cgi/access/certs
+      GF_AUTH_JWT_EXPECT_CLAIMS: '{"iss":"https://${ACCESS_TEAM_HOST}","aud":["${GRAFANA_ACCESS_AUD:?}"],"email":"${ADMIN_EMAIL:?}"}'
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_AUTH_BASIC_ENABLED: "false"
+      GF_USERS_AUTO_ASSIGN_ORG_ROLE: Admin
+      GF_SECURITY_ADMIN_PASSWORD__FILE: /run/admin-password
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    volumes:
+      - ./monitoring/datasources.yml:/etc/grafana/provisioning/datasources/sanctuary.yml:ro
+      - ${STATE}/secrets/grafana/password:/run/admin-password:ro
+      - ${STATE}/observability/grafana:/var/lib/grafana
+    networks: [store, admin, outbound]
+networks:
+  telemetry: {external: true, name: "${SITE}-telemetry"}
+  admin: {external: true, name: "${SITE}-admin"}
+  store: {internal: true}
+  outbound: {}

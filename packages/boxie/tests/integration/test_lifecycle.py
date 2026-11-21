@@ -433,7 +433,7 @@ def test_native_generic_consumer(lifecycle_stack: LifecycleStack) -> None:
             "run",
             "python",
             "-m",
-            "boxie_infra.smoke",
+            "boxie_test_support.native_smoke",
             "--boxie-url",
             stack.api_url,
             "--credential-file",

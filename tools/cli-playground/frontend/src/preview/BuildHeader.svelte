@@ -21,8 +21,8 @@
   {#if environment}
     <div class="flex items-center gap-2 text-[10px] text-muted desktop:gap-4.5" aria-label="Build information">
       <a id="meta-pr" class="text-neutral-300 hover:text-white"
-        href={`https://github.com/di-rs/sanctuary/pull/${environment.pr}`} target="_blank" rel="noreferrer">
-        PR #{environment.pr} ↗
+        href={environment.pr ? `https://github.com/di-rs/sanctuary/pull/${environment.pr}` : `https://github.com/di-rs/sanctuary/commit/${environment.sha}`} target="_blank" rel="noreferrer">
+        {environment.pr ? `PR #${environment.pr}` : "Production"} ↗
       </a>
       <span class="hidden text-neutral-600 desktop:inline">/</span>
       <abbr id="meta-sha" class="font-mono no-underline" title={environment.sha}>{environment.sha.slice(0, 7)}</abbr>

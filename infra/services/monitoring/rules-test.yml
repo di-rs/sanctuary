@@ -1,0 +1,32 @@
+rule_files: [alerts.yml]
+evaluation_interval: 1m
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'cli_playground_http_requests_total{job="playground",status_class="5xx"}'
+        values: '0+1x15'
+      - series: 'cli_playground_http_requests_total{job="playground",status_class="2xx"}'
+        values: '0+4x15'
+      - series: 'sanctuary_data_free_ratio'
+        values: '0.1x20'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: ServerErrors
+        exp_alerts:
+          - exp_labels: {job: playground}
+            exp_annotations: {summary: Elevated server errors in playground}
+      - eval_time: 10m
+        alertname: DataDiskLow
+        exp_alerts: []
+      - eval_time: 16m
+        alertname: DataDiskLow
+        exp_alerts:
+          - exp_annotations: {summary: Less than 15 percent of Sanctuary data storage is free}
+  - interval: 1m
+    input_series:
+      - series: 'boxie_http_requests_total{job="boxie",status_class="5xx"}'
+        values: '0 0 0 0 0 0 0 0 0 1 1'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: ServerErrors
+        exp_alerts: []

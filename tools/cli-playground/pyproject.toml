@@ -3,6 +3,8 @@ name = "cli-playground"
 version = "0.1.0"
 requires-python = ">=3.15"
 dependencies = [
+    "opentelemetry-api",
+    "prometheus-client==0.26.0",
     "alembic>=1.18,<2",
     "psycopg[binary]==3.3.9",
     "sqlalchemy[asyncio]>=2.1.9,<2.2",
@@ -19,6 +21,14 @@ dependencies = [
 [build-system]
 requires = ["uv_build==0.13.9"]
 build-backend = "uv_build"
+
+[project.optional-dependencies]
+telemetry = [
+    "opentelemetry-distro",
+    "opentelemetry-exporter-otlp-proto-http",
+    "opentelemetry-instrumentation-fastapi",
+    "opentelemetry-instrumentation-aiohttp-client",
+]
 
 [tool.uv.build-backend]
 module-root = "src"

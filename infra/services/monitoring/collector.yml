@@ -1,0 +1,29 @@
+receivers:
+  otlp:
+    protocols:
+      grpc: {endpoint: "0.0.0.0:4317"}
+      http: {endpoint: "0.0.0.0:4318"}
+processors:
+  memory_limiter: {check_interval: 5s, limit_mib: 160, spike_limit_mib: 32}
+  transform/privacy:
+    trace_statements:
+      - context: span
+        statements:
+          - 'keep_keys(attributes, ["http.request.method", "http.route", "http.response.status_code", "rpc.system", "rpc.method"])'
+      - context: spanevent
+        statements:
+          - 'keep_keys(attributes, [])'
+    log_statements:
+      - context: log
+        statements:
+          - 'keep_keys(attributes, ["event.name", "request_id", "severity"])'
+  batch: {}
+exporters:
+  otlp_grpc/tempo:
+    endpoint: tempo:4317
+    tls: {insecure: true}
+  otlp_http/loki: {endpoint: "http://loki:3100/otlp"}
+service:
+  pipelines:
+    traces: {receivers: [otlp], processors: [memory_limiter, transform/privacy, batch], exporters: [otlp_grpc/tempo]}
+    logs: {receivers: [otlp], processors: [memory_limiter, transform/privacy, batch], exporters: [otlp_http/loki]}

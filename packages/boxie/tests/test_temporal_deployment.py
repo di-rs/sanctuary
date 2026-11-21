@@ -2,9 +2,6 @@
 
 import asyncio
 import json
-import re
-import shutil
-import sys
 from datetime import timedelta
 from pathlib import Path
 from typing import Any
@@ -13,9 +10,7 @@ from uuid import uuid4
 import httpx
 import psycopg
 import pytest
-import yaml
 from google.protobuf.duration_pb2 import Duration
-from run_integration import ProductionStack, command
 from temporal_support import tls
 from temporalio import activity, workflow
 from temporalio.api.namespace.v1 import NamespaceConfig
@@ -25,140 +20,6 @@ from temporalio.service import TLSConfig
 from temporalio.worker import UnsandboxedWorkflowRunner, Worker
 
 ROOT = Path(__file__).parents[3]
-
-
-@pytest.mark.integration
-def test_postgres_setup_preserves_live_v17_when_candidate_is_v18(tmp_path: Path) -> None:
-    stack = ProductionStack(tmp_path)
-    stack.env["COMPOSE_PROJECT_NAME"] = stack.postgres
-    owner = tmp_path / "postgres"
-    shutil.copytree(ROOT / "packages/boxie/infra/postgres", owner)
-    manifest = owner / "compose.yml"
-    candidate = manifest.read_text()
-    spec = yaml.safe_load(candidate)
-    spec["services"]["postgres"]["image"] = (
-        "postgres:17.11@sha256:2d2b8998d31037bf721cfdf764d76ba74171b4fab3431b7f72c27c56ddbdf9e3"
-    )
-    manifest.write_text(yaml.safe_dump(spec))
-    (tmp_path / "boxie.env").touch()
-    (tmp_path / "boxie").mkdir()
-    selector = tmp_path / "boxie/postgres-volume"
-    start = [sys.executable, str(owner / "start.py"), str(tmp_path)]
-    compose = ["docker", "compose", "-f", str(manifest)]
-    sql = [*compose, "exec", "-T", "postgres", "psql", "-U", "postgres", "-Atc"]
-    stack.command(["docker", "network", "create", "--internal", stack.name])
-    try:
-        stack.command(start)
-        stack.command([*sql, "CREATE TABLE preserved AS SELECT 73 AS value"])
-        selector.write_text(f"{stack.postgres}_postgres-data\n")
-        stack.command(start)
-        original = stack.command([*compose, "ps", "-q", "postgres"])
-        assert original
-        manifest.write_text(candidate)
-        with pytest.raises(RuntimeError, match=r"contains PostgreSQL 17.*image runs PostgreSQL 18"):
-            stack.command(start)
-        selector.write_text(f"{stack.postgres}_other\n")
-        with pytest.raises(RuntimeError, match="Refusing to switch"):
-            stack.command(start)
-        assert stack.command([*compose, "ps", "-q", "postgres"]) == original
-        assert stack.command([*sql, "SELECT value FROM preserved"]) == "73"
-    finally:
-        try:
-            stack.command([*compose, "down", "--volumes"])
-        finally:
-            stack.command(["docker", "network", "rm", stack.name])
-
-
-@pytest.mark.integration
-def test_postgres_requires_operator_supplied_control_network(tmp_path: Path) -> None:
-    stack = ProductionStack(tmp_path)
-    stack.write_overrides()
-    try:
-        with pytest.raises(
-            RuntimeError, match="network.*(not found|could not be found|does not exist)"
-        ):
-            stack.compose("postgres", "up", "--detach")
-    finally:
-        stack.close()
-
-
-@pytest.mark.integration
-def test_recreating_postgres_preserves_cluster_and_operator_network(tmp_path: Path) -> None:
-    stack = ProductionStack(tmp_path)
-    stack.write_overrides()
-    network = stack.env["BOXIE_CONTROL_NETWORK"]
-    command(["docker", "network", "create", "--internal", network])
-    try:
-        stack.compose("postgres", "up", "--detach", "--wait", "--wait-timeout", "90")
-        query = [
-            "exec",
-            "-T",
-            "postgres",
-            "psql",
-            "-U",
-            "postgres",
-            "-Atc",
-            "SELECT system_identifier FROM pg_control_system()",
-        ]
-        cluster = stack.compose("postgres", *query)
-        assert cluster.isdecimal()
-        stack.compose(
-            "postgres", "up", "--detach", "--force-recreate", "--wait", "--wait-timeout", "90"
-        )
-        assert stack.compose("postgres", *query) == cluster
-        stack.compose("postgres", "down", "--volumes", "--remove-orphans")
-        info = json.loads(command(["docker", "network", "inspect", network]))
-        assert info[0]["Internal"] is True
-    finally:
-        try:
-            stack.close()
-        finally:
-            command(["docker", "network", "rm", network])
-
-
-def test_private_production_deployment_has_explicit_jobs_and_trust() -> None:
-    postgres_path = ROOT / "packages/boxie/infra/postgres/compose.yml"
-    assert postgres_path.exists(), "Boxie PostgreSQL deployment missing"
-    postgres = yaml.safe_load(postgres_path.read_text())
-    temporal = yaml.safe_load((ROOT / "packages/boxie/infra/temporal/compose.yml").read_text())
-    for package in (postgres, temporal):
-        for name, service in package["services"].items():
-            assert not service.get("ports"), "production ports must remain private"
-            assert "build" not in service, "operation jobs reuse existing runtime images"
-            if package is temporal and name == "bootstrap":
-                assert service["image"].startswith("${BOXIE_IMAGE:?")
-                assert service["entrypoint"] == ["python", "-m", "boxie.bootstrap.temporal"]
-                assert service["user"] == "1000:1000"
-            else:
-                assert "@sha256:" in service["image"]
-            assert not any("docker.sock" in str(mount) for mount in service.get("volumes", []))
-    server_image = temporal["services"]["temporal"]["image"]
-    schema_image = temporal["services"]["schema"]["image"]
-    server_version = re.fullmatch(r"temporalio/server:([^@]+)@sha256:[a-f0-9]{64}", server_image)
-    schema_version = re.fullmatch(
-        r"temporalio/admin-tools:([^@]+)@sha256:[a-f0-9]{64}", schema_image
-    )
-    assert server_version and schema_version
-    assert server_version[1] == schema_version[1], "server and schema tools must share a release"
-    assert temporal["services"]["schema"]["profiles"] == ["operations"]
-    assert temporal["services"]["bootstrap"]["profiles"] == ["operations"]
-    config = yaml.safe_load(
-        re.sub(
-            r"{{.*?}}",
-            "test-value",
-            (ROOT / "packages/boxie/infra/temporal/config.yaml").read_text(),
-        )
-    )
-    tls = config["global"]["tls"]
-    for plane in ("frontend", "internode"):
-        assert tls[plane]["server"]["requireClientAuth"] is True
-        assert tls[plane]["server"]["clientCaFiles"]
-        assert tls[plane]["client"]["disableHostVerification"] is False
-    assert config["services"]["frontend"]["rpc"]["httpPort"] == 0
-    assert config["global"]["authorization"] == {"authorizer": "", "claimMapper": ""}
-    assert (
-        temporal["services"]["ui"]["environment"]["TEMPORAL_TLS_ENABLE_HOST_VERIFICATION"] == "true"
-    )
 
 
 @activity.defn

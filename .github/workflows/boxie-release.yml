@@ -1,95 +1,15 @@
-name: 🚀 Boxie Release
-'on':
-  workflow_dispatch: {}
-permissions: {}
-concurrency:
-  group: sanctuary-production
-  queue: max
-  cancel-in-progress: false
+name: Deploy Boxie
+on:
+  workflow_dispatch:
+    inputs:
+      rollback:
+        type: string
+        description: Previously published commit to restore (empty builds the default branch)
+permissions: {contents: read}
 jobs:
-  source:
-    name: 📥 Select current master
-    if: ${{ github.ref == 'refs/heads/master' }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    permissions:
-      contents: read
-    outputs:
-      sha: ${{ steps.revision.outputs.sha }}
-      attempt: ${{ steps.revision.outputs.attempt }}
-    steps:
-      - name: 📥 Check out current master
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          ref: master
-          persist-credentials: false
-      - name: 🔎 Record the source commit
-        id: revision
-        run: |
-          printf 'sha=%s\n' "$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-          printf 'attempt=%s\n' "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
-  deploy-boxie:
-    name: 🚀 Update Boxie with Compose
-    needs: source
-    if: ${{ github.ref == 'refs/heads/master' && vars.DEPLOYMENT_ACCEPTANCE_PASSED == 'true' }}
-    environment: boxie
-    runs-on: ubuntu-24.04
-    timeout-minutes: 60
-    permissions:
-      contents: read
-    steps:
-      - name: 🔎 Require a complete workflow retry
-        env:
-          SOURCE_ATTEMPT: ${{ needs.source.outputs.attempt }}
-        run: |
-          if [[ -z $SOURCE_ATTEMPT || $SOURCE_ATTEMPT != "$GITHUB_RUN_ATTEMPT" ]]; then
-            echo 'Use Re-run all jobs or start a new workflow run to select current master.' >&2
-            exit 1
-          fi
-      - name: 📥 Check out the built source
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          ref: ${{ needs.source.outputs.sha }}
-          persist-credentials: false
-      - name: Build production image locally
-        run: bash infra/environments/single-host/build-image.sh boxie
-      - name: 🚀 Copy Boxie files and run Compose
-        env:
-          SOURCE_SHA: ${{ needs.source.outputs.sha }}
-          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
-          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
-        run: bash infra/environments/single-host/release.sh boxie
-
-  deploy-sandbox:
-    name: 🚀 Update Boxie Sandbox
-    needs: [source, deploy-boxie]
-    if: ${{ github.ref == 'refs/heads/master' && vars.DEPLOYMENT_ACCEPTANCE_PASSED == 'true' }}
-    environment: boxie
-    runs-on: ubuntu-24.04
-    timeout-minutes: 60
-    permissions:
-      contents: read
-    steps:
-      - name: 🔎 Require a complete workflow retry
-        env:
-          SOURCE_ATTEMPT: ${{ needs.source.outputs.attempt }}
-        run: |
-          if [[ -z $SOURCE_ATTEMPT || $SOURCE_ATTEMPT != "$GITHUB_RUN_ATTEMPT" ]]; then
-            echo 'Use Re-run all jobs or start a new workflow run to select current master.' >&2
-            exit 1
-          fi
-      - name: 📥 Check out the built source
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          ref: ${{ needs.source.outputs.sha }}
-          persist-credentials: false
-      - name: Build production image locally
-        run: bash infra/environments/single-host/build-image.sh boxie-sandbox
-      - name: 🚀 Copy profile files and recreate the supervisor
-        env:
-          SOURCE_SHA: ${{ needs.source.outputs.sha }}
-          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
-          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
-        run: bash infra/environments/single-host/release.sh boxie-sandbox
+  boxie:
+    # A local reusable workflow is resolved at the caller commit. The pinned actionlint accepts this spelling.
+    uses: ./.github/workflows/sanctuary-release-component.yml # zizmor: ignore[self-repository]
+    with:
+      component: boxie
+      rollback: ${{ inputs.rollback }}

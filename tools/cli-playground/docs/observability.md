@@ -3,7 +3,7 @@
 ## Diagnose a failed request
 
 Copy the `X-Request-ID` response header from the failed HTTP request and search
-`request_id:="<UUID>"` in Grafana Explore's VictoriaLogs datasource. The public
+`{service_name=~"playground.*"} | request_id="<UUID>"` in Grafana Explore's Loki data source. The public
 boundary always generates this ID, forwards it to Boxie and the supervisor, and
 includes it in bounded JSON service logs. Internal URLs, credentials, terminal
 content and exception text are omitted. Logging drops diagnostics under pressure

@@ -68,7 +68,7 @@ def create_router(service: CliPlaygroundService, static_dir: Path) -> APIRouter:
     async def deploy(
         request: Request,
         sha: Annotated[str, Query(pattern=f"^{SHA_PATTERN}$")],
-        pr: Annotated[int, Query(gt=0)],
+        pr: Annotated[int, Query(ge=0)],
         run_id: Annotated[int | None, Query(gt=0)] = None,
         run_number: Annotated[int | None, Query(gt=0)] = None,
         run_attempt: Annotated[int | None, Query(gt=0)] = None,
@@ -115,12 +115,33 @@ def create_router(service: CliPlaygroundService, static_dir: Path) -> APIRouter:
             url=settings.preview_url(metadata.id, pr=pr),
         )
 
+    @router.post("/api/deployments/{number}/renew")
+    async def renew(
+        request: Request,
+        number: Annotated[int, PathParameter(ge=0)],
+        sha: Annotated[str, Query(pattern=f"^{SHA_PATTERN}$")],
+    ) -> dict[str, bool]:
+        authenticate(request)
+        if not await service.store.renew(number, sha):
+            raise HTTPException(404, "deployment revision is unavailable")
+        return {"renewed": True}
+
     @router.delete("/api/pull-requests/{pr}")
     async def close_pull_request(
-        request: Request, pr: Annotated[int, PathParameter(gt=0)]
+        request: Request, pr: Annotated[int, PathParameter(gt=0)], drain: bool = False
     ) -> dict[str, int]:
         authenticate(request)
-        return {"deleted": await service.close_pull_request(pr)}
+        removed = await service.close_pull_request(pr)
+        if drain:
+            await service.recover(startup=False)
+            if (
+                await service.sessions.retirements()
+                or await service.sessions.pending_stops()
+                or await service.sessions.creates()
+                or await service.sessions.uploads()
+            ):
+                raise HTTPException(503, "sandbox cleanup is pending")
+        return {"deleted": removed}
 
     @router.post("/api/pull-requests/{pr}/reopen")
     async def reopen_pull_request(

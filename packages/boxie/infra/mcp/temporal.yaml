@@ -1,9 +1,0 @@
-targets:
-  - name: production
-    description: Sanctuary production Boxie workflows
-    address: temporal:7233
-    namespace: boxie
-    tls:
-      cert_file: /certs/operator.pem
-      key_file: /certs/operator.key
-    payload_handling: omit

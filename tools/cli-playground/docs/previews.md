@@ -1,112 +1,16 @@
-# Publish pull-request previews
+# Playground previews
 
-## Enable PR comments and live previews
+Open **Sanctuary / Playground** on a PR commit to use its deployed CLIs. Open, ready, same-repository PRs qualify when their complete merge-base diff touches a CLI or shared CLI inputs. Production and previews share Boxie. Each preview gets a distinct hostname, database and consumer key. [Preview release and removal](../../../infra/docs/releases.md#pr-previews)
 
-Benchmark comments need no custom secret. The
-[reporting workflow](../../../.github/workflows/cli-bench-report.yml) uses GitHub's
-automatic `GITHUB_TOKEN` with `contents: read`, `actions: read` and
-`pull-requests: write`. It reports completed benchmark jobs for the PR's current
-commit. A run with no selected suites leaves the existing comment unchanged.
+## Build and comparison contract
 
-For a live cli-playground link, first deploy the backend and its Boxie sandbox using
-the [shared-host setup guide](../../../infra/README.md).
-The backend must be reachable from Actions over HTTPS, with working preview DNS
-and certificates. In repository **Settings → Environments**, create
-`cli-playground-preview` and allow deployments from `master`. Add these settings to
-that environment:
-
-| Kind | Name | Value |
-| --- | --- | --- |
-| Variable | `CLI_PLAYGROUND_URL` | The backend's public HTTPS origin, for example `https://play.example.com`, without a path, query or trailing slash. Use the same origin as the backend's `CLI_PLAYGROUND_PUBLIC_URL`. |
-| Secret | `CLI_PLAYGROUND_DEPLOY_TOKEN` | The exact token configured as `CLI_PLAYGROUND_DEPLOY_TOKEN` on the backend. Shared-host setup stores it at `/etc/sanctuary/cli-playground/preview-token`. |
-
-Use the shared-host guide's
-[credential handoff](../../../infra/docs/setup.md#give-application-workflows-their-ssh-credentials)
-to retrieve the existing token over pinned SSH and copy it into GitHub. Creating
-an unrelated token in GitHub will cause authentication to fail. Settings placed
-only in the `cli-playground` release environment are unavailable to preview jobs.
-
-If you already have the token in a private local file, set the two values with an
-authenticated `gh` session that can manage repository environment settings:
-
-```sh
-gh variable set CLI_PLAYGROUND_URL --repo di-rs/sanctuary --env cli-playground-preview \
-  --body 'https://play.example.com'
-gh secret set CLI_PLAYGROUND_DEPLOY_TOKEN --repo di-rs/sanctuary --env cli-playground-preview \
-  < /private/path/preview-token
-```
-
-Replace the example origin and file path. The
-[preview workflow](../../../.github/workflows/cli-playground-preview.yml) also
-uses the automatic GitHub token with `contents: read`, `actions: read`,
-`pull-requests: write` and `deployments: write`; no personal access token is needed
-by either publisher. PR builds receive neither the preview token nor host SSH
-credentials. The controller uses `deployment: false` for its credential
-environment. A successful hosted upload creates the deployment for
-`cli-playground/pr-N`. The controller compares the names and SHA-256 digests of
-the binaries with the latest deployment on that PR. Identical binaries update
-the existing deployment status, including after a documentation-only follow-up.
-Each preview catalog and PR comment still identifies the checked commit. For a
-deployment created before content digests were recorded, retries use its commit.
-Build progress, empty builds and lifecycle reconciliation use the credential
-environment without creating deployment records. GitHub supports
-required reviewers with this mode. Custom deployment protection rules are
-incompatible with it.
-
-### Verify publication
-
-Merge publisher changes into `master` before triggering new builds: publication
-runs trusted default-branch code. Push a CLI change to a ready PR, or add `run-ci`
-to a draft to enable the [PR build workflow](../../../.github/workflows/cli-playground.yml).
-An ordinary PR description edit does not trigger cli-playground builds.
-
-After the benchmark and cli-playground build workflows complete, check their separate
-**CLI benchmark reporting** and **cli-playground PR previews** runs in Actions. The PR
-should have a benchmark results comment and a cli-playground comment with a working
-preview link. Open the preview and run the changed CLI to verify the sandbox.
-
-If either cli-playground setting is absent, the publisher posts **Configuration
-needed** with build artifact links instead of a live preview. A green build alone
-does not prove publication succeeded. Check publisher logs for skipped stale
-commits, and check the `cli-playground-preview` environment for pending approval or
-missing settings. After configuring the environment, rerun the cli-playground binary
-build for the current PR commit to trigger publication again.
-
-## Enable generated command catalogs
-
-Keep the repository variable `CLI_PLAYGROUND_CATALOG` unset until the compatible
-publisher is on `master` and the gateway has been upgraded. Roll out in this order:
-
-1. Deploy the backend release with the additive `0003_cli_catalog` migration.
-   The deployment applies Alembic before starting the new service; existing
-   binary-only revisions and upload intents keep null catalog fields.
-2. Verify readiness and open an existing preview. Its terminal must work while
-   the explorer reports **Command reference unavailable**.
-3. Enable catalog generation in the unprivileged PR build by setting the
-   **repository** variable, not the preview environment variable:
-
-   ```sh
-   gh variable set CLI_PLAYGROUND_CATALOG --repo di-rs/sanctuary --body '1'
-   ```
-
-4. Rerun the current PR build. Verify the catalog endpoint, command insertion,
-   and the unchanged terminal connection when switching CLIs. Initial merge bases
-   without exporter support correctly show **Comparison unavailable**.
-
-Unsetting the variable stops new catalog production. Leave the compatible backend
-running: published metadata and immutable revision identities remain valid. Do not
-replace a catalog under an existing revision; use a new workflow run attempt.
-
-### Build and comparison contract
-
-With the variable set to `1` (or the local `build --catalog` option), the build
-exports metadata from the exact copied head executables, resolves `git merge-base`
+The builder exports metadata from the exact copied head executables, resolves `git merge-base`
 for the supplied base and head commits, and builds corresponding baseline CLIs in
 an isolated source directory. Export invokes each binary with exactly `--help`
 and `SANCTUARY_CLI_SCHEMA=1`, before its normal parsing or logging. Each capture
 has a ten-second deadline and a 1 MiB output limit. Its working directory is
 empty and its environment excludes ambient credentials. Execution occurs only
-in the unprivileged build job; the process bounds are not a sandbox.
+inside the disposable build container.
 
 The baseline build has a ten-minute deadline. A missing exporter, failed baseline
 build, or invalid baseline export yields an unavailable comparison. A CLI absent
@@ -124,7 +28,7 @@ up to 1,024 CLIs, depth 16, 4,096 command nodes and 32,768 arguments across both
 trees, with bounded strings and collections. Unknown versions and fields,
 duplicate identities, invalid names, and unsafe control characters are rejected.
 
-Trusted publication and backend admission validate the sidecar against the
+The publisher verifies the bundle checksum. Gateway admission validates the sidecar against the
 expected head SHA and the exact executable names and digests. They never execute
 uploaded binaries. These checks bind descriptions to an artifact; they cannot
 prove that untrusted PR code describes itself honestly. The recorded merge-base
@@ -150,20 +54,3 @@ renames can match through public aliases; ambiguous renames become additions and
 removals. Ordering and whitespace-only prose changes are ignored, as is generated
 usage layout. Explicit usage overrides, short/full help, flags, operands, defaults,
 choices, requiredness, value counts, and global ownership are represented.
-
-## Validation
-
-From the repository root, build the frontend and run the packaging checks with
-Docker and Compose available.
-
-```sh
-pnpm --dir tools/cli-playground/frontend install --frozen-lockfile
-pnpm --dir tools/cli-playground/frontend build
-uv run --locked pytest -m integration tools/cli-playground/tests/test_packaging.py
-```
-
-The PR frontend job checks the installed wheel, static responses and gateway
-Compose topology. The separate
-[shared-system lifecycle workflow](../../../.github/workflows/sanctuary-lifecycle.yml)
-checks native runsc security and both generic and product terminals through the
-private API. Missing runsc is a failure, never a successful runc substitute.

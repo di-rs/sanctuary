@@ -14,14 +14,10 @@ explicitly. See [releases and recovery](../infra/docs/releases.md).
 | Python packages | uv workspace manifests and lockfile | Minor/patch updates together; majors separate |
 | Frontend packages | Frontend package manifest and pnpm lockfile | Minor/patch updates together; majors separate |
 | GitHub Actions | Workflow action references | Individual updates |
-| Container images | Listed Dockerfile and Compose directories | One group across both ecosystems |
+| Container images | Listed Dockerfile and Compose directories | Group application images and review production Compose updates separately |
 | Rust toolchain | `rust-toolchain.toml` | One open toolchain PR at a time |
 
-The container group keeps repeated references together, including Vector's
-collector and storage initializer and Temporal's server and schema tools.
-It can contain major upgrades, so review the release notes and migration needs
-of every changed service. Tests require matching Temporal server/schema versions
-and matching Vector source images.
+Temporal and its schema tool must use the same server version. Review major image upgrades for migration requirements before applying a release.
 
 Keep upstream image versions beside their immutable digests as
 `image:version@sha256:digest`. Compose files and Dockerfiles own those pins;
@@ -42,13 +38,8 @@ checksums. Update these deliberately:
 
 - Release downloads in workflows, including actionlint and lychee: update the URL
   and SHA-256 together and verify the downloaded archive.
-- The Grafana plugin in
-  [plugins.json](../packages/boxie/infra/observability/plugins.json): update the URL
-  and checksum together. Setup reuses an existing plugin directory, so follow the
-  [plugin installation instructions](../packages/boxie/docs/observability.md#configure-grafana)
-  when replacing an installed version.
 - Tools selected through workflow inputs or environment variables, including uv,
-  Pulumi, Gitleaks, and tools installed by `taiki-e/install-action`; minimum tool
+  Gitleaks, and tools installed by `taiki-e/install-action`; minimum tool
   versions in workspace/hook configuration; Python and Node version files; and
   Temporal test-server pins. A package or Action update does not update these pins.
 - Host packages and copied skill sources, using their owning maintenance process.

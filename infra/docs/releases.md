@@ -1,86 +1,39 @@
-# Release and maintain the shared host
+# Release operations
 
-## Choose a release
+Run production actions from the protected `master` branch in the GitHub Actions tab. Each action writes one desired revision to private R2. The host applies projects in dependency order, runs required schema jobs and records successful applications locally. A failed migration leaves the new revision pending for retry.
 
-Run either release manually from Actions on `master`:
+| Change | GitHub workflow |
+| --- | --- |
+| Production website and released CLI bundle | **Deploy Playground** |
+| Boxie API, supervisor and sandbox image | **Deploy Boxie** |
+| PostgreSQL, Temporal, observability or edge | **Deploy Sanctuary services**, then select the component |
+| Issue, rotate or revoke a gateway credential | **Manage Playground service keys** |
 
-- [🚀 cli-playground Release](../../.github/workflows/cli-playground-release.yml)
-  builds and deploys the cli-playground backend and frontend together in the application image.
-- [🚀 Boxie and Sandbox Release](../../.github/workflows/boxie-release.yml)
-  builds the Boxie image and sandbox from one commit, then updates Boxie followed
-  by its default sandbox image. It does not release the cli-playground application.
+For a rollback, select the same component and enter the full 40-character commit of a previously published release in **rollback**. Leave it empty to build the selected protected commit. Schema changes survive an image rollback. Confirm that the older binary can read the new schema before choosing a rollback, especially across PostgreSQL major versions.
 
-A failed stage stops the remaining deployments in its workflow; completed stages
-are not rolled back automatically. Boxie stages use the `boxie` environment;
-the cli-playground release uses `cli-playground`.
-Each stage calls the shared [release transport](../environments/single-host/release.sh) to stream the runner’s local image into Docker over pinned SSH and verify its archive checksum before updating the service. Service scripts own migration and readiness checks.
+## PR previews
 
-## What a release changes
+An open, ready PR from a branch in this repository gets a preview when its complete merge-base diff touches a CLI, its shared utilities, or workspace build inputs. The default-branch workflow reconciles PR events and checks all open PRs every six hours. Drafting or closing a PR, or reverting its last CLI change, requests removal. The host revokes the key, removes the public route, drains Boxie resources and removes that preview's database. Preview keys expire after 24 hours if the publisher stops renewing them.
 
-The Boxie stage checks its local image, stops API and supervisor, runs Alembic migration,
-and starts both services with the metrics overlay. PostgreSQL and Temporal stay
-up. Authenticated readiness must pass before the next stage. Pending requests may
-resume after the restart; an empty capacity table is not a release condition.
-The separate native host acceptance run covers terminal allocation and cleanup.
+Open **Sanctuary / Playground** on the PR commit for the verified preview URL. The status appears after the public gateway serves that commit. The Actions run summary also contains the expected address. A PR with a failing build can keep serving its prior working revision until the existing lease expires. Production code and each preview have independent configuration and database identities. [Command catalogs](../../tools/cli-playground/docs/previews.md)
 
-The sandbox stage changes Boxie's default profile digest and recreates
-Boxie's supervisor, preserving other profile fields. The backend stage recreates only `backend`; its proxy stays up.
+## Service keys
 
-## Queue and retry behavior
+Enter `playground` for production or `pr-42` for a preview in **Manage Playground service keys**. **rotate** gives the existing deployment a fresh key and retires its predecessor. **revoke** blocks new Boxie authorizations. **issue** enables a revoked deployment again. Gateways read their protected credential file on new requests. Rotation and revocation take effect when the host applies the request. Previously authorized open connections follow the service's normal connection and sandbox lifetime.
 
-Setup and release workflows share one `sanctuary-production` queue. Each run selects
-current `master` after entering the queue, then builds and deploys that checkout.
-If a run fails, choose **Re-run all jobs** or start a new workflow run. Re-running
-only failed jobs keeps the earlier source selection and is rejected before
-deployment or provisioning starts.
+## Backups and recovery
 
-Release builds and deployments require
-`DEPLOYMENT_ACCEPTANCE_PASSED`. Pushes do not
-trigger releases.
+At 03:15 UTC the backup timer runs a logical dump of PostgreSQL roles and all databases, compresses it, encrypts it with `age` and uploads the ciphertext to the private backup bucket under `postgres/`. A successful upload updates the backup timestamp metric. Choose a retention policy for that bucket. The decryption identity belongs to the operator.
 
-## Inspect a failed release
-
-An unsuccessful SSH or Compose command fails the Actions run. On the host, inspect
-services and recent logs before rerunning the workflow:
+For a database restore drill, initialize an empty, isolated cluster on the same PostgreSQL major. Give its bootstrap superuser a name absent from the source cluster, such as `recovery_admin`. This account stays connected while the dump recreates the original roles. Download the encrypted backup from R2. In the recovery host's console, use the off-host key and your container name to stream the dump into the new cluster.
 
 ```sh
-docker compose --env-file /etc/sanctuary/boxie.env --env-file /etc/sanctuary/boxie-image.env \
-  -f /opt/sanctuary/boxie/compose.production.yml -f /opt/sanctuary/boxie/compose.operations.yml \
-  -f /opt/sanctuary/boxie/compose.observability.yml ps
-docker compose --env-file /etc/sanctuary/boxie.env --env-file /etc/sanctuary/boxie-image.env \
-  -f /opt/sanctuary/boxie/compose.production.yml -f /opt/sanctuary/boxie/compose.operations.yml \
-  -f /opt/sanctuary/boxie/compose.observability.yml logs --tail 100 api supervisor
-docker compose --env-file /etc/sanctuary/cli-playground.env --env-file /etc/sanctuary/cli-playground-image.env \
-  -f /opt/sanctuary/cli-playground/compose.production.yml ps
+set -o pipefail
+age --decrypt --identity /secure/backup-identity backup.sql.gz.age \
+  | gzip -dc | docker exec -i recovery-postgres-db-1 \
+    psql -X -v ON_ERROR_STOP=1 -U recovery_admin -d postgres
 ```
 
-A migration failure leaves Boxie's API and supervisor stopped. Check migration
-output and database state before retrying; do not start an older application
-against a newer schema. After an SSH interruption, first check whether Compose
-finished the operation and whether the application is healthy. Fix the cause and
-rerun the workflow. There is no automatic rollback or separate deployment state
-to clear.
+Review the restore output, verify database owners and row counts, and exercise a Temporal workflow and a fresh Playground session before directing traffic there. The SQL dump covers database state. Boxie artifact files, TLS keys, host credentials and active terminal files live on the host filesystem. Full recovery of existing sessions requires a separate matching host snapshot and the off-host decryption key. For an empty installation, publish the protected services and CLI bundles to a fresh state directory instead.
 
-## Acceptance and maintenance
-
-Run local checks from the repository root:
-
-```sh
-uv sync --all-packages
-uv run pytest infra/host/tests infra/environments/single-host/tests \
-  packages/boxie/tests/test_deployment.py tools/cli-playground/tests/test_deployment.py \
-  tools/cli-playground/tests/test_infra_workflows.py
-```
-
-On an authorized native Linux amd64 host, exercise fresh setup, an unchanged
-rerun, both release workflows, migration failure and retry, metrics, tunnel
-configuration and preview publication. The local command tests cannot establish
-those host behaviors. The [host requirements](../../packages/boxie/docs/deployment.md#deployment-prerequisites)
-include the runsc and backup checks.
-
-## Certificates and backups
-
-The generated Boxie TLS leaf certificates last 90 days and the CAs last 365 days.
-Plan renewal separately. Maintain an off-host backup and rehearse restoration
-before relying on recovery; the protected disk alone is not a
-backup.
+The Hetzner console also provides emergency diagnostics. `systemctl status sanctuary-sync.timer sanctuary-backup.timer` shows scheduling. `journalctl -u sanctuary-sync -u sanctuary-backup` identifies the component awaiting a successful operation. The host keeps its applied release records under `/var/lib/sanctuary/applied`.

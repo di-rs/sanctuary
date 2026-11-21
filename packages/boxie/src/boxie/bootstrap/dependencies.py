@@ -1,6 +1,7 @@
 """Shared explicit SQL/mTLS construction. Deployment migrations remain operator jobs."""
 
 import asyncio
+import os
 from collections.abc import Awaitable, Callable
 from contextlib import AbstractAsyncContextManager
 from datetime import UTC, datetime, timedelta
@@ -20,7 +21,7 @@ from temporalio.client import Client
 from temporalio.contrib.pydantic import pydantic_data_converter
 from temporalio.service import TLSConfig
 
-from boxie.bootstrap.config import LifecycleConfig, read_credential, validate_file_model
+from boxie.bootstrap.config import LifecycleConfig, read_credential
 from boxie.domain.models import SupervisorIdentity
 from boxie.persistence.database import SessionFactory, database
 from boxie.temporal.contracts import TASK_QUEUE, lifecycle_queue
@@ -35,7 +36,7 @@ def lifecycle_config(data: dict[str, Any]) -> LifecycleConfig:
     converted: dict[str, Any] = {
         key: Path(value) if key.endswith("_file") else value for key, value in data.items()
     }
-    return validate_file_model(LifecycleConfig, converted)
+    return LifecycleConfig.from_deployment(converted)
 
 
 def supervisor_identity(data: dict[str, str]) -> SupervisorIdentity:
@@ -47,11 +48,19 @@ def database_for(path: Path) -> AbstractAsyncContextManager[SessionFactory]:
 
 
 async def temporal_client(config: LifecycleConfig, *, lazy: bool = False) -> Client:
+    from temporalio.client import Interceptor
+
+    interceptors: list[Interceptor] = []
+    if os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT"):
+        from temporalio.contrib.opentelemetry import TracingInterceptor
+
+        interceptors.append(TracingInterceptor())
     # No plaintext/test-server alternative is accepted by this composition root.
     return await Client.connect(
         config.temporal_address,
         namespace=config.temporal_namespace,
         lazy=lazy,
+        interceptors=interceptors,
         data_converter=pydantic_data_converter,
         tls=TLSConfig(
             server_root_ca_cert=config.temporal_ca_file.read_bytes(),

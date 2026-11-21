@@ -97,7 +97,7 @@ class SupervisorConfig(FileOwnedSettings):
     def from_file(cls, path: Path) -> SupervisorConfig:
         data = json.loads(path.read_text())
         if "lifecycle" in data:
-            data["lifecycle"] = validate_file_model(LifecycleConfig, data["lifecycle"])
+            data["lifecycle"] = LifecycleConfig.from_deployment(data["lifecycle"])
         if "artifact_quota" in data:
             data["artifact_quota"] = validate_file_model(ArtifactQuota, data["artifact_quota"])
         identity = data.pop("identity")
@@ -125,6 +125,15 @@ class LifecycleConfig(BaseModel):
     temporal_cert_file: Path
     temporal_key_file: Path
     temporal_namespace: str = Field(default="boxie", min_length=1)
+
+    @classmethod
+    def from_deployment(cls, values: dict[str, Any]) -> Self:
+        external = {
+            field: os.environ["BOXIE_" + field.upper()]
+            for field in cls.model_fields
+            if field.startswith("temporal_") and "BOXIE_" + field.upper() in os.environ
+        }
+        return validate_file_model(cls, external | values)
 
 
 SupervisorConfig.model_rebuild()

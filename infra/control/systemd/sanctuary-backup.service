@@ -1,0 +1,12 @@
+[Unit]
+Description=Back up Sanctuary PostgreSQL to private object storage
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/sanctuary
+EnvironmentFile=/etc/sanctuary/host.env
+EnvironmentFile=/etc/sanctuary/backup.env
+Environment=PATH=/opt/sanctuary-tools/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/bin
+UMask=0077
+ExecStart=/bin/bash /opt/sanctuary/infra/control/backup.sh

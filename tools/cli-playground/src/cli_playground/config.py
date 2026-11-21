@@ -92,7 +92,7 @@ class Settings(DatabaseSettings):
         label = f"pr-{pr}"
         origin = (
             f"https://{label}.{self.preview_domain}"
-            if self.preview_domain and pr is not None
+            if self.preview_domain and pr
             else self.public_url
         )
         return f"{origin}/p/{identifier}"

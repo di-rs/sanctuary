@@ -25,7 +25,7 @@ class Preview(Table, table=True):
     __tablename__ = "preview"
     __table_args__ = (
         UniqueConstraint("id"),
-        CheckConstraint("pr > 0", name="positive_pr"),
+        CheckConstraint("pr >= 0", name="environment_number"),
         CheckConstraint(
             "num_nonnulls(build_state, build_sha, run_id, run_number, run_attempt) = 0 OR (num_nonnulls(build_state, build_sha, run_id, run_number, run_attempt) = 5 AND build_state IN ('building','failed','empty','cancelled','ready') AND run_id > 0 AND run_number > 0 AND run_attempt > 0)",
             name="valid_build",

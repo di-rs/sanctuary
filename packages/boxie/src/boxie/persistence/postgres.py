@@ -237,11 +237,22 @@ class PostgresLifecycle:
                     await self._check_output_budget(
                         session, principal, snapshot.limits.output_bytes
                     )
+                available = select(CapacitySlot).where(col(CapacitySlot.sandbox_id).is_(None))
+                if principal.consumer_id not in self.job_policy.priority_consumers:
+                    available = available.where(CapacitySlot.slot > self.job_policy.reserved_slots)
+                    if self.job_policy.per_consumer_slots < 8:
+                        await keyed_lock(session, json.dumps(["slot-quota", principal.consumer_id]))
+                        used = await session.scalar(
+                            select(func.count())
+                            .select_from(CapacitySlot)
+                            .join(Sandbox, col(Sandbox.id) == col(CapacitySlot.sandbox_id))
+                            .where(Sandbox.consumer_id == principal.consumer_id)
+                        )
+                        if used is not None and used >= self.job_policy.per_consumer_slots:
+                            raise BoxieError(429, "consumer sandbox capacity reached")
                 slot = (
                     await session.exec(
-                        select(CapacitySlot)
-                        .where(col(CapacitySlot.sandbox_id).is_(None))
-                        .order_by(col(CapacitySlot.slot))
+                        available.order_by(col(CapacitySlot.slot))
                         .with_for_update(skip_locked=True)
                         .limit(1)
                     )

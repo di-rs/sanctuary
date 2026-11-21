@@ -1,44 +1,24 @@
-# Trace requests across services
+# Observe Sanctuary
+
+Sign into the Grafana hostname using your Cloudflare Access email PIN. Grafana also verifies the assertion signature, your email, issuer and application audience. Open the Temporal UI hostname through its own Access application to inspect workflow progress. The tunnel connects directly to the two private services.
 
 ## Search across services
 
-Copy an HTTP response's `X-Request-ID`, open Grafana Explore, select the VictoriaLogs
-datasource and search `request_id:="<UUID>"`. Leave the service filter unset to see
-cli-playground, Boxie API and supervisor events together. Use `sandbox_id` for
-creation, later stops and reconnects that have different request IDs.
+Grafana Explore provides **Metrics**, **Traces** and **Logs** data sources. Start with the service name `playground`, `playground-preview`, `boxie-api` or `boxie-supervisor`. Use the trace ID for a request across instrumented HTTP calls. Application events also carry a request ID where one exists. Use the Temporal UI to follow related workflow executions. Tempo retains traces for 48 hours, Loki retains logs for 72 hours and Prometheus retains metrics for up to seven days or 2 GB.
 
-## Install the collector extension
+## Send email alerts
 
-Host setup installs the optional [collector overlay](../environments/single-host/observability/compose.yml)
-after starting the service-owned projects. It adds Playground's own validator
-from `/opt/sanctuary/cli-playground/observability/vector.yaml` to Boxie's collector.
-Standalone Boxie keeps its original collector configuration and dashboard scope.
-The extension has a separate bounded 512 MiB disk buffer, so reserve another
-512 MiB on the collector volume; log-store retention is shared and unchanged.
+In Better Stack, add a **Prometheus Alertmanager** integration, choose the operator email as the incident escalation recipient and save the integration URL in the host's alert webhook file. Alertmanager sends grouped alerts and recoveries to that receiver. Use Better Stack's integration test to verify email delivery. [Better Stack integration](https://betterstack.com/docs/uptime/prometheus/)
 
-## Upgrade request correlation
+Create a separate HTTPS monitor for `https://play.example.net/healthz` using your actual public hostname. Select the expected HTTP 200 response, a one-minute interval if your plan supports it, and confirmation after three consecutive failed checks or the equivalent confirmation window for your interval. This external monitor can alert when the host and its own monitoring are both down.
 
-1. Apply Boxie Alembic revision `0006_request_correlation`, then update both Boxie
-   processes. Its nullable columns allow older writers during rollout.
-2. Apply the playground schema upgrades before starting its gateway.
-3. Install the collector extension.
+| Alert | Initial condition |
+| --- | --- |
+| Service unavailable | A configured Prometheus scrape target is down for 3 minutes |
+| Server errors | At least 5 HTTP 5xx responses and more than 5% of requests in 10 minutes, by service |
+| Provisioning failure | At least 3 failed sandbox provisions in 10 minutes |
+| Queued starts | Oldest undelivered Boxie start exceeds 60 seconds for 5 minutes |
+| Low disk | Less than 15% of the data filesystem is free for 15 minutes |
+| Backup overdue | Last successful upload is more than 26 hours old or its metric is missing for 5 minutes |
 
-Existing rows retain an unknown request origin until a new
-action supplies one, so historical operations can leave gaps in an ID search.
-
-### Roll back an application upgrade
-
-Keep Boxie's nullable correlation columns during application rollback. Playground
-checks its exact schema revision: to return to the preceding PostgreSQL release,
-stop the gateway and downgrade its database to `0001_metadata` before starting
-that release. This removes diagnostic IDs while preserving pending operations.
-The [database guide](../../tools/cli-playground/docs/database.md#database-and-cutover)
-covers backup and the cutover from file-based state.
-
-## Verify the deployment
-
-Before activation, verify request and stop IDs through restart recovery on native
-Linux amd64 with runsc, and verify journald collection after an outage. Local
-Vector validation and Docker Desktop transport tests do not establish those host
-gates. The [Boxie logging guide](../../packages/boxie/docs/observability.md)
-covers journal permissions, retention and pressure checks.
+The error rule uses server responses. Normal CLI command exit codes do not count toward provisioning failures. Tune these defaults once traffic provides a baseline. [Alert definitions](../services/monitoring/alerts.yml)

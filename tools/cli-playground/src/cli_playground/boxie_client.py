@@ -1,7 +1,7 @@
 """Product-owned adapter for Boxie's private consumer HTTP/WebSocket API."""
 
 import asyncio
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from functools import partial
 from pathlib import Path
@@ -58,22 +58,21 @@ class HttpTerminal:
 
 
 class HttpBoxieClient:
-    def __init__(self, url: str, credential: str) -> None:
+    def __init__(self, url: str, credential: str | Callable[[], str]) -> None:
         self.url = url.rstrip("/")
-        self.headers = {"Authorization": f"Bearer {credential}"}
+        self.credential = credential
         self._session: aiohttp.ClientSession | None = None
 
     def _headers(self, extra: dict[str, str] | None = None) -> dict[str, str]:
-        result = self.headers | (extra or {})
+        secret = self.credential() if callable(self.credential) else self.credential
+        result = {"Authorization": f"Bearer {secret}"} | (extra or {})
         if request_id := current_request_id():
             result["X-Request-ID"] = request_id
         return result
 
     def _http(self) -> aiohttp.ClientSession:
         if self._session is None:
-            self._session = aiohttp.ClientSession(
-                headers=self.headers, timeout=aiohttp.ClientTimeout(total=30)
-            )
+            self._session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30))
         return self._session
 
     async def _request(

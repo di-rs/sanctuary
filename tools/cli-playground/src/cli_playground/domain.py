@@ -37,7 +37,8 @@ class ArtifactConflictError(ValueError):
 
 
 def identifier(pr: int) -> str:
-    return hashlib.sha256(f"pull-request:{pr}".encode()).hexdigest()[:32]
+    identity = "production" if pr == 0 else f"pull-request:{pr}"
+    return hashlib.sha256(identity.encode()).hexdigest()[:32]
 
 
 def check_build(record: PreviewRecord | None, closed: bool, build: BuildIdentity | None) -> None:

@@ -68,10 +68,8 @@ updates:
         update-types: [minor, patch]
   - package-ecosystem: docker
     directories:
-      - /packages/boxie/infra
-      - /packages/boxie/infra/observability/collector
+      - /infra/images
       - /tools/cli-playground
-      - /tools/cli-playground/infra/docker
     patterns: ['*']
     multi-ecosystem-group: container-images
   - package-ecosystem: docker
@@ -85,25 +83,13 @@ updates:
       - dependency-name: ubuntu
         versions: ['< 24.04', '>= 24.05']
   - package-ecosystem: docker-compose
-    directory: /packages/boxie/infra/postgres
+    directory: /infra/services
     schedule:
       interval: weekly
     labels: ["dependencies", "type:dependencies", "docker", "risk:high", "impact:persistence"]
     commit-message:
       prefix: ':arrow_up: deps'
       include: scope
-  - package-ecosystem: docker-compose
-    directories:
-      - /packages/boxie/infra/ingress
-      - /packages/boxie/infra/observability
-      - /packages/boxie/infra/temporal
-      - /tools/cli-playground/infra
-    patterns: ['*']
-    multi-ecosystem-group: container-images
-    # Local development defaults are built here, not published upstream dependencies.
-    ignore:
-      - dependency-name: boxie-collector
-      - dependency-name: cli-playground
   - package-ecosystem: rust-toolchain
     directory: /
     labels: ["dependencies", "type:dependencies", "rust"]

@@ -1,6 +1,7 @@
 """Application wiring, static assets, and process lifecycle."""
 
 import asyncio
+import errno
 import os
 import stat
 import time
@@ -16,6 +17,7 @@ from fastapi.staticfiles import StaticFiles
 from cli_playground.boxie_client import HttpBoxieClient
 from cli_playground.config import Settings
 from cli_playground.database import check_schema, session_factory
+from cli_playground.metrics import listener
 from cli_playground.observability import (
     RequestContext,
     configure_logging,
@@ -34,6 +36,23 @@ from cli_playground.upload_staging import run_staging
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 
+def read_boxie_key(secret: Path) -> str:
+    try:
+        fd = os.open(secret, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    except OSError as error:
+        if error.errno == errno.ELOOP:
+            raise ValueError("Boxie credential must be a private regular file") from error
+        raise
+    with os.fdopen(fd, "r") as stream:
+        info = os.fstat(stream.fileno())
+        if not stat.S_ISREG(info.st_mode) or info.st_mode & 0o077:
+            raise ValueError("Boxie credential must be a private regular file")
+        credential = stream.read(4097).strip()
+    if not 16 <= len(credential) <= 4096 or any(not 33 <= ord(c) <= 126 for c in credential):
+        raise ValueError("invalid Boxie credential file")
+    return credential
+
+
 def create_app(
     settings: Settings | None = None,
     *,
@@ -44,13 +63,8 @@ def create_app(
     configure_logging()
     settings = settings or Settings()
     if boxie is None:
-        secret = settings.boxie_credential_file
-        if not stat.S_ISREG(secret.lstat().st_mode) or secret.lstat().st_mode & 0o077:
-            raise ValueError("Boxie credential must be a private regular file")
-        with os.fdopen(os.open(secret, os.O_RDONLY | os.O_NOFOLLOW), "r") as stream:
-            credential = stream.read(4097).strip()
-        if not 16 <= len(credential) <= 4096 or any(not 33 <= ord(c) <= 126 for c in credential):
-            raise ValueError("invalid Boxie credential file")
+        credential = partial(read_boxie_key, settings.boxie_credential_file)
+        credential()
         boxie = HttpBoxieClient(settings.boxie_url, credential)
     sessions = session_factory(str(settings.database_url))
     service = CliPlaygroundService(
@@ -72,7 +86,8 @@ def create_app(
             await run_staging(partial(service.staging.recover, pending_uploads))
             await service.recover()
             cleanup = asyncio.create_task(service.cleanup_periodically())
-            yield
+            with listener():
+                yield
         finally:
             if cleanup is not None:
                 cleanup.cancel()

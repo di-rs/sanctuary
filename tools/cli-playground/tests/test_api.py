@@ -551,3 +551,34 @@ def test_json_body_limit_precedes_authentication(api_client: TestClient) -> None
         headers={"Content-Type": "application/json"},
     )
     assert response.status_code == 413
+
+
+def test_production_and_preview_renew_only_current_revision(
+    api_client: TestClient, clock: MutableClock
+) -> None:
+    from cli_playground.domain import identifier
+
+    for number in (0, 17):
+        assert upload(api_client, pr=number)["id"] == identifier(number)
+        path = f"/api/deployments/{number}/renew"
+        assert api_client.post(path, params={"sha": "a" * 40}).status_code == 401
+        assert api_client.post(path, params={"sha": "b" * 40}, headers=AUTH).status_code == 404
+    clock.now += 6 * 86400
+    for number in (0, 17):
+        assert (
+            api_client.post(
+                f"/api/deployments/{number}/renew", params={"sha": "a" * 40}, headers=AUTH
+            ).status_code
+            == 200
+        )
+    clock.now += 2 * 86400
+    for number in (0, 17):
+        state = api_client.get(f"/api/environments/{identifier(number)}")
+        assert state.status_code == 200 and state.json()["pr"] == number
+    assert api_client.delete("/api/pull-requests/17?drain=true", headers=AUTH).status_code == 200
+    assert (
+        api_client.post(
+            "/api/deployments/17/renew", params={"sha": "a" * 40}, headers=AUTH
+        ).status_code
+        == 404
+    )

@@ -101,6 +101,17 @@ class EnvironmentStore:
     ) -> None:
         self.sessions, self.preview_seconds, self.clock = sessions, preview_seconds, clock
 
+    async def renew(self, number: int, sha: str) -> bool:
+        async with connection(self.sessions, write=True) as session:
+            row = await session.get(Preview, number, with_for_update=True)
+            if row is None or row.closed or row.current_revision is None:
+                return False
+            revision = await session.get(Revision, (number, row.current_revision))
+            if revision is None or revision.sha != sha:
+                return False
+            row.expires_at = revision.expires_at = self.clock() + self.preview_seconds
+            return True
+
     async def is_closed(self, pr: int) -> bool:
         async with connection(self.sessions) as session:
             row = await session.get(Preview, pr)

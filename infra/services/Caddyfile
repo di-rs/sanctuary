@@ -1,0 +1,19 @@
+{
+    auto_https off
+    admin localhost:2019
+}
+(playground) {
+    @control path /api/deployments/* /api/pull-requests/*
+    respond @control 404
+    @upload {
+        method POST
+        path /api/environments
+    }
+    respond @upload 404
+    redir / {args[1]} 302
+    reverse_proxy {args[0]}:8000
+}
+import /routes/*.caddy
+:80 {
+    respond 404
+}

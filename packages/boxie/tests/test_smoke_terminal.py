@@ -5,8 +5,8 @@ import json
 from pathlib import Path
 
 import pytest
-from boxie_infra.terminal import Session
 from boxie_test_support.api import CONSUMER_AUTH, artifact, create, ready, terminal_url
+from boxie_test_support.native_terminal import Session
 from boxie_test_support.terminal_network import network
 from websockets.asyncio.client import connect
 from websockets.exceptions import ConnectionClosedError

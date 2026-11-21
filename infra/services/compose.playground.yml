@@ -1,0 +1,33 @@
+x-runtime: &runtime
+  image: ${PLAYGROUND_IMAGE:?load Playground first}
+  pull_policy: never
+  user: "10001:10001"
+  read_only: true
+  tmpfs: [/tmp]
+  security_opt: [no-new-privileges:true]
+  cap_drop: [ALL]
+  env_file: ${INSTANCE}/web.env
+  volumes:
+    - ${INSTANCE}/client:/client:ro
+    - ${INSTANCE}/data:/data
+services:
+  migrate:
+    <<: *runtime
+    command: [alembic, -c, /app/alembic.ini, upgrade, head]
+    networks: [database]
+  web:
+    <<: *runtime
+    restart: unless-stopped
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    command: [opentelemetry-instrument, uvicorn, cli_playground.app:create_app, --factory, --host, 0.0.0.0, --port, "8000", --no-access-log]
+    networks:
+      public: {aliases: ["${WEB_ALIAS}"]}
+      clients: {}
+      database: {}
+      telemetry: {aliases: ["${WEB_ALIAS}"]}
+networks:
+  database: {external: true, name: "${SITE}-database"}
+  clients: {external: true, name: "${SITE}-clients"}
+  public: {external: true, name: "${SITE}-web"}
+  telemetry: {external: true, name: "${SITE}-telemetry"}

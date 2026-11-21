@@ -175,11 +175,11 @@ labels:
     matcher:
       files:
         any: &production_persistence
-          - "packages/boxie/infra/postgres/**"
-          - "packages/boxie/infra/temporal/compose.yml"
-          - "packages/boxie/infra/temporal/schema.sh"
+          - "infra/services/compose.postgres.yml"
+          - "infra/services/compose.temporal.yml"
+          - "infra/services/temporal-schema.sh"
           - "packages/boxie/alembic/versions/**"
-          - "tools/cli-playground/infra/postgres/**"
+          - "infra/control/runtime.py"
           - "tools/cli-playground/src/cli_playground/alembic/versions/**"
       body: '<!-- labels:risk -->\s*(?:- \[ \] [^\r\n]*\r?\n\s*)*- \[[xX]\] `risk:high`[^\r\n]*\r?\n\s*(?:- \[ \] [^\r\n]*\r?\n\s*)*<!-- /labels:risk -->'
   - label: impact:breaking

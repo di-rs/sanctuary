@@ -33,7 +33,7 @@ def records(result: subprocess.CompletedProcess[str]) -> list[dict[str, object]]
     events = [json.loads(line) for line in lines]
     schema = json.loads(
         (
-            Path(__file__).parents[3] / "packages/boxie/infra/observability/event.schema.json"
+            Path(__file__).parents[3] / "packages/boxie/native-test/observability/event.schema.json"
         ).read_text()
     )
     for event in events:

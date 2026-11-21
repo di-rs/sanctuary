@@ -1,0 +1,45 @@
+name: Publish one private service release
+on:
+  workflow_call:
+    inputs:
+      component: {required: true, type: string}
+      rollback: {type: string, default: ''}
+permissions: {contents: read}
+concurrency:
+  group: sanctuary-production-${{ inputs.component }}
+  cancel-in-progress: false
+jobs:
+  release:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    environment: sanctuary-delivery
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: {persist-credentials: false, fetch-depth: 0}
+      - if: inputs.rollback == '' && (inputs.component == 'playground' || inputs.component == 'boxie')
+        env: {COMPONENT: "${{ inputs.component }}"}
+        run: |
+          set -eu
+          package=$COMPONENT
+          if [ "$COMPONENT" = playground ]; then package=cli-playground; fi
+          docker build --file infra/images/App.Dockerfile --target "$COMPONENT" --build-arg "PACKAGE=$package" --tag "sanctuary/$COMPONENT:$GITHUB_SHA" .
+          docker save "sanctuary/$COMPONENT:$GITHUB_SHA" | gzip -1 > "$RUNNER_TEMP/$COMPONENT.tar.gz"
+          if [ "$COMPONENT" = boxie ]; then
+            docker build --file packages/boxie/sandbox/Dockerfile --tag "sanctuary/sandbox:$GITHUB_SHA" .
+            docker save "sanctuary/sandbox:$GITHUB_SHA" | gzip -1 > "$RUNNER_TEMP/sandbox.tar.gz"
+          else
+            bash infra/control/build.sh "$PWD" "$PWD" "$GITHUB_SHA" "$GITHUB_SHA" "$RUNNER_TEMP/bundle.zip"
+          fi
+      - env:
+          COMPONENT: ${{ inputs.component }}
+          ROLLBACK: ${{ inputs.rollback }}
+          RELEASE_COMMIT: ${{ inputs.rollback || github.sha }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          SANCTUARY_R2_BUCKET: ${{ vars.SANCTUARY_R2_BUCKET }}
+          AWS_ACCESS_KEY_ID: ${{ vars.R2_PUBLISH_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_PUBLISH_SECRET }}
+        run: |
+          action=release
+          if [ -n "$ROLLBACK" ]; then action=rollback; fi
+          python3 -m infra.control.publish "$action" "$COMPONENT"
