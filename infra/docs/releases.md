@@ -25,12 +25,13 @@ Enter `playground` for production or `pr-42` for a preview in **Manage Playgroun
 
 At 03:15 UTC the backup timer runs a logical dump of PostgreSQL roles and all databases, compresses it, encrypts it with `age` and uploads the ciphertext to the private backup bucket under `postgres/`. A successful upload updates the backup timestamp metric. Choose a retention policy for that bucket. The decryption identity belongs to the operator.
 
-For a database restore drill, use an isolated host and an empty cluster on the same PostgreSQL major. Download a backup from R2 and use the off-host identity to decrypt it. In the isolated host console, stream the dump into the recovery cluster. Replace the container name and paths with the recovery installation's values.
+For a database restore drill, initialize an empty, isolated cluster on the same PostgreSQL major. Give its bootstrap superuser a name absent from the source cluster, such as `recovery_admin`. This account stays connected while the dump recreates the original roles. Download the encrypted backup from R2. In the recovery host's console, use the off-host key and your container name to stream the dump into the new cluster.
 
 ```sh
 set -o pipefail
 age --decrypt --identity /secure/backup-identity backup.sql.gz.age \
-  | gzip -dc | docker exec -i recovery-postgres-db-1 psql -X -U postgres
+  | gzip -dc | docker exec -i recovery-postgres-db-1 \
+    psql -X -v ON_ERROR_STOP=1 -U recovery_admin -d postgres
 ```
 
 Review the restore output, verify database owners and row counts, and exercise a Temporal workflow and a fresh Playground session before directing traffic there. The SQL dump covers database state. Boxie artifact files, TLS keys, host credentials and active terminal files live on the host filesystem. Full recovery of existing sessions requires a separate matching host snapshot and the off-host decryption key. For an empty installation, publish the protected services and CLI bundles to a fresh state directory instead.
