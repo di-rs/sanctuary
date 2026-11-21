@@ -65,6 +65,13 @@ Advisory secret scans must not publish credential values and run without credent
   by validated, shell-quoted text; never derive terminal control sequences from
   metadata. Disable builder edits outside the observed prompt. Do not log drafts
   or send them to external search or telemetry services.
+- **Host to off-host recovery:** Use encrypted, append-only backup storage with
+  separate retention and recovery credentials. Keep the recovery password and
+  state-backend passphrase independently accessible after host loss. A verified
+  snapshot contains private output, deployment secrets and signing keys. Keep
+  decrypted staging private. Fence the former execution owner and reconcile
+  post-backup requests before admitting consumers on a replacement.
+  [Off-host recovery](../infra/docs/off-host-recovery.md)
 - **Sandbox to host:** Only the supervisor receives Docker access. Preserve
   [runsc isolation](../packages/boxie/src/boxie/sandbox/docker.py), the non-root
   user, disabled network, read-only root and artifacts, dropped capabilities,

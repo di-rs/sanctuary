@@ -81,6 +81,5 @@ include the runsc and backup checks.
 ## Certificates and backups
 
 The generated Boxie TLS leaf certificates last 90 days and the CAs last 365 days.
-Plan renewal separately. Maintain an off-host backup and rehearse restoration
-before relying on recovery; the protected disk alone is not a
-backup.
+Plan renewal separately and rehearse [off-host recovery](off-host-recovery.md)
+before relying on retained data.
