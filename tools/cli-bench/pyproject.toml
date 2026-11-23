@@ -2,7 +2,7 @@
 name = "cli-bench"
 version = "0.1.0"
 requires-python = ">=3.15"
-dependencies = ["pydantic>=2.14.3,<3", "cli-check"]
+dependencies = ["pydantic>=2.14.4,<3", "cli-check"]
 
 [project.scripts]
 cli-bench = "cli_bench.command:main"

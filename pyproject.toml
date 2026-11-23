@@ -11,7 +11,7 @@ dependencies = [
     "githubkit>=0.17.1,<0.18",
     "httpx",
     "anyio",
-    "pydantic>=2.14,<3",
+    "pydantic>=2.14.4,<3",
 ]
 
 [dependency-groups]
