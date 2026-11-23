@@ -18,6 +18,14 @@ class AdmissionRejected(BoxieUnavailable):
     """Boxie confirmed that this creation request did not admit a sandbox."""
 
 
+class BoxieCredentialRejected(BoxieUnavailable):
+    """Boxie rejected the credentials for a stop request."""
+
+
+class SandboxNotFound(BoxieUnavailable):
+    """Boxie's stop endpoint cannot find the sandbox for this credential."""
+
+
 class TerminalWriteClosed(BoxieUnavailable):
     """Boxie closed normally while its final response may still be buffered."""
 
@@ -65,6 +73,7 @@ class TerminalPort(Protocol):
 
 
 class BoxieClient(Protocol):
+    def sandbox_scope(self, identifier: UUID) -> str: ...
     async def upload(self, identifier: UUID, digest: str, archive: Path) -> None: ...
     async def retire(self, identifier: UUID) -> None: ...
     async def create(self, key: str, spec: SandboxRequest) -> SandboxView: ...

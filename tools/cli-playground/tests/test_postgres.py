@@ -1,6 +1,7 @@
 """Real PostgreSQL persistence and transaction boundaries."""
 
 import asyncio
+import json
 import os
 import subprocess
 from pathlib import Path
@@ -187,6 +188,62 @@ def test_correlation_upgrade_preserves_pending_legacy_retirements(postgres_dsn: 
                 text("SELECT artifact_id, completed FROM artifact_retirement")
             ).one() == (artifact, False)
         command.upgrade(config, "head")
+    finally:
+        engine.dispose()
+
+
+def test_stop_reconciliation_upgrade_preserves_pending_binding(postgres_dsn: str) -> None:
+    from alembic import command
+    from alembic.config import Config
+    from sqlalchemy import create_engine, text
+
+    config = Config(str(Path(__file__).parents[1] / "alembic.ini"))
+    config.set_main_option("sqlalchemy.url", postgres_dsn.replace("%", "%%"))
+    command.upgrade(config, "0003_cli_catalog")
+    identifier, request_id = uuid4(), uuid4()
+    sandbox = {
+        "id": str(uuid4()),
+        "state": "terminating",
+        "created_at": "2026-11-19T00:00:00Z",
+        "absolute_deadline": "2026-11-19T01:00:00Z",
+        "reason": "requested",
+        "cleanup_pending": True,
+    }
+    engine = create_engine(postgres_dsn)
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                text("INSERT INTO preview (pr, id, closed) VALUES (123, 'pr', true)")
+            )
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO session_binding (
+                        id, preview_id, revision, credential_hash, sandbox, pending_stop,
+                        stop_request_id, attached, attachment_claim
+                    ) VALUES (
+                        :id, 'pr', 'rev', 'digest', CAST(:sandbox AS jsonb), true, :request_id, true, 1
+                    )
+                    """
+                ),
+                {"id": identifier, "request_id": request_id, "sandbox": json.dumps(sandbox)},
+            )
+        command.upgrade(config, "head")
+        with engine.begin() as connection:
+            assert connection.execute(
+                text(
+                    "SELECT id, stop_request_id, pending_stop, sandbox_scope, stop_absent, sandbox "
+                    "FROM session_binding"
+                )
+            ).one() == (identifier, request_id, True, None, False, sandbox)
+            connection.execute(
+                text("UPDATE session_binding SET pending_stop = false, stop_absent = true")
+            )
+        command.downgrade(config, "0003_cli_catalog")
+        with engine.connect() as connection:
+            assert connection.execute(
+                text("SELECT id, stop_request_id, pending_stop FROM session_binding")
+            ).one() == (identifier, request_id, True)
     finally:
         engine.dispose()
 

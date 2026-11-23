@@ -26,8 +26,18 @@ the persisted upload intent.
 Remote operations still need recovery. Playground persists an intent before
 uploading an artifact or requesting a sandbox, and retries with the same UUID.
 Unclaimed admissions are compensated by stopping their sandboxes. Stops and
-artifact retirements remain pending until Boxie confirms them. A database error
-is an unavailable response, never an empty state or permission to discard work.
+artifact retirements remain pending until Boxie confirms them. A pending stop
+can also settle when Boxie reports that the sandbox is absent. Playground
+requires a matching fingerprint of the Boxie origin, the consumer credential,
+and the saved sandbox ID. It records `stop_absent` and preserves the original
+request ID and last Boxie status. Closed-preview cleanup skips that settled stop.
+
+Old bindings begin without a fingerprint. A successful stop response matching
+the saved sandbox can establish one. After a credential or origin change, an
+absence response alone leaves the stop pending. Credential rejections are
+logged separately from transient failures, and retries reuse the original
+request ID. A database error is an unavailable response and leaves work
+eligible for recovery.
 
 ## What stays on disk
 
@@ -59,9 +69,11 @@ and fails if it is missing or incompatible. It does not create or upgrade tables
 
 Catalog rollout requires the migration and compatible gateway before enabling
 the PR build variable; follow the [publication sequence](previews.md#enable-generated-command-catalogs).
-The startup schema check expects `0003_cli_catalog`. An older application may
-reject the newer schema on restart, so retain the compatible application when
-disabling catalog production.
+The startup schema check expects `0004_stop_reconciliation`. Upgrade from
+`0003_cli_catalog` before starting the updated gateway. To return to the older
+gateway, stop the gateway, downgrade to `0003_cli_catalog`, then start the older
+version. Downgrading requeues stops recorded as absent and preserves their
+original request IDs.
 
 ### Author a migration
 

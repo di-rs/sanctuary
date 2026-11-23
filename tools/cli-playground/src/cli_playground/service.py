@@ -33,7 +33,9 @@ from cli_playground.ports import EnvironmentStore, SessionStore
 from cli_playground.sandbox import (
     AdmissionRejected,
     BoxieClient,
+    BoxieCredentialRejected,
     BoxieUnavailable,
+    SandboxNotFound,
     SandboxRequest,
     SandboxView,
 )
@@ -68,6 +70,7 @@ class CliPlaygroundService:
 
     async def retry_stops(self) -> None:
         for binding in await self.sessions.pending_stops():
+            scope = self.boxie.sandbox_scope(binding.sandbox.id)
             with (
                 request_context(str(binding.stop_request_id) if binding.stop_request_id else None),
                 sandbox_context(binding.sandbox.id),
@@ -76,9 +79,22 @@ class CliPlaygroundService:
                     view = await self.boxie.terminate(binding.sandbox.id, binding.sandbox)
                     await self.sessions.change(
                         binding.id,
-                        partial(domain.confirm_stop, view=view),
+                        partial(domain.confirm_stop, view=view, scope=scope),
                         claimed=True,
                     )
+                except SandboxNotFound:
+                    if binding.sandbox_scope == scope:
+                        await self.sessions.change(
+                            binding.id,
+                            partial(domain.confirm_stop_absent, expected=binding),
+                            claimed=True,
+                        )
+                    else:
+                        logger.warning(
+                            "Sandbox stop remains pending without matching Boxie binding"
+                        )
+                except BoxieCredentialRejected:
+                    logger.warning("Sandbox stop credential rejected")
                 except BoxieUnavailable:
                     logger.warning("Sandbox stop remains pending")
 
@@ -133,7 +149,10 @@ class CliPlaygroundService:
         for intent in await self.sessions.creates():
             saved = await self.sessions.get(intent.id)
             if saved is not None and (
-                saved.attached or saved.attachment_deadline is not None or saved.pending_stop
+                saved.attached
+                or saved.attachment_deadline is not None
+                or saved.pending_stop
+                or saved.stop_absent
             ):
                 continue
             if intent.id in self.active_creates or (
@@ -143,7 +162,9 @@ class CliPlaygroundService:
             with request_context(str(intent.request_id) if intent.request_id else None):
                 try:
                     sandbox = await self.boxie.create(str(intent.id), intent.spec)
-                    await self.sessions.recover_creation(intent, sandbox)
+                    await self.sessions.recover_creation(
+                        intent, sandbox, scope=self.boxie.sandbox_scope(sandbox.id)
+                    )
                 except AdmissionRejected:
                     await self.sessions.claimed(intent.id)
                 except BoxieUnavailable:
@@ -247,6 +268,7 @@ class CliPlaygroundService:
                 revision=revision,
                 credential_hash=intent.credential_hash,
                 sandbox=sandbox,
+                sandbox_scope=self.boxie.sandbox_scope(sandbox.id),
             )
             await self.sessions.save(binding)
             current = await self.store.get(preview_id)

@@ -93,6 +93,8 @@ class SessionBinding(BaseModel):
     credential_hash: str
     pending_stop: bool = False
     stop_request_id: RequestId = None
+    sandbox_scope: str | None = None
+    stop_absent: bool = False
     attachment_deadline: float | None = None
     attached: bool = False
     attachment_claim: int = 0
@@ -132,6 +134,7 @@ def authenticate_binding(
         or binding.revision != revision
         or not binding.authenticates(credential)
         or binding.pending_stop
+        or binding.stop_absent
         or binding.sandbox.state in {"terminating", "terminated", "failed"}
         or binding.sandbox.absolute_deadline <= datetime.fromtimestamp(now, UTC)
     ):
@@ -168,20 +171,37 @@ def cancel_attachment(
 
 
 def request_stop(binding: SessionBinding, request_id: UUID | None = None) -> None:
-    if binding.sandbox.state in {"terminated", "failed"} and not binding.sandbox.cleanup_pending:
+    if binding.stop_absent or (
+        binding.sandbox.state in {"terminated", "failed"} and not binding.sandbox.cleanup_pending
+    ):
         return
     if not binding.pending_stop:
         binding.stop_request_id = request_id
     binding.pending_stop = True
 
 
-def confirm_stop(binding: SessionBinding, view: SandboxView) -> None:
+def confirm_stop(binding: SessionBinding, view: SandboxView, *, scope: str) -> None:
     from cli_playground.sandbox import validate_sandbox
 
+    if not binding.pending_stop:
+        return
     validate_sandbox(view, binding.sandbox)
     binding.sandbox = view
+    binding.sandbox_scope = scope
     binding.attachment_deadline = None
     binding.pending_stop = view.cleanup_pending or view.state not in {"terminated", "failed"}
+
+
+def confirm_stop_absent(binding: SessionBinding, *, expected: SessionBinding) -> None:
+    if (
+        binding.pending_stop
+        and binding.stop_request_id == expected.stop_request_id
+        and binding.sandbox_scope == expected.sandbox_scope
+        and binding.sandbox.id == expected.sandbox.id
+    ):
+        binding.attachment_deadline = None
+        binding.pending_stop = False
+        binding.stop_absent = True
 
 
 def publication(

@@ -167,9 +167,10 @@ class EnvironmentStore:
     async def inactive_identifiers(self) -> set[str]:
         async with connection(self.sessions) as session:
             needs_stop = select(Binding.preview_id).where(
+                col(Binding.stop_absent).is_(False),
                 col(Binding.pending_stop)
                 | col(Binding.sandbox)["cleanup_pending"].as_boolean()
-                | col(Binding.sandbox)["state"].as_string().not_in(["terminated", "failed"])
+                | col(Binding.sandbox)["state"].as_string().not_in(["terminated", "failed"]),
             )
             return set(
                 await session.exec(
