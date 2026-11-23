@@ -11,7 +11,7 @@ readme = "README.md"
 [dependencies]
 clap = { workspace = true, features = ["env"] }
 log.workspace = true
-flexi_logger = { version = "0.31.10", default-features = false, features = ["json", "kv"] }
+flexi_logger = { version = "0.32.0", default-features = false, features = ["json", "kv"] }
 cli-schema.workspace = true
 
 [dev-dependencies]
